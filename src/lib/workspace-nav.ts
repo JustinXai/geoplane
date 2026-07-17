@@ -66,10 +66,19 @@ export function assertSurfaceIsolatedLinks(
 
 // Fixture-only placeholder data. No real customer data, no database.
 
+// Checkpoint C2 update: the C1 placeholder hrefs (/app/projects, /app/deliverables)
+// pointed at surfaces that did not exist yet. This now links to the six real client
+// workspace surfaces built in checkpoint C2 (src/app/app/*, see
+// docs/architecture/SYSTEM_BLUEPRINT_V1.md business core items 1-4 + post-delivery
+// performance validation). Still fixture-only data - assertSurfaceIsolatedLinks below
+// is unchanged from C1 and still enforces that every href stays within /app/*.
 export const CLIENT_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSurfaceIsolatedLinks("app", [
-  { label: "项目", href: "/app/projects" },
+  { label: "总览", href: "/app" },
   { label: "知识库", href: "/app/knowledge" },
-  { label: "交付物", href: "/app/deliverables" },
+  { label: "关键词与用户问题", href: "/app/keywords" },
+  { label: "内容与信源", href: "/app/content" },
+  { label: "交付中心", href: "/app/delivery" },
+  { label: "效果验证", href: "/app/performance" },
 ]);
 
 export const AGENCY_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSurfaceIsolatedLinks("agency", [
