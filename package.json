@@ -1,0 +1,17 @@
+{
+  "name": "geoplane",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "build": "tsc -p tsconfig.build.json",
+    "security-scan": "node scripts/security-scan.mjs",
+    "repo:safety:preflight": "node scripts/repo-safety-preflight.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vitest": "^4.1.10"
+  }
+}
