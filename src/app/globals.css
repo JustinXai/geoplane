@@ -1,0 +1,23 @@
+/**
+ * Recovery classification: RECONSTRUCTED_FROM_FROZEN_SPEC
+ * reconstruction_source: docs/rebuild/RECOVERY_GAP_ANALYSIS.md (P0 gap: source root not
+ *   recovered) - minimal reset only, no design system / UI component library in this
+ *   checkpoint.
+ * reconstruction_reason: no original file recoverable
+ * original_file_unavailable: true
+ */
+
+:root {
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}

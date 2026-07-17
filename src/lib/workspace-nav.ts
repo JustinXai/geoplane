@@ -1,0 +1,85 @@
+/**
+ * Recovery classification: RECONSTRUCTED_FROM_FROZEN_SPEC
+ * reconstruction_source: docs/governance/SYSTEM_INVARIANTS_V1.md ("Tenant isolation" section),
+ *   docs/architecture/MULTI_TENANT_ACCOUNT_MODEL_V1.md (PLATFORM/AGENCY/CLIENT organization
+ *   types), docs/architecture/SYSTEM_BLUEPRINT_V1.md ("Workspace surfaces: client workspace,
+ *   agency workspace, ops console" + evidence note citing the recovered
+ *   redirect("/app/projects/example-enterprise/knowledge") path), recovered/partial-source
+ *   page.tsx files (cp-page-header convention, Chinese UI copy, "只有有效分配中的客户可被
+ *   代理商选择" assignment-scoping language)
+ * reconstruction_reason: no original file recoverable (see docs/rebuild/RECOVERY_GAP_ANALYSIS.md,
+ *   P0 "source root layout" gap and P1 tenancy/auth partial-recovery notes)
+ * original_file_unavailable: true
+ *
+ * Fixture nav data + a structural (presentation-layer only) tenant-isolation
+ * guard for the three workspace surfaces. This is checkpoint C1 "shell"
+ * scope: it proves a surface's nav can never *literally contain* a link
+ * into another surface. It is NOT real authorization - it does not check
+ * who the signed-in user is or what organization/role they hold.
+ *
+ * TODO(rebuild/tenancy-auth): once the future AuthorizationContext exists,
+ * every workspace layout that renders one of these navs must also perform
+ * a real, request-time membership/role check (see recovered/partial-source
+ * 00040000000C9C455B787075-route.ts for the shape of the existing
+ * requireSurfaceAuthorization("ops") pattern this should mirror for "app"
+ * and "agency"). Structural link isolation here is a defense-in-depth net,
+ * not a substitute for that.
+ */
+
+export type WorkspaceSurface = "app" | "agency" | "ops";
+
+export interface WorkspaceNavLink {
+  readonly label: string;
+  readonly href: string;
+}
+
+const SURFACE_PATH_PREFIX: Record<WorkspaceSurface, string> = {
+  app: "/app",
+  agency: "/agency",
+  ops: "/ops",
+};
+
+export function isLinkWithinSurface(surface: WorkspaceSurface, href: string): boolean {
+  const prefix = SURFACE_PATH_PREFIX[surface];
+  return href === prefix || href.startsWith(`${prefix}/`);
+}
+
+/**
+ * Throws at module-init time (i.e. as soon as a nav module is imported) if
+ * a fixture link crosses into another surface. Returns the same array so it
+ * can be assigned directly to an exported constant.
+ */
+export function assertSurfaceIsolatedLinks(
+  surface: WorkspaceSurface,
+  links: readonly WorkspaceNavLink[],
+): readonly WorkspaceNavLink[] {
+  for (const link of links) {
+    if (!isLinkWithinSurface(surface, link.href)) {
+      throw new Error(
+        `Tenant isolation violation: "${surface}" workspace nav must not link to "${link.href}" ` +
+          `(see docs/governance/SYSTEM_INVARIANTS_V1.md, "Tenant isolation")`,
+      );
+    }
+  }
+  return links;
+}
+
+// Fixture-only placeholder data. No real customer data, no database.
+
+export const CLIENT_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSurfaceIsolatedLinks("app", [
+  { label: "项目", href: "/app/projects" },
+  { label: "知识库", href: "/app/knowledge" },
+  { label: "交付物", href: "/app/deliverables" },
+]);
+
+export const AGENCY_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSurfaceIsolatedLinks("agency", [
+  { label: "客户", href: "/agency/clients" },
+  { label: "客户分配", href: "/agency/assignments" },
+  { label: "项目", href: "/agency/projects" },
+]);
+
+export const OPS_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSurfaceIsolatedLinks("ops", [
+  { label: "组织", href: "/ops/organizations" },
+  { label: "邀请", href: "/ops/invitations" },
+  { label: "审计", href: "/ops/audit" },
+]);
