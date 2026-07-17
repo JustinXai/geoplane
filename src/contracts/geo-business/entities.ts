@@ -697,3 +697,317 @@ export function compileArticleDraft(
     compiledAt: identity.compiledAt,
   };
 }
+
+/**
+ * Checkpoint D5 — next chain step per
+ * docs/architecture/GEO_BUSINESS_CHAIN_V1.md ("Chain (P2 priority)", item
+ * 8): "Quality gates".
+ *
+ * NAMING CAUTION (see GEO_BUSINESS_CHAIN_V1.md, "Explicit caution for
+ * reconstruction", and the D1 caption above): the owner-recalled
+ * `PLATFORM_RULE_GATE` / `VERTICAL_RULE_GATE` identifiers had ZERO literal
+ * hits in recovered evidence, and D1 already reconstructed the *gate level*
+ * concept as `GeoValidationGateLevel` ("PLATFORM_WIDE_GATE" /
+ * "INDUSTRY_VERTICAL_GATE") to avoid reusing those unconfirmed names. This
+ * checkpoint introduces a *different* concept — not a gate level on an
+ * `IndustryProfile`, but the pass/fail *outcome* of running an
+ * `ArticleDraft` through a gate — and deliberately does not reuse
+ * `GeoValidationGateLevel` as a type name for it. `PlatformGate` and
+ * `VerticalGate` below are this checkpoint's own reconstructed naming for
+ * that outcome concept (a "gate result", not a "gate level"); each
+ * references `GeoValidationGateLevel` via a `gateLevelApplied` field
+ * (reusing D2's `OpportunityValidation.gateLevelApplied` pattern for
+ * auditability) rather than duplicating the enum's members. `QualityGate`
+ * is a third, distinct outcome type for deterministic content-presence
+ * checks that are neither platform-wide nor vertical-specific rules.
+ *
+ * Non-boolean pass/fail shape: per D2's `HumanReviewDecision` precedent
+ * (SYSTEM_INVARIANTS_V1.md, "no silently-approved state"), none of
+ * `QualityGate` / `PlatformGate` / `VerticalGate` is a bare
+ * `{ passed: boolean }`. Each is a discriminated union on `status:
+ * "PASSED" | "FAILED"`, and the `"FAILED"` variant requires a non-empty
+ * `failureReasons` tuple — a failure can never be silent/reasonless, and a
+ * pass can never be spoofed by an empty-but-truthy shape.
+ *
+ * `ArticleApproval` gating: per this checkpoint's requirement that
+ * publication approval is gated on all three of `QualityGate`,
+ * `PlatformGate`, and `VerticalGate` having passed, `ArticleApproval`
+ * mirrors D3's `OpportunityFamilyMember` pattern
+ * (`authorizingHumanReviewDecisionId` + a status field pinned to the
+ * literal `"APPROVED"`) three times over: each gate is referenced by id
+ * plus a status field pinned to the literal `"PASSED"` (not the wider
+ * `QualityGateStatus`/`GateOutcomeStatus` union). A `FailedQualityGate`'s
+ * `status` is statically `"FAILED"`, which is not assignable to a field
+ * typed as the literal `"PASSED"` — so an `ArticleApproval` object literal
+ * built from a failed (or altogether missing) gate result does not
+ * type-check, the same structural guarantee D3 established for family
+ * membership. See the `@ts-expect-error` cases in
+ * tests/contracts/geo-business-entities.test.ts.
+ *
+ * Determinism (docs/governance/SYSTEM_INVARIANTS_V1.md): `evaluateQualityGate`
+ * below is a pure data-transformation function, following the exact same
+ * discipline as D4's `compileArticleDraft` — no imports, no I/O, no
+ * `Date.now()`/`Math.random()`/uuid generation inside it. Identity/
+ * timestamp values are supplied by the caller via an explicit `identity`
+ * parameter, exactly like `ArticleDraftCompilationIdentity` in D4.
+ */
+
+/**
+ * Shared pass/fail discriminant for the three gate-outcome types below.
+ * Deliberately not a bare `boolean` — see the file-level "Non-boolean
+ * pass/fail shape" note above.
+ */
+export type GateOutcomeStatus = "PASSED" | "FAILED";
+
+interface QualityGateBase {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** The ArticleDraft this gate evaluated. */
+  articleDraftId: string;
+  status: GateOutcomeStatus;
+  evaluatedAt: string;
+}
+
+export interface PassedQualityGate extends QualityGateBase {
+  status: "PASSED";
+}
+
+export interface FailedQualityGate extends QualityGateBase {
+  status: "FAILED";
+  /** Required, non-empty: a failed gate must state why, never silently. */
+  failureReasons: [string, ...string[]];
+}
+
+/**
+ * QualityGate is the outcome of running an ArticleDraft through the
+ * deterministic quality checks in `evaluateQualityGate` below: minimum
+ * content presence (at least one non-empty-heading section), required
+ * `ArticleBrief.planningContext` fields present (`targetKeywords`,
+ * `authorizingHumanReviewDecisionIds`), and no empty
+ * `sourceProviderArticleContentIds` — all facts already established as
+ * required by the ArticleDraft/ArticleBrief contracts above (D1-D4); this
+ * type does not invent any new field or check beyond re-verifying those at
+ * the runtime boundary, the same defensive posture `compileArticleDraft`
+ * already takes for `brief.planningContext`.
+ */
+export type QualityGate = PassedQualityGate | FailedQualityGate;
+
+interface PlatformGateBase {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** Discriminant so PlatformGate and VerticalGate are never structurally interchangeable, despite otherwise-identical shapes. */
+  gateKind: "PLATFORM_GATE";
+  /** The ArticleDraft this gate evaluated. */
+  articleDraftId: string;
+  /** The IndustryProfile in effect when this gate ran. */
+  industryProfileId: string;
+  /**
+   * The gate level in effect on the IndustryProfile at evaluation time,
+   * captured alongside the reference for auditability — same pattern as
+   * D2's OpportunityValidation.gateLevelApplied.
+   */
+  gateLevelApplied: GeoValidationGateLevel;
+  status: GateOutcomeStatus;
+  evaluatedAt: string;
+}
+
+export interface PassedPlatformGate extends PlatformGateBase {
+  status: "PASSED";
+}
+
+export interface FailedPlatformGate extends PlatformGateBase {
+  status: "FAILED";
+  /** Required, non-empty: a failed gate must state why, never silently. */
+  failureReasons: [string, ...string[]];
+}
+
+/**
+ * PlatformGate is the outcome of running an ArticleDraft through
+ * platform-wide rules (rules that apply regardless of industry vertical).
+ * Distinct from VerticalGate below — see the file-level NAMING CAUTION —
+ * and distinct from GeoValidationGateLevel, which is a gate *level* on an
+ * IndustryProfile, not a gate *outcome* on a draft.
+ */
+export type PlatformGate = PassedPlatformGate | FailedPlatformGate;
+
+interface VerticalGateBase {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** Discriminant so VerticalGate and PlatformGate are never structurally interchangeable, despite otherwise-identical shapes. */
+  gateKind: "VERTICAL_GATE";
+  /** The ArticleDraft this gate evaluated. */
+  articleDraftId: string;
+  /** The IndustryProfile whose vertical-specific rules this gate applied. */
+  industryProfileId: string;
+  /**
+   * The gate level in effect on the IndustryProfile at evaluation time,
+   * captured alongside the reference for auditability — same pattern as
+   * D2's OpportunityValidation.gateLevelApplied. Expected to be
+   * "INDUSTRY_VERTICAL_GATE" for a VerticalGate in practice, but not
+   * pinned to that literal here since the type only records what was
+   * actually applied, mirroring OpportunityValidation's own field.
+   */
+  gateLevelApplied: GeoValidationGateLevel;
+  status: GateOutcomeStatus;
+  evaluatedAt: string;
+}
+
+export interface PassedVerticalGate extends VerticalGateBase {
+  status: "PASSED";
+}
+
+export interface FailedVerticalGate extends VerticalGateBase {
+  status: "FAILED";
+  /** Required, non-empty: a failed gate must state why, never silently. */
+  failureReasons: [string, ...string[]];
+}
+
+/**
+ * VerticalGate is the outcome of running an ArticleDraft through the
+ * IndustryProfile-specific vertical rules (D1's IndustryProfile /
+ * GeoValidationGateLevel). Distinct from PlatformGate above — see the
+ * file-level NAMING CAUTION.
+ */
+export type VerticalGate = PassedVerticalGate | FailedVerticalGate;
+
+/**
+ * ArticleApproval is the final human approval of an ArticleDraft for
+ * publication readiness. Per this checkpoint's requirement (and
+ * SYSTEM_INVARIANTS_V1.md's Publication invariant that nothing publishes
+ * automatically), an ArticleApproval requires a real, non-optional
+ * `approverId` + `approvedAt` (same "no decision without an identity and
+ * timestamp" shape as D2's HumanReviewDecision), and is gated on all three
+ * of QualityGate, PlatformGate, and VerticalGate having passed: each is
+ * referenced by id plus a status field pinned to the literal `"PASSED"` —
+ * see the file-level doc comment above for why this makes the gating
+ * structural (a compile-time failure to construct with a failed/missing
+ * gate), not merely a runtime check.
+ */
+export interface ArticleApproval {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** The ArticleDraft this approval makes publication-ready. */
+  articleDraftId: string;
+  /** Required, non-optional: no approval may exist without a real approver identity. */
+  approverId: string;
+  /** Required, non-optional: no approval may exist without an approval timestamp. */
+  approvedAt: string;
+  /** The QualityGate that authorized this approval. */
+  qualityGateId: string;
+  /** Pinned to the literal "PASSED" — see the interface doc comment above. */
+  qualityGateStatus: "PASSED";
+  /** The PlatformGate that authorized this approval. */
+  platformGateId: string;
+  /** Pinned to the literal "PASSED" — see the interface doc comment above. */
+  platformGateStatus: "PASSED";
+  /** The VerticalGate that authorized this approval. */
+  verticalGateId: string;
+  /** Pinned to the literal "PASSED" — see the interface doc comment above. */
+  verticalGateStatus: "PASSED";
+}
+
+/**
+ * Caller-supplied identity/timestamp values for one `evaluateQualityGate`
+ * call. Deliberately a separate, explicit input rather than something the
+ * function invents internally — see the file-level "Determinism" note
+ * above and D4's identical `ArticleDraftCompilationIdentity` pattern.
+ */
+export interface QualityGateEvaluationIdentity {
+  id: string;
+  evaluatedAt: string;
+}
+
+/**
+ * Evaluates an ArticleDraft (and the ArticleBrief it was compiled from)
+ * against the deterministic quality checks described in the `QualityGate`
+ * doc comment above:
+ *
+ * 1. Minimum content presence: `draft.sections` is non-empty and every
+ *    section has a non-blank `heading`.
+ * 2. Required `planningContext` fields present: `brief.planningContext`
+ *    itself, plus its non-empty `targetKeywords` and
+ *    `authorizingHumanReviewDecisionIds` — all already required by the
+ *    ArticleBrief/ArticleBriefPlanningContextV1 contracts (D3), re-checked
+ *    here defensively at the runtime boundary the same way
+ *    `compileArticleDraft` re-checks `planningContext` in D4.
+ * 3. No empty `sourceProviderArticleContentIds` — already a non-empty
+ *    tuple at the type level (D4), re-checked here for the same
+ *    defensive-boundary reason.
+ * 4. `draft.articleBriefId` actually matches `brief.id` (the draft being
+ *    graded must be the one compiled from the brief passed in, not an
+ *    unrelated pair).
+ *
+ * Pure, deterministic data transformation only, matching D4's
+ * `compileArticleDraft` discipline exactly: zero imports, zero I/O, no
+ * provider/network call of any kind, never reads the clock or generates
+ * randomness, never mutates its inputs. `id` and `evaluatedAt` are
+ * supplied by the caller via `identity` for the same reason D4's
+ * `compileArticleDraft` takes an `identity` parameter instead of calling
+ * `Date.now()`/generating a uuid itself.
+ */
+export function evaluateQualityGate(
+  draft: ArticleDraft,
+  brief: ArticleBrief,
+  identity: QualityGateEvaluationIdentity,
+): QualityGate {
+  const failureReasons: string[] = [];
+
+  if (draft.sections.length === 0) {
+    failureReasons.push(
+      "ArticleDraft has zero sections; minimum content presence check failed.",
+    );
+  } else if (draft.sections.some((section) => section.heading.trim().length === 0)) {
+    failureReasons.push(
+      "ArticleDraft has one or more sections with an empty or blank heading.",
+    );
+  }
+
+  if (!brief.planningContext) {
+    failureReasons.push("ArticleBrief.planningContext is missing.");
+  } else {
+    if (brief.planningContext.targetKeywords.length === 0) {
+      failureReasons.push("ArticleBriefPlanningContextV1.targetKeywords is empty.");
+    }
+    if (brief.planningContext.authorizingHumanReviewDecisionIds.length === 0) {
+      failureReasons.push(
+        "ArticleBriefPlanningContextV1.authorizingHumanReviewDecisionIds is empty.",
+      );
+    }
+  }
+
+  if (draft.sourceProviderArticleContentIds.length === 0) {
+    failureReasons.push("ArticleDraft.sourceProviderArticleContentIds is empty.");
+  }
+
+  if (draft.articleBriefId !== brief.id) {
+    failureReasons.push(
+      `ArticleDraft.articleBriefId "${draft.articleBriefId}" does not match the evaluated ` +
+        `ArticleBrief.id "${brief.id}".`,
+    );
+  }
+
+  if (failureReasons.length > 0) {
+    return {
+      id: identity.id,
+      clientOrganizationId: draft.clientOrganizationId,
+      projectId: draft.projectId,
+      articleDraftId: draft.id,
+      status: "FAILED",
+      failureReasons: failureReasons as [string, ...string[]],
+      evaluatedAt: identity.evaluatedAt,
+    };
+  }
+
+  return {
+    id: identity.id,
+    clientOrganizationId: draft.clientOrganizationId,
+    projectId: draft.projectId,
+    articleDraftId: draft.id,
+    status: "PASSED",
+    evaluatedAt: identity.evaluatedAt,
+  };
+}
