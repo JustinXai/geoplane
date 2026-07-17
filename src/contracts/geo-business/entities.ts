@@ -1011,3 +1011,398 @@ export function evaluateQualityGate(
     evaluatedAt: identity.evaluatedAt,
   };
 }
+
+/**
+ * Checkpoint D6 (final chain step for this rebuild pass) —
+ * PublishPackage / ChannelNeutralContentPackage / DistributionPlan /
+ * PublicationReceipt. D1-D5 covered every numbered item in
+ * docs/architecture/GEO_BUSINESS_CHAIN_V1.md's "Chain (P2 priority)" list
+ * (items 1-8, ending at "Quality gates" -> ArticleApproval). This
+ * checkpoint extends past that list into
+ * docs/architecture/SYSTEM_BLUEPRINT_V1.md's "Layering" section
+ * ("Distribution layer (lowest priority): distribution, publisher bridge,
+ * visibility placeholder") and is governed by that same document's
+ * "Publication principles (frozen, non-negotiable)" plus
+ * docs/governance/SYSTEM_INVARIANTS_V1.md's "Publication" section:
+ *
+ *   - Platform-neutral by default: never auto-select the client's own
+ *     website or a specific large platform as a default target.
+ *   - No automatic publication under any circumstance.
+ *   - External publisher bridges (WeChatSync-style) are future, opt-in,
+ *     explicit — never wired in as a default path.
+ *
+ * NAMING CAUTION (see GEO_BUSINESS_CHAIN_V1.md, "Explicit caution for
+ * reconstruction"): the owner-recalled identifier
+ * `ChannelNeutralContentPackageV1` had ZERO literal hits in recovered
+ * evidence — same standing as `ArticleFamily`/`ArticleExecutionContext`/
+ * the other zero-hit names flagged in the D1/D2/D3 captions above. The
+ * type below is therefore deliberately named `ChannelNeutralContentPackage`
+ * (no `V1` suffix — no versioned-schema literal was recovered for this
+ * concept the way `ArticleBriefPlanningContextV1`'s exact string was), and
+ * every field on it is this checkpoint's own reconstructed naming, not a
+ * recovered fact. `PublishPackage`, `DistributionPlan`, and
+ * `PublicationReceipt` are likewise entirely own-naming: the chain
+ * description and recovered evidence name no fields or identifiers for
+ * them at all.
+ *
+ * Structural enforcement of "no automatic publication" for this
+ * checkpoint's four types:
+ *
+ * 1. `PublishPackage.articleApprovalId` is a required, non-optional
+ *    string — mirroring D2/D5's "no silently-approved state" discipline
+ *    (`HumanReviewDecision.reviewerId`, `ArticleApproval.approverId`):
+ *    there is no field default and no optional-with-fallback path that
+ *    lets a `PublishPackage` object literal type-check without a real
+ *    `ArticleApproval` reference. The only function that produces one,
+ *    `buildPublishPackage` below, takes a real `ArticleApproval` value
+ *    (not just an id) as its first parameter, so there is no call site
+ *    that can build a `PublishPackage` from a missing/undefined approval
+ *    either.
+ * 2. `ChannelNeutralContentPackage` carries no "default channel" concept
+ *    anywhere in its shape: content lives in channel-agnostic
+ *    `blocks` (structural units — heading/paragraph/list/image-reference —
+ *    with no platform-specific markup), and `targetChannelIds` is a plain
+ *    `string[]` that only this module's `createChannelNeutralContentPackage`
+ *    smart constructor can populate — and it always initializes that field
+ *    to `[]`, with no parameter anywhere that accepts a pre-seeded channel
+ *    list. Adding a channel is only possible via the separate, explicit,
+ *    one-channel-at-a-time `addTargetChannel` step. This mirrors, in a
+ *    backend data-contract module, the same "0 selected/enabled by
+ *    default" discipline the frontend C2/C3/C4 checkpoints enforced
+ *    through their fixture shapes — here enforced through the smart
+ *    constructor's signature instead, since there is no UI fixture
+ *    convention to reuse in this module.
+ * 3. `DistributionPlan.channelIds` is a non-empty tuple-with-rest
+ *    (`[string, ...string[]]`), the same pattern D3 used for
+ *    `OpportunityFamily.members` ("one or more" enforced at the type
+ *    level, not just at runtime): there is no way to construct a
+ *    `DistributionPlan` object literal with zero channels. On top of
+ *    that, `selectedByActorId` + `selectedAt` are required and
+ *    non-optional — the same "no decision without an identity and
+ *    timestamp" shape as D2's `HumanReviewDecision` / D5's
+ *    `ArticleApproval` — so a `DistributionPlan` can never represent
+ *    "ready to distribute" without recording which human explicitly chose
+ *    those channels and when.
+ * 4. `PublicationReceipt.publishedByActorId` is required and non-optional,
+ *    and this module's only `PublicationReceipt`-producing function,
+ *    `createPublicationReceipt` below, throws (a runtime guard, since
+ *    TypeScript's `string` type cannot statically exclude specific
+ *    literal values while still accepting arbitrary real actor ids) if
+ *    that value is empty or one of `"system"`/`"auto"`/`"automated"`/
+ *    `"automatic"` (case-insensitive) — the concrete, executable form of
+ *    "no automatic publication under any circumstance". Fixtures in the
+ *    test suite use obviously-fake placeholder actor ids
+ *    (`user_platform_jane`-style, or a `svc_`-prefixed service id), never
+ *    a real identity.
+ *
+ * Determinism (docs/governance/SYSTEM_INVARIANTS_V1.md): both
+ * `buildPublishPackage` and `createPublicationReceipt` follow the exact
+ * same discipline as D4's `compileArticleDraft` / D5's
+ * `evaluateQualityGate`: zero imports, zero I/O, no
+ * `Date.now()`/`Math.random()`/uuid generation, no mutation of inputs.
+ * `addTargetChannel` and `createChannelNeutralContentPackage` follow the
+ * same discipline (the latter's `id`/`createdAt` are also caller-supplied
+ * via an explicit `identity` parameter, not generated internally).
+ */
+
+/**
+ * One structural, channel-agnostic unit of content. Deliberately no
+ * platform-specific markup/formatting field (no "html", no "wechatXml",
+ * no "wordpressBlocks") — see the file-level note above on why
+ * `ChannelNeutralContentPackage` must not bake in any one channel's shape.
+ * `text` is plain content; for `"IMAGE_REFERENCE"` it is an opaque
+ * pointer id, following the same "never inline raw payload content"
+ * discipline D4's `ProviderArticleContent.providerResponseEnvelopeId`
+ * established for provider envelopes.
+ */
+export interface ChannelNeutralContentBlock {
+  kind: "HEADING" | "PARAGRAPH" | "LIST" | "IMAGE_REFERENCE";
+  text: string;
+  /** Position within the content package, 0-based, for stable ordering. */
+  order: number;
+}
+
+/**
+ * Channel-agnostic, publication-ready content, built from a
+ * `PublishPackage`. Per the file-level note above, this type has no
+ * "default channel" concept: `targetChannelIds` can only be produced by
+ * `createChannelNeutralContentPackage` (always `[]`) and grown one entry
+ * at a time by `addTargetChannel` — there is no constructor path in this
+ * module that yields a non-empty `targetChannelIds` directly.
+ */
+export interface ChannelNeutralContentPackage {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** The PublishPackage this channel-neutral content was built from. */
+  publishPackageId: string;
+  blocks: ChannelNeutralContentBlock[];
+  /**
+   * Zero by construction (see `createChannelNeutralContentPackage`), grown
+   * only via the separate, explicit `addTargetChannel` step. Never
+   * pre-populated with a "default" channel.
+   */
+  targetChannelIds: string[];
+  createdAt: string;
+}
+
+/**
+ * DistributionPlan references a ChannelNeutralContentPackage plus the
+ * explicit, human-chosen set of channels to distribute it to. See the
+ * file-level note above (item 3) for why `channelIds` being a non-empty
+ * tuple, plus the required `selectedByActorId`/`selectedAt` pair, together
+ * make "ready to distribute with zero explicit human action" impossible
+ * to construct.
+ */
+export interface DistributionPlan {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** The ChannelNeutralContentPackage this plan distributes. */
+  channelNeutralContentPackageId: string;
+  /**
+   * Required, non-empty tuple-with-rest — mirrors D3's
+   * `OpportunityFamily.members`. There is no `DistributionPlan` shape
+   * with zero channels.
+   */
+  channelIds: [string, ...string[]];
+  /** Required, non-optional: no plan may exist without the human who explicitly chose these channels. */
+  selectedByActorId: string;
+  /** Required, non-optional: no plan may exist without a selection timestamp. */
+  selectedAt: string;
+}
+
+/**
+ * PublicationReceipt records that a specific channel was actually
+ * published to, at a specific time, by a specific (never automatic)
+ * actor. See the file-level note above (item 4) for how
+ * `createPublicationReceipt` enforces the "never automatic" half of this
+ * at runtime, since TypeScript's `string` type cannot exclude specific
+ * literal values statically.
+ */
+export interface PublicationReceipt {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** The DistributionPlan this receipt records execution against. */
+  distributionPlanId: string;
+  /** The specific channel actually published to; expected to be one of the source DistributionPlan's channelIds (checked at runtime by createPublicationReceipt). */
+  channelId: string;
+  /**
+   * Required, non-optional real human/service actor identity. Never
+   * "system"/"auto"/"automated"/"automatic" — see
+   * docs/governance/SYSTEM_INVARIANTS_V1.md, "Publication": "No automatic
+   * publication under any circumstance". Fixtures must use an obviously
+   * fake placeholder id, never a real identity.
+   */
+  publishedByActorId: string;
+  publishedAt: string;
+}
+
+/**
+ * Caller-supplied identity/timestamp values for one `buildPublishPackage`
+ * call — same explicit-identity discipline as D4's
+ * `ArticleDraftCompilationIdentity` / D5's `QualityGateEvaluationIdentity`.
+ */
+export interface PublishPackageIdentity {
+  id: string;
+  builtAt: string;
+}
+
+/**
+ * PublishPackage is the final publication-ready package built from an
+ * ArticleApproval. Per the file-level note above (item 1), `articleApprovalId`
+ * is required and non-optional — nothing may be published without a real
+ * ArticleApproval reference, and `buildPublishPackage` below is the only
+ * function in this module that produces a `PublishPackage`, taking a real
+ * `ArticleApproval` value (not merely an id) as input.
+ */
+export interface PublishPackage {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** Required, non-optional: no PublishPackage may exist without a real ArticleApproval reference. */
+  articleApprovalId: string;
+  /** The ArticleDraft the approval and this package both trace back to, carried forward for traceability. */
+  articleDraftId: string;
+  /** Carried forward from the compiled ArticleDraft at build time. */
+  title: string;
+  builtAt: string;
+}
+
+/**
+ * Builds a `PublishPackage` from an `ArticleApproval` and the
+ * `ArticleDraft` it approved. Pure, deterministic data transformation
+ * only, matching D4's `compileArticleDraft` / D5's `evaluateQualityGate`
+ * discipline exactly: zero imports, zero I/O, no provider/network call of
+ * any kind, never reads the clock or generates randomness, never mutates
+ * its inputs. `id`/`builtAt` are supplied by the caller via `identity`
+ * for the same reason D4/D5's functions take an `identity` parameter
+ * instead of generating their own.
+ *
+ * @throws if `approval` is missing/undefined — the concrete, executable
+ *   form of "nothing may be published without an ArticleApproval"
+ *   (defensive runtime check for the boundary where a value arrives from
+ *   outside static typing, e.g. deserialized JSON — TypeScript already
+ *   makes `approval` a required parameter and `PublishPackage.articleApprovalId`
+ *   non-optional at the type level).
+ * @throws if `approval.articleDraftId` does not match `draft.id` (a
+ *   PublishPackage may never be built from an approval/draft pair that do
+ *   not actually reference each other).
+ */
+export function buildPublishPackage(
+  approval: ArticleApproval,
+  draft: ArticleDraft,
+  identity: PublishPackageIdentity,
+): PublishPackage {
+  if (!approval) {
+    throw new Error(
+      "buildPublishPackage: approval is required — a PublishPackage may never be built without a real ArticleApproval.",
+    );
+  }
+
+  if (approval.articleDraftId !== draft.id) {
+    throw new Error(
+      `buildPublishPackage: ArticleApproval "${approval.id}" references ArticleDraft ` +
+        `"${approval.articleDraftId}", not the given draft "${draft.id}".`,
+    );
+  }
+
+  return {
+    id: identity.id,
+    clientOrganizationId: approval.clientOrganizationId,
+    projectId: approval.projectId,
+    articleApprovalId: approval.id,
+    articleDraftId: draft.id,
+    title: draft.title,
+    builtAt: identity.builtAt,
+  };
+}
+
+/**
+ * Caller-supplied identity/timestamp values for one
+ * `createChannelNeutralContentPackage` call — same explicit-identity
+ * discipline as `PublishPackageIdentity` above.
+ */
+export interface ChannelNeutralContentPackageIdentity {
+  id: string;
+  createdAt: string;
+}
+
+/**
+ * Smart constructor for `ChannelNeutralContentPackage`. This is the ONLY
+ * function in this module that produces one, and it always initializes
+ * `targetChannelIds` to an empty array — there is no parameter here that
+ * accepts a pre-populated channel list, so a package with a non-empty
+ * target-channel list cannot come into existence except via the separate
+ * `addTargetChannel` step below. Pure: no imports, no I/O, no clock/random
+ * access, does not mutate `blocks`.
+ */
+export function createChannelNeutralContentPackage(
+  publishPackage: PublishPackage,
+  blocks: ChannelNeutralContentBlock[],
+  identity: ChannelNeutralContentPackageIdentity,
+): ChannelNeutralContentPackage {
+  return {
+    id: identity.id,
+    clientOrganizationId: publishPackage.clientOrganizationId,
+    projectId: publishPackage.projectId,
+    publishPackageId: publishPackage.id,
+    blocks: [...blocks],
+    targetChannelIds: [],
+    createdAt: identity.createdAt,
+  };
+}
+
+/**
+ * The only way to add a target channel to a `ChannelNeutralContentPackage`:
+ * explicit, one channel at a time, pure (returns a new object; does not
+ * mutate `pkg`). There is no bulk "set channels" function and no path
+ * that skips straight to a populated list — every channel added this way
+ * is an explicit, separate, auditable step, per the file-level note above
+ * (item 2). Idempotent: adding a channel id already present returns an
+ * equivalent package rather than duplicating it.
+ */
+export function addTargetChannel(
+  pkg: ChannelNeutralContentPackage,
+  channelId: string,
+): ChannelNeutralContentPackage {
+  if (pkg.targetChannelIds.includes(channelId)) {
+    return pkg;
+  }
+
+  return {
+    ...pkg,
+    targetChannelIds: [...pkg.targetChannelIds, channelId],
+  };
+}
+
+/**
+ * Case-insensitive set of actor-id values that must never appear as
+ * `PublicationReceipt.publishedByActorId`. Concrete, executable form of
+ * docs/governance/SYSTEM_INVARIANTS_V1.md's "Publication" invariant: "No
+ * automatic publication under any circumstance."
+ */
+const FORBIDDEN_AUTOMATIC_ACTOR_IDS = new Set([
+  "system",
+  "auto",
+  "automated",
+  "automatic",
+  "",
+]);
+
+/**
+ * Caller-supplied identity/timestamp values for one
+ * `createPublicationReceipt` call — same explicit-identity discipline as
+ * `PublishPackageIdentity` / `ChannelNeutralContentPackageIdentity` above.
+ */
+export interface PublicationReceiptIdentity {
+  id: string;
+  publishedAt: string;
+}
+
+/**
+ * Smart constructor for `PublicationReceipt`. Pure: no imports, no I/O,
+ * no clock/random access, does not mutate `plan`.
+ *
+ * @throws if `channelId` is not one of `plan.channelIds` (a receipt may
+ *   never record publication to a channel the DistributionPlan never
+ *   selected).
+ * @throws if `publishedByActorId` is empty or is one of
+ *   `FORBIDDEN_AUTOMATIC_ACTOR_IDS` (case-insensitive) — the runtime
+ *   enforcement of "no automatic publication under any circumstance",
+ *   since TypeScript's `string` type cannot statically exclude specific
+ *   literal values while still accepting arbitrary real actor ids.
+ */
+export function createPublicationReceipt(
+  plan: DistributionPlan,
+  channelId: string,
+  publishedByActorId: string,
+  identity: PublicationReceiptIdentity,
+): PublicationReceipt {
+  if (!plan.channelIds.includes(channelId)) {
+    throw new Error(
+      `createPublicationReceipt: channel "${channelId}" is not one of DistributionPlan ` +
+        `"${plan.id}"'s selected channelIds.`,
+    );
+  }
+
+  const normalizedActorId = publishedByActorId.trim().toLowerCase();
+  if (FORBIDDEN_AUTOMATIC_ACTOR_IDS.has(normalizedActorId)) {
+    throw new Error(
+      `createPublicationReceipt: publishedByActorId "${publishedByActorId}" looks like an ` +
+        `automatic/system actor, which is never allowed (see SYSTEM_INVARIANTS_V1.md, ` +
+        `"Publication": "No automatic publication under any circumstance").`,
+    );
+  }
+
+  return {
+    id: identity.id,
+    clientOrganizationId: plan.clientOrganizationId,
+    projectId: plan.projectId,
+    distributionPlanId: plan.id,
+    channelId,
+    publishedByActorId,
+    publishedAt: identity.publishedAt,
+  };
+}
