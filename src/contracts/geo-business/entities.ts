@@ -297,3 +297,178 @@ export type HumanReviewDecision =
   | ApprovedHumanReviewDecision
   | ChangesRequestedHumanReviewDecision
   | RejectedHumanReviewDecision;
+
+/**
+ * Checkpoint D3 — next two chain steps per
+ * docs/architecture/GEO_BUSINESS_CHAIN_V1.md ("Chain (P2 priority)",
+ * items 5-6):
+ *
+ *   7. OpportunityFamily — groups one or more APPROVED Opportunities into
+ *                           the unit that becomes a single piece of
+ *                           content.
+ *   8. ArticleBrief       — the planning brief built from an
+ *                           OpportunityFamily.
+ *
+ * NAMING CAUTION (see GEO_BUSINESS_CHAIN_V1.md, "Explicit caution for
+ * reconstruction", and docs/rebuild/recovered-evidence/
+ * TARGET_STATE_MANIFEST.md section 2): the owner-recalled identifier
+ * `ArticleFamily` (bare) had ZERO literal hits in recovered evidence —
+ * same standing as `ArticleExecutionContext` / `ArticleOpportunity` / the
+ * other zero-hit names flagged in the D1/D2 captions above. The type
+ * below is therefore deliberately named `OpportunityFamily`, not
+ * `ArticleFamily`: it groups `Opportunity` records (this checkpoint's own
+ * reconstructed chain-item-4 name from D2), and the rename makes explicit
+ * that this is an own-naming assumption, not a recovered fact.
+ *
+ * `ArticleBrief` is different: it is a WELL-EVIDENCED name, not an
+ * own-naming assumption. TARGET_STATE_MANIFEST.md section 2 records 4 real
+ * literal hits — `ArticleBriefCandidateV1Schema`,
+ * `ArticleBriefPlanningContextV1`, `BRIEF_PLANNING_CONTEXT_REQUIRED`, and
+ * the real recovered function `buildArticleBriefOfflineV1()` at
+ * `src/opportunity/article-brief-offline-v1.ts` (that file is not itself
+ * present in this worktree — only its existence, path, and the shape of
+ * its recovered test story were recovered, per
+ * docs/rebuild/recovered-evidence/TODAY_NODE_RECOVERY_MATRIX.md section 1).
+ * `ArticleBrief` is therefore used verbatim as the exported type name
+ * below. What was NOT recovered is the field-by-field shape inside
+ * `ArticleBriefPlanningContextV1`, or the "Candidate"/"Schema" runtime
+ * validation machinery implied by `ArticleBriefCandidateV1Schema` — this
+ * checkpoint reconstructs the *field shape* (own-naming assumption at the
+ * field level only) and deliberately does not add a runtime schema
+ * validator: no such dependency exists in this project yet, and this
+ * checkpoint is type-level contracts only, no execution logic.
+ */
+
+/**
+ * One Opportunity's membership in an OpportunityFamily. Carries not just
+ * the authorizing HumanReviewDecision's id but its status, typed as the
+ * literal `"APPROVED"` rather than the full `HumanReviewDecisionStatus`
+ * union. This is what makes "no Opportunity may enter a family without an
+ * APPROVED HumanReviewDecision" a structural rule rather than a
+ * runtime-only check: an object literal referencing a
+ * `CHANGES_REQUESTED`/`REJECTED` decision's status fails to type-check
+ * (see the `@ts-expect-error` case in
+ * tests/contracts/geo-business-entities.test.ts) — it does not merely
+ * fail an `if` check at runtime.
+ */
+export interface OpportunityFamilyMember {
+  opportunityId: string;
+  /** The HumanReviewDecision that authorized this Opportunity's inclusion. */
+  authorizingHumanReviewDecisionId: string;
+  /**
+   * Required, non-optional, and pinned to the literal `"APPROVED"` — see
+   * the interface doc comment above for why this is structural, not a
+   * runtime-only guard.
+   */
+  authorizingReviewDecisionStatus: "APPROVED";
+}
+
+/**
+ * An OpportunityFamily groups one or more APPROVED Opportunities that will
+ * become a single piece of content (GEO_BUSINESS_CHAIN_V1.md chain item
+ * 5). Tenant-scoped like every entity in this chain. `members` is typed as
+ * a non-empty tuple-with-rest (`[OpportunityFamilyMember,
+ * ...OpportunityFamilyMember[]]`) rather than a plain array, so an empty
+ * family — which would violate "one or more" — cannot be constructed at
+ * the type level either.
+ */
+export interface OpportunityFamily {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  members: [OpportunityFamilyMember, ...OpportunityFamilyMember[]];
+  createdAt: string;
+}
+
+/**
+ * OWN-NAMING ASSUMPTION at the field level (see the file-level comment
+ * above): the top-level type name `ArticleBriefPlanningContextV1` is a
+ * recovered literal hit, but its internal fields were not recovered.
+ * `schemaVersion` follows the versioned-schema string convention
+ * corroborated elsewhere in recovered evidence (a real
+ * `"schema_version": "PublishPackageReadinessV1"` hit, per
+ * GEO_BUSINESS_CHAIN_V1.md). `riskLevel` reflects the recovered test
+ * story's "risk escalation" coverage
+ * (docs/rebuild/recovered-evidence/TODAY_NODE_RECOVERY_MATRIX.md section
+ * 1) without modeling *how* risk is computed — that would be execution
+ * logic, out of scope for this checkpoint.
+ */
+export interface ArticleBriefPlanningContextV1 {
+  schemaVersion: "ArticleBriefPlanningContextV1";
+  /** The OpportunityFamily this planning context was derived from. */
+  opportunityFamilyId: string;
+  /**
+   * Every authorizing HumanReviewDecision id from the source
+   * OpportunityFamily's members, carried forward so the planning context
+   * is auditable without re-joining back to the family. Non-empty for the
+   * same "one or more" reason as `OpportunityFamily.members`.
+   */
+  authorizingHumanReviewDecisionIds: [string, ...string[]];
+  /** Keywords carried forward from the family's underlying Opportunities. */
+  targetKeywords: [string, ...string[]];
+  /**
+   * Reflects the recovered "risk escalation" test coverage. Own
+   * reconstructed vocabulary, not a recovered enum.
+   */
+  riskLevel: "STANDARD" | "ESCALATED_FOR_HUMAN_REVIEW";
+}
+
+/**
+ * Recovered evidence includes a real literal hit for a constant named
+ * `BRIEF_PLANNING_CONTEXT_REQUIRED` (TARGET_STATE_MANIFEST.md section 2),
+ * but not its value, type, or call site. Reconstructed here as a
+ * type-level marker documenting (not runtime-enforcing) that
+ * `ArticleBrief.planningContext` is required and non-optional — the actual
+ * enforcement is the TypeScript field itself being non-optional, proven by
+ * the `@ts-expect-error` test that a planningContext-less object literal
+ * does not type-check as `ArticleBrief`.
+ */
+export const BRIEF_PLANNING_CONTEXT_REQUIRED = true as const;
+
+/**
+ * ArticleBrief is the planning brief built from an OpportunityFamily
+ * (GEO_BUSINESS_CHAIN_V1.md chain item 6), grounded in the real recovered
+ * test story for `buildArticleBriefOfflineV1()` (human-review mapping,
+ * risk escalation, illegal-family rejection, determinism/immutability —
+ * TODAY_NODE_RECOVERY_MATRIX.md section 1). This checkpoint models only
+ * the data shape a builder would produce, not the builder itself:
+ *
+ * - "human-review mapping"     -> `planningContext.authorizingHumanReviewDecisionIds`.
+ * - "risk escalation"          -> `planningContext.riskLevel`.
+ * - "illegal-family rejection" -> there is no way to construct an
+ *   `OpportunityFamily` (and therefore nothing valid for an ArticleBrief
+ *   to reference) whose members lack an APPROVED decision — the "illegal
+ *   family" case is rejected structurally, upstream of this type, rather
+ *   than modeled as a possible ArticleBrief variant here.
+ * - "determinism/immutability" -> ArticleBrief has no mutable/draft
+ *   fields; every field is required at construction and there is no
+ *   partial/patchable variant, mirroring
+ *   docs/governance/SYSTEM_INVARIANTS_V1.md's determinism note. A revised
+ *   brief is a new ArticleBrief (new id), never a mutation of an existing
+ *   one.
+ *
+ * Per this checkpoint's explicit scope (no execution logic, no field that
+ * would require a live provider call to construct), this type carries no
+ * provider-response fields, no token/usage counters, and no database
+ * write markers — those belong to the (not modeled here) offline build
+ * *result* shape `{status, briefs, provider_calls, database_writes,
+ * fabricated_defaults}` noted in the recovered test story, which is
+ * execution-time output, not this checkpoint's data contract.
+ * `workingTitle` and `outline` are this checkpoint's own reconstructed
+ * content fields (not claimed as recovered) — plain string/array data with
+ * no dependency on a live provider call to construct.
+ */
+export interface ArticleBrief {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** The OpportunityFamily this brief was built from. */
+  opportunityFamilyId: string;
+  /** Required, non-optional — see BRIEF_PLANNING_CONTEXT_REQUIRED above. */
+  planningContext: ArticleBriefPlanningContextV1;
+  /** Working title for the resulting piece of content. */
+  workingTitle: string;
+  /** Section headings/prompts the brief lays out for the eventual article compiler (chain item 7). */
+  outline: string[];
+  createdAt: string;
+}
