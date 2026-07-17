@@ -99,8 +99,24 @@ export const AGENCY_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSur
   { label: "品牌白标", href: "/agency/branding" },
 ]);
 
+// Checkpoint C4 update: added the eight new "Platform/Ops workspace" surfaces built in
+// src/app/ops/* (platform-wide client assignments, execution records, Evidence audit,
+// platform-wide review queue, models & usage, rule packs, publisher connectors, system
+// health) and relabeled the existing "审计" placeholder link to "账户审计" to match the
+// page it points at (src/app/ops/audit/page.tsx, which closely follows the recovered
+// evidence pattern in recovered/partial-source/00040000000C9C6422CCAB4F-page.tsx).
+// assertSurfaceIsolatedLinks below is unchanged from C1/C2/C3 and still enforces that
+// every href stays within /ops/*.
 export const OPS_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSurfaceIsolatedLinks("ops", [
   { label: "组织", href: "/ops/organizations" },
+  { label: "客户分配", href: "/ops/client-assignments" },
   { label: "邀请", href: "/ops/invitations" },
-  { label: "审计", href: "/ops/audit" },
+  { label: "账户审计", href: "/ops/audit" },
+  { label: "执行记录", href: "/ops/executions" },
+  { label: "Evidence 审计", href: "/ops/evidence-audit" },
+  { label: "审核队列", href: "/ops/review-queue" },
+  { label: "模型与用量", href: "/ops/models-usage" },
+  { label: "规则包", href: "/ops/rule-packs" },
+  { label: "发布连接器", href: "/ops/publisher-connectors" },
+  { label: "系统健康", href: "/ops/system-health" },
 ]);
