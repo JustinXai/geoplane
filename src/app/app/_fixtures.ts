@@ -195,6 +195,24 @@ export const DELIVERY_CHANNEL_NOTICE =
   "尚未选择任何分发渠道 - 交付内容不会自动发布到客户网站或任何平台，需人工在此明确选择渠道后才能启动交付。";
 
 /**
+ * Checkpoint C5: client-confirmation view-model (keyword confirmation, content-direction
+ * confirmation, source-type confirmation) re-exported here for discoverability alongside
+ * the other view-models in this file. Defined in ./_confirmation.ts - see that file's
+ * header for the full provenance note and the reason this stays a local three-state type
+ * instead of importing `ClientReviewDecision` from the separate, not-yet-merged
+ * rebuild/tenancy-auth branch.
+ */
+export {
+  CLIENT_CONFIRMATION_DECISIONS,
+  CLIENT_CONFIRMATION_LABELS,
+  NOT_YET_REVIEWED,
+  applyClientConfirmationDecision,
+  createInitialConfirmationState,
+  type ClientConfirmationDecision,
+  type ClientConfirmationState,
+} from "./_confirmation";
+
+/**
  * Collects every human-visible display string this checkpoint renders, so the
  * compliance test (tests/client-workspace-copy.test.ts) can pattern-check them
  * without needing a full render pipeline.

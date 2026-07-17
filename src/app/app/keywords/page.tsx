@@ -8,8 +8,13 @@
  *
  * Checkpoint C2: keyword & user-question mapping view for the CLIENT workspace. Fixture
  * data only (src/app/app/_fixtures.ts) - no real customer data, no database connection.
+ *
+ * Checkpoint C5: each row now renders a `ClientConfirmationControl` (../_confirmation-control)
+ * offering the keyword-confirmation three-state decision (确认 / 需要修改 / 待定, see
+ * ../_confirmation.ts) - client-side state only, no submit handler.
  */
 import { KEYWORD_QUESTION_ITEMS } from "../_fixtures";
+import { ClientConfirmationControl } from "../_confirmation-control";
 
 export default function KeywordQuestionPage() {
   return (
@@ -33,6 +38,7 @@ export default function KeywordQuestionPage() {
                 <li key={question}>{question}</li>
               ))}
             </ul>
+            <ClientConfirmationControl subjectLabel="关键词" />
           </li>
         ))}
       </ul>
