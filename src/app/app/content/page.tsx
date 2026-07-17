@@ -10,8 +10,15 @@
  * (src/app/app/_fixtures.ts) - no real customer data, no database connection. Stage
  * labels use plain client-facing language only (see _fixtures.ts header note) - no
  * internal production-pipeline vocabulary.
+ *
+ * Checkpoint C5: each row renders two separate `ClientConfirmationControl`s
+ * (../_confirmation-control) - one for content-direction confirmation, one for
+ * source-type confirmation - each with its own independent three-state decision
+ * (确认 / 需要修改 / 待定, see ../_confirmation.ts). Client-side state only, no submit
+ * handler.
  */
 import { CONTENT_SOURCING_ITEMS } from "../_fixtures";
+import { ClientConfirmationControl } from "../_confirmation-control";
 
 export default function ContentSourcingPage() {
   return (
@@ -31,6 +38,10 @@ export default function ContentSourcingPage() {
               参考编号 {item.referenceCode} · 状态：{item.stageLabel}
             </span>
             <span className="cp-list-summary">{item.sourceSummary}</span>
+            <div className="cp-confirm-group">
+              <ClientConfirmationControl subjectLabel="内容方向" />
+              <ClientConfirmationControl subjectLabel="信源类型" />
+            </div>
           </li>
         ))}
       </ul>
