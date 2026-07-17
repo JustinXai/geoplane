@@ -81,10 +81,22 @@ export const CLIENT_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSur
   { label: "效果验证", href: "/app/performance" },
 ]);
 
+// Checkpoint C3 update: added the six new "Agency workspace" surfaces built in
+// src/app/agency/* (client projects, industry templates, batch tasks, review queue,
+// delivery packages, team & permissions, white-label branding placeholder) and
+// relabeled the existing "项目" placeholder link to "客户项目" to match the page it
+// now points at (src/app/agency/projects/page.tsx). assertSurfaceIsolatedLinks below
+// is unchanged from C1/C2 and still enforces that every href stays within /agency/*.
 export const AGENCY_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSurfaceIsolatedLinks("agency", [
   { label: "客户", href: "/agency/clients" },
   { label: "客户分配", href: "/agency/assignments" },
-  { label: "项目", href: "/agency/projects" },
+  { label: "客户项目", href: "/agency/projects" },
+  { label: "行业模板", href: "/agency/templates" },
+  { label: "批量任务", href: "/agency/batch-tasks" },
+  { label: "审核队列", href: "/agency/review-queue" },
+  { label: "交付包", href: "/agency/deliveries" },
+  { label: "团队与权限", href: "/agency/team" },
+  { label: "品牌白标", href: "/agency/branding" },
 ]);
 
 export const OPS_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSurfaceIsolatedLinks("ops", [
