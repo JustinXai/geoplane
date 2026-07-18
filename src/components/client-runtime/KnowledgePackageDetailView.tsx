@@ -12,6 +12,7 @@
 import Link from "next/link";
 import { useAsyncData } from "../runtime/index.js";
 import { AsyncSection } from "./AsyncSection.js";
+import { KnowledgePackageConfirm } from "./KnowledgePackageConfirm.js";
 import { loadKnowledgeIssues, loadKnowledgePackage } from "./endpoints.js";
 import {
   isEmptyArray,
@@ -25,6 +26,13 @@ export function KnowledgePackageDetailView({ packageId }: { packageId: string })
     isEmpty: isEmptyArray,
     deps: [packageId],
   });
+
+  // A successful confirmation moves the package to CONFIRMED; refresh both the readiness header and
+  // the issues list so the new status (and any resolved findings) show without a manual reload.
+  function handleConfirmed() {
+    pkg.reload();
+    issues.reload();
+  }
 
   return (
     <>
@@ -46,6 +54,11 @@ export function KnowledgePackageDetailView({ packageId }: { packageId: string })
                       ? ` · 确认于 ${readiness.confirmedAtLabel}`
                       : ""}
                   </span>
+                  <KnowledgePackageConfirm
+                    packageId={packageId}
+                    status={data.status}
+                    onConfirmed={handleConfirmed}
+                  />
                 </>
               );
             }}

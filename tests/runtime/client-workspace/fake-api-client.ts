@@ -15,6 +15,8 @@ import type {
 export interface RecordedCall {
   readonly path: string;
   readonly method: string;
+  /** The request body passed to the client (undefined for GET / bodyless calls). */
+  readonly body: unknown;
 }
 
 export interface FakeApiClient {
@@ -24,7 +26,7 @@ export interface FakeApiClient {
 
 /**
  * Fake ApiClient: returns the configured Result for an exactly-matching path (else a
- * NOT_FOUND Result) and records every call in order.
+ * NOT_FOUND Result) and records every call in order (path, method and body).
  */
 export function fakeApiClient(
   routes: Readonly<Record<string, Result<unknown>>> = {},
@@ -32,7 +34,7 @@ export function fakeApiClient(
   const calls: RecordedCall[] = [];
   const client: ApiClient = {
     request<T>(path: string, options?: HttpRequestOptions): Promise<Result<T>> {
-      calls.push({ path, method: options?.method ?? "GET" });
+      calls.push({ path, method: options?.method ?? "GET", body: options?.body });
       const configured = routes[path];
       const result: Result<unknown> =
         configured ?? {
