@@ -1,0 +1,1473 @@
+/**
+ * Recovery classification: RECONSTRUCTED_FROM_FROZEN_SPEC
+ * reconstruction_source: docs/architecture/GEO_BUSINESS_CHAIN_V1.md
+ * reconstruction_reason: no original source recoverable for this chain
+ * original_file_unavailable: true
+ *
+ * Checkpoint D1 — first three entities in the GEO business chain per
+ * docs/architecture/GEO_BUSINESS_CHAIN_V1.md ("Chain (P2 priority)",
+ * items 1-2):
+ *
+ *   1. KnowledgePackage   — an ingested slice of a client's enterprise
+ *                            knowledge base.
+ *   2. IndustryProfile    — the vertical/industry classification context
+ *                            a client's knowledge and keywords are
+ *                            validated against.
+ *   3. KeywordQuestionMap — the keyword <-> real user-question mapping
+ *                            sourced from a KnowledgePackage.
+ *
+ * NAMING CAUTION (see GEO_BUSINESS_CHAIN_V1.md, "Explicit caution for
+ * reconstruction", and docs/rebuild/RECOVERY_GAP_ANALYSIS.md): the
+ * project owner's recalled PascalCase type names for this chain
+ * (ChannelNeutralContentPackageV1, KnowledgeDocument/KnowledgeVersion/
+ * KnowledgeChunk/KnowledgeSnapshot/KnowledgeIssue,
+ * ArticleExecutionContext, ArticleOpportunity, ArticleFamily,
+ * PLATFORM_RULE_GATE, VERTICAL_RULE_GATE, NEEDS_HUMAN_REVIEW,
+ * KNOWLEDGE_GROUNDED_OPPORTUNITY, INDUSTRY_HYPOTHESIS, CONFIRMED_DEMAND)
+ * had ZERO literal hits in recovered evidence. None of those identifiers
+ * are used below. Where this file introduces a concept that rhymes with
+ * one of those (e.g. a governance "gate" level on IndustryProfile), the
+ * identifier is deliberately named differently and flagged inline as an
+ * own-naming assumption, not a recovered fact.
+ *
+ * Tenant isolation (docs/governance/SYSTEM_INVARIANTS_V1.md,
+ * "Tenant isolation"): this business chain is not exempt from tenancy
+ * rules, so every entity below is explicitly scoped to a
+ * `clientOrganizationId` and `projectId` rather than assuming a
+ * single-tenant world.
+ */
+
+/**
+ * A KnowledgePackage represents one ingested slice of a client's
+ * enterprise knowledge base, scoped to the client organization and
+ * project it was ingested for.
+ *
+ * Versioning: `version` is a monotonically increasing integer per
+ * (clientOrganizationId, projectId). A package is mutable while in
+ * `"DRAFT"` status; once transitioned to `"SEALED"` it is treated as an
+ * immutable historical artifact (per SYSTEM_INVARIANTS_V1's
+ * recovery/reconstruction and determinism expectations for this chain) —
+ * the discriminated union below encodes that a `sealedAt` timestamp only
+ * exists on the sealed variant, and downstream code should never mutate a
+ * sealed package in place.
+ */
+interface KnowledgePackageBase {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** Monotonically increasing per (clientOrganizationId, projectId). */
+  version: number;
+  title: string;
+  /** Human-readable description of where this slice of knowledge came from. */
+  sourceDescription: string;
+  createdAt: string;
+}
+
+export interface DraftKnowledgePackage extends KnowledgePackageBase {
+  status: "DRAFT";
+}
+
+export interface SealedKnowledgePackage extends KnowledgePackageBase {
+  status: "SEALED";
+  /** Set once, at seal time. The package must be treated as immutable from this point on. */
+  sealedAt: string;
+}
+
+export type KnowledgePackage = DraftKnowledgePackage | SealedKnowledgePackage;
+
+/**
+ * The governance "gate" level a client's knowledge/keywords are validated
+ * against for a given industry vertical.
+ *
+ * OWN-NAMING ASSUMPTION: GEO_BUSINESS_CHAIN_V1.md's evidence-corroboration
+ * section notes the owner recalled PLATFORM_RULE_GATE / VERTICAL_RULE_GATE
+ * identifiers, but those had zero literal hits in recovered evidence. The
+ * two members below are a reconstruction of the same *concept* (a
+ * platform-wide gate vs. a narrower vertical-specific gate), deliberately
+ * spelled differently so this is never mistaken for a recovered constant.
+ */
+export type GeoValidationGateLevel = "PLATFORM_WIDE_GATE" | "INDUSTRY_VERTICAL_GATE";
+
+/**
+ * An IndustryProfile is the vertical/industry classification context that
+ * a client's KnowledgePackage content and KeywordQuestionMap entries are
+ * validated against. Scoped per client organization and project, since a
+ * single agency may run clients across different verticals.
+ */
+export interface IndustryProfile {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** Short machine-facing slug, e.g. "healthcare", "b2b-saas". Own reconstructed taxonomy, not a recovered enum. */
+  verticalSlug: string;
+  /** Human-readable label, e.g. "Healthcare & Life Sciences". */
+  verticalLabel: string;
+  validationGateLevel: GeoValidationGateLevel;
+  /** Version of the rule set this profile was classified under, for auditability. */
+  ruleSetVersion: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * One keyword and the real user questions it maps to. `questions` must be
+ * non-empty — the whole point of this structure (per GEO_BUSINESS_CHAIN_V1
+ * item 2, "Keyword / user-question map") is pairing a keyword with the
+ * actual questions real users ask around it, not just a bare keyword list.
+ */
+export interface KeywordQuestionEntry {
+  keyword: string;
+  questions: string[];
+}
+
+/**
+ * KeywordQuestionMap is the keyword <-> real user-question mapping this
+ * business chain is built around. It is always sourced from a specific
+ * KnowledgePackage (pinned by id *and* version, so the mapping's
+ * provenance survives the source package later being sealed or
+ * superseded by a newer version) and validated against an
+ * IndustryProfile.
+ */
+export interface KeywordQuestionMap {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** The KnowledgePackage this map was derived from. */
+  knowledgePackageId: string;
+  /** Pins to the specific KnowledgePackage.version used at derivation time. */
+  knowledgePackageVersion: number;
+  /** The IndustryProfile this map's entries were validated against. */
+  industryProfileId: string;
+  entries: KeywordQuestionEntry[];
+  createdAt: string;
+}
+
+/**
+ * Checkpoint D2 — next two chain steps per
+ * docs/architecture/GEO_BUSINESS_CHAIN_V1.md ("Chain (P2 priority)",
+ * items 3-4):
+ *
+ *   4. Opportunity           — a candidate content opportunity derived
+ *                               from a KeywordQuestionMap entry.
+ *   5. OpportunityValidation — the outcome of validating an Opportunity
+ *                               against an IndustryProfile.
+ *   6. HumanReviewDecision   — the human-review gate outcome for an
+ *                               Opportunity.
+ *
+ * NAMING CAUTION (see GEO_BUSINESS_CHAIN_V1.md, "Explicit caution for
+ * reconstruction"): the owner-recalled identifiers `ArticleOpportunity`,
+ * `ArticleFamily`, `KNOWLEDGE_GROUNDED_OPPORTUNITY`, `INDUSTRY_HYPOTHESIS`,
+ * `CONFIRMED_DEMAND`, and `NEEDS_HUMAN_REVIEW` had ZERO literal hits in
+ * recovered evidence. None of those identifiers are reused verbatim below.
+ * `Opportunity`, `OpportunityValidation`, `HumanReviewDecision`, and every
+ * member of `OpportunityValidationStatus` / `HumanReviewDecisionStatus`
+ * are this checkpoint's own reconstructed naming, chosen to match the
+ * chain description ("Opportunity validation" / "Human review (gate)")
+ * rather than any recovered literal — flagged here as an own-naming
+ * assumption, not a recovered fact.
+ */
+
+/**
+ * A candidate content opportunity derived from one KeywordQuestionMap
+ * entry. Scoped to (clientOrganizationId, projectId) per the tenant
+ * isolation invariant, and — per this chain's evidence-corroboration
+ * notes on knowledge-grounded content — required (not optional) to trace
+ * back to the specific KnowledgePackage id+version it was grounded in, via
+ * the sourcing KeywordQuestionMap. Grounding is deliberately non-optional:
+ * there is no valid Opportunity that lacks a knowledge source.
+ */
+export interface Opportunity {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** The KeywordQuestionMap entry this opportunity was derived from. */
+  keywordQuestionMapId: string;
+  /** The specific keyword within that map's entries this opportunity targets. */
+  keyword: string;
+  /**
+   * The KnowledgePackage this opportunity is grounded in. Required, not
+   * optional: content without a traceable knowledge source is not a valid
+   * Opportunity in this system (see GEO_BUSINESS_CHAIN_V1.md evidence
+   * corroboration on knowledge-grounded content).
+   */
+  groundingKnowledgePackageId: string;
+  /** Pins to the specific KnowledgePackage.version this opportunity was grounded in. */
+  groundingKnowledgePackageVersion: number;
+  createdAt: string;
+}
+
+/**
+ * OWN-NAMING ASSUMPTION: reconstructed status vocabulary for "Opportunity
+ * validation" (chain item 3), not a recovered enum. Deliberately spelled
+ * to avoid the recovered-but-unconfirmed `KNOWLEDGE_GROUNDED_OPPORTUNITY`
+ * / `INDUSTRY_HYPOTHESIS` / `CONFIRMED_DEMAND` identifiers noted in
+ * GEO_BUSINESS_CHAIN_V1.md as having zero literal hits in evidence.
+ */
+export type OpportunityValidationStatus =
+  | "PENDING_VALIDATION"
+  | "VALIDATED"
+  | "REJECTED";
+
+/**
+ * The outcome of validating an Opportunity against an IndustryProfile.
+ * Scoped per tenant, referencing both the Opportunity being validated and
+ * the specific IndustryProfile (and its gate level, carried alongside the
+ * reference for auditability in case the profile's gate level changes
+ * after this validation was recorded) used to validate it.
+ */
+export interface OpportunityValidation {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  opportunityId: string;
+  status: OpportunityValidationStatus;
+  /** The IndustryProfile this Opportunity was validated against. */
+  industryProfileId: string;
+  /**
+   * The gate level in effect on the IndustryProfile at validation time,
+   * captured alongside the reference for auditability (the profile's own
+   * gate level may change later; this field is a point-in-time record of
+   * what was actually applied).
+   */
+  gateLevelApplied: GeoValidationGateLevel;
+  /** Free-text rationale for the status, e.g. why an opportunity was rejected. */
+  reasonNote: string;
+  validatedAt: string;
+}
+
+/**
+ * Per docs/governance/SYSTEM_INVARIANTS_V1.md, human review is not
+ * default-approved. This is modeled as a discriminated union, in the same
+ * spirit as the tenancy lane's ClientReviewDecision
+ * (CONFIRMED/CHANGES_REQUESTED/DEFERRED rather than a boolean): there is
+ * no "approved: boolean = true" default, and no variant of this union can
+ * represent an approval without an explicit, non-optional reviewer
+ * identity and decision timestamp. An Opportunity that has not yet been
+ * reviewed simply has no HumanReviewDecision object at all — it is never
+ * represented by a HumanReviewDecision in an "approved" shape with a
+ * missing/placeholder reviewer.
+ *
+ * OWN-NAMING ASSUMPTION: `HumanReviewDecisionStatus` and its members are
+ * this checkpoint's own reconstructed naming for chain item 4 ("Human
+ * review (gate)"); GEO_BUSINESS_CHAIN_V1.md notes the owner-recalled
+ * `NEEDS_HUMAN_REVIEW` identifier had zero literal hits in recovered
+ * evidence, so it is not reused here.
+ */
+export type HumanReviewDecisionStatus = "APPROVED" | "CHANGES_REQUESTED" | "REJECTED";
+
+/**
+ * Acceptance-phase canonicalization (REBUILD_INTEGRATION_ACCEPTANCE_V1):
+ * `ContentApprovalStatus` is the single canonical name for "what state is
+ * a piece of content's human-review approval in" across this codebase.
+ * Deliberately an alias, not a new independent type - `HumanReviewDecisionStatus`
+ * already is this concept for the GEO chain; giving it a second canonical
+ * name would itself become a duplicate this acceptance phase exists to
+ * eliminate. Any future service/UI surface that needs to talk about
+ * content-approval status in general terms (not specifically "this is a
+ * HumanReviewDecision") should import `ContentApprovalStatus`.
+ */
+export type ContentApprovalStatus = HumanReviewDecisionStatus;
+
+interface HumanReviewDecisionBase {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  opportunityId: string;
+  /** The OpportunityValidation outcome this human review is acting on. */
+  opportunityValidationId: string;
+  status: HumanReviewDecisionStatus;
+  /** Required, non-optional: no decision may exist without a real reviewer identity. */
+  reviewerId: string;
+  /** Required, non-optional: no decision may exist without a decision timestamp. */
+  decidedAt: string;
+}
+
+export interface ApprovedHumanReviewDecision extends HumanReviewDecisionBase {
+  status: "APPROVED";
+}
+
+export interface ChangesRequestedHumanReviewDecision extends HumanReviewDecisionBase {
+  status: "CHANGES_REQUESTED";
+  /** Required for this variant: reviewers must state what needs to change. */
+  requestedChangesNote: string;
+}
+
+export interface RejectedHumanReviewDecision extends HumanReviewDecisionBase {
+  status: "REJECTED";
+  /** Required for this variant: reviewers must state why the opportunity was rejected. */
+  rejectionReasonNote: string;
+}
+
+/**
+ * A HumanReviewDecision is always one of these three variants, and every
+ * variant requires `reviewerId` + `decidedAt`. There is no fourth,
+ * "unreviewed-but-approved" variant, and no field default can produce an
+ * approved decision without a reviewer — see the type-level test in
+ * tests/contracts/geo-business-entities.test.ts that demonstrates this
+ * directly (object literals missing `reviewerId` fail to type-check).
+ */
+export type HumanReviewDecision =
+  | ApprovedHumanReviewDecision
+  | ChangesRequestedHumanReviewDecision
+  | RejectedHumanReviewDecision;
+
+/**
+ * Checkpoint D3 — next two chain steps per
+ * docs/architecture/GEO_BUSINESS_CHAIN_V1.md ("Chain (P2 priority)",
+ * items 5-6):
+ *
+ *   7. OpportunityFamily — groups one or more APPROVED Opportunities into
+ *                           the unit that becomes a single piece of
+ *                           content.
+ *   8. ArticleBrief       — the planning brief built from an
+ *                           OpportunityFamily.
+ *
+ * NAMING CAUTION (see GEO_BUSINESS_CHAIN_V1.md, "Explicit caution for
+ * reconstruction", and docs/rebuild/recovered-evidence/
+ * TARGET_STATE_MANIFEST.md section 2): the owner-recalled identifier
+ * `ArticleFamily` (bare) had ZERO literal hits in recovered evidence —
+ * same standing as `ArticleExecutionContext` / `ArticleOpportunity` / the
+ * other zero-hit names flagged in the D1/D2 captions above. The type
+ * below is therefore deliberately named `OpportunityFamily`, not
+ * `ArticleFamily`: it groups `Opportunity` records (this checkpoint's own
+ * reconstructed chain-item-4 name from D2), and the rename makes explicit
+ * that this is an own-naming assumption, not a recovered fact.
+ *
+ * `ArticleBrief` is different: it is a WELL-EVIDENCED name, not an
+ * own-naming assumption. TARGET_STATE_MANIFEST.md section 2 records 4 real
+ * literal hits — `ArticleBriefCandidateV1Schema`,
+ * `ArticleBriefPlanningContextV1`, `BRIEF_PLANNING_CONTEXT_REQUIRED`, and
+ * the real recovered function `buildArticleBriefOfflineV1()` at
+ * `src/opportunity/article-brief-offline-v1.ts` (that file is not itself
+ * present in this worktree — only its existence, path, and the shape of
+ * its recovered test story were recovered, per
+ * docs/rebuild/recovered-evidence/TODAY_NODE_RECOVERY_MATRIX.md section 1).
+ * `ArticleBrief` is therefore used verbatim as the exported type name
+ * below. What was NOT recovered is the field-by-field shape inside
+ * `ArticleBriefPlanningContextV1`, or the "Candidate"/"Schema" runtime
+ * validation machinery implied by `ArticleBriefCandidateV1Schema` — this
+ * checkpoint reconstructs the *field shape* (own-naming assumption at the
+ * field level only) and deliberately does not add a runtime schema
+ * validator: no such dependency exists in this project yet, and this
+ * checkpoint is type-level contracts only, no execution logic.
+ */
+
+/**
+ * One Opportunity's membership in an OpportunityFamily. Carries not just
+ * the authorizing HumanReviewDecision's id but its status, typed as the
+ * literal `"APPROVED"` rather than the full `HumanReviewDecisionStatus`
+ * union. This is what makes "no Opportunity may enter a family without an
+ * APPROVED HumanReviewDecision" a structural rule rather than a
+ * runtime-only check: an object literal referencing a
+ * `CHANGES_REQUESTED`/`REJECTED` decision's status fails to type-check
+ * (see the `@ts-expect-error` case in
+ * tests/contracts/geo-business-entities.test.ts) — it does not merely
+ * fail an `if` check at runtime.
+ */
+export interface OpportunityFamilyMember {
+  opportunityId: string;
+  /** The HumanReviewDecision that authorized this Opportunity's inclusion. */
+  authorizingHumanReviewDecisionId: string;
+  /**
+   * Required, non-optional, and pinned to the literal `"APPROVED"` — see
+   * the interface doc comment above for why this is structural, not a
+   * runtime-only guard.
+   */
+  authorizingReviewDecisionStatus: "APPROVED";
+}
+
+/**
+ * An OpportunityFamily groups one or more APPROVED Opportunities that will
+ * become a single piece of content (GEO_BUSINESS_CHAIN_V1.md chain item
+ * 5). Tenant-scoped like every entity in this chain. `members` is typed as
+ * a non-empty tuple-with-rest (`[OpportunityFamilyMember,
+ * ...OpportunityFamilyMember[]]`) rather than a plain array, so an empty
+ * family — which would violate "one or more" — cannot be constructed at
+ * the type level either.
+ */
+export interface OpportunityFamily {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  members: [OpportunityFamilyMember, ...OpportunityFamilyMember[]];
+  createdAt: string;
+}
+
+/**
+ * OWN-NAMING ASSUMPTION at the field level (see the file-level comment
+ * above): the top-level type name `ArticleBriefPlanningContextV1` is a
+ * recovered literal hit, but its internal fields were not recovered.
+ * `schemaVersion` follows the versioned-schema string convention
+ * corroborated elsewhere in recovered evidence (a real
+ * `"schema_version": "PublishPackageReadinessV1"` hit, per
+ * GEO_BUSINESS_CHAIN_V1.md). `riskLevel` reflects the recovered test
+ * story's "risk escalation" coverage
+ * (docs/rebuild/recovered-evidence/TODAY_NODE_RECOVERY_MATRIX.md section
+ * 1) without modeling *how* risk is computed — that would be execution
+ * logic, out of scope for this checkpoint.
+ */
+export interface ArticleBriefPlanningContextV1 {
+  schemaVersion: "ArticleBriefPlanningContextV1";
+  /** The OpportunityFamily this planning context was derived from. */
+  opportunityFamilyId: string;
+  /**
+   * Every authorizing HumanReviewDecision id from the source
+   * OpportunityFamily's members, carried forward so the planning context
+   * is auditable without re-joining back to the family. Non-empty for the
+   * same "one or more" reason as `OpportunityFamily.members`.
+   */
+  authorizingHumanReviewDecisionIds: [string, ...string[]];
+  /** Keywords carried forward from the family's underlying Opportunities. */
+  targetKeywords: [string, ...string[]];
+  /**
+   * Reflects the recovered "risk escalation" test coverage. Own
+   * reconstructed vocabulary, not a recovered enum.
+   */
+  riskLevel: "STANDARD" | "ESCALATED_FOR_HUMAN_REVIEW";
+}
+
+/**
+ * Recovered evidence includes a real literal hit for a constant named
+ * `BRIEF_PLANNING_CONTEXT_REQUIRED` (TARGET_STATE_MANIFEST.md section 2),
+ * but not its value, type, or call site. Reconstructed here as a
+ * type-level marker documenting (not runtime-enforcing) that
+ * `ArticleBrief.planningContext` is required and non-optional — the actual
+ * enforcement is the TypeScript field itself being non-optional, proven by
+ * the `@ts-expect-error` test that a planningContext-less object literal
+ * does not type-check as `ArticleBrief`.
+ */
+export const BRIEF_PLANNING_CONTEXT_REQUIRED = true as const;
+
+/**
+ * ArticleBrief is the planning brief built from an OpportunityFamily
+ * (GEO_BUSINESS_CHAIN_V1.md chain item 6), grounded in the real recovered
+ * test story for `buildArticleBriefOfflineV1()` (human-review mapping,
+ * risk escalation, illegal-family rejection, determinism/immutability —
+ * TODAY_NODE_RECOVERY_MATRIX.md section 1). This checkpoint models only
+ * the data shape a builder would produce, not the builder itself:
+ *
+ * - "human-review mapping"     -> `planningContext.authorizingHumanReviewDecisionIds`.
+ * - "risk escalation"          -> `planningContext.riskLevel`.
+ * - "illegal-family rejection" -> there is no way to construct an
+ *   `OpportunityFamily` (and therefore nothing valid for an ArticleBrief
+ *   to reference) whose members lack an APPROVED decision — the "illegal
+ *   family" case is rejected structurally, upstream of this type, rather
+ *   than modeled as a possible ArticleBrief variant here.
+ * - "determinism/immutability" -> ArticleBrief has no mutable/draft
+ *   fields; every field is required at construction and there is no
+ *   partial/patchable variant, mirroring
+ *   docs/governance/SYSTEM_INVARIANTS_V1.md's determinism note. A revised
+ *   brief is a new ArticleBrief (new id), never a mutation of an existing
+ *   one.
+ *
+ * Per this checkpoint's explicit scope (no execution logic, no field that
+ * would require a live provider call to construct), this type carries no
+ * provider-response fields, no token/usage counters, and no database
+ * write markers — those belong to the (not modeled here) offline build
+ * *result* shape `{status, briefs, provider_calls, database_writes,
+ * fabricated_defaults}` noted in the recovered test story, which is
+ * execution-time output, not this checkpoint's data contract.
+ * `workingTitle` and `outline` are this checkpoint's own reconstructed
+ * content fields (not claimed as recovered) — plain string/array data with
+ * no dependency on a live provider call to construct.
+ */
+export interface ArticleBrief {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** The OpportunityFamily this brief was built from. */
+  opportunityFamilyId: string;
+  /** Required, non-optional — see BRIEF_PLANNING_CONTEXT_REQUIRED above. */
+  planningContext: ArticleBriefPlanningContextV1;
+  /** Working title for the resulting piece of content. */
+  workingTitle: string;
+  /** Section headings/prompts the brief lays out for the eventual article compiler (chain item 7). */
+  outline: string[];
+  createdAt: string;
+}
+
+/**
+ * Checkpoint D4 — next chain step per
+ * docs/architecture/GEO_BUSINESS_CHAIN_V1.md ("Chain (P2 priority)", item
+ * 7): "Article compiler".
+ *
+ * NAMING CAUTION (see GEO_BUSINESS_CHAIN_V1.md, "Explicit caution for
+ * reconstruction"): `ProviderArticleContent`, `ArticleDraft`, and
+ * `ArticleDraftCompiler`/`compileArticleDraft` have ZERO literal hits in
+ * recovered evidence — the chain description only names the step "Article
+ * compiler" generically, with no recovered type/function names attached
+ * (unlike `ArticleBrief`, which is a well-evidenced name per the D3
+ * caption above). All three identifiers below are this checkpoint's own
+ * reconstructed naming, not recovered facts.
+ *
+ * Opaque-provider-envelope design note: recovered evidence includes a
+ * partially-recovered evidence-sealing workflow
+ * ("candidate-2-provider-assisted-article-revision-v2") whose directory
+ * structure was confirmed but whose actual `raw-provider-envelope.json`
+ * content was explicitly NOT recovered (blob decompression failure) — see
+ * docs/rebuild/recovered-evidence/TODAY_NODE_RECOVERY_MATRIX.md section 2.
+ * Combined with docs/governance/SYSTEM_INVARIANTS_V1.md's "No customer
+ * data, no secrets" rule (no raw provider responses may be committed while
+ * this repo is public), this is read as a strong signal against treating a
+ * raw provider response as a safe, directly-modelable shape. Accordingly,
+ * `ProviderArticleContent` below never inlines provider payload content —
+ * only an opaque `providerResponseEnvelopeId` pointer to wherever the raw
+ * envelope is actually stored, out-of-band from this type.
+ *
+ * Determinism note (docs/governance/SYSTEM_INVARIANTS_V1.md, "Determinism
+ * where the business chain requires it" — the `{status, briefs,
+ * provider_calls, database_writes, fabricated_defaults}` recovered test
+ * story): `compileArticleDraft` below is a pure data-transformation
+ * function. It performs no I/O, calls no provider, and — critically for
+ * determinism — never invents its own identity/timestamp values (no
+ * `Date.now()`, no `Math.random()`, no uuid generation) since doing so
+ * would make "same inputs -> same output" false. `id`/`version`/
+ * `compiledAt` are therefore supplied by the caller via the `identity`
+ * parameter, exactly like every other entity in this file already has its
+ * `id`/`createdAt` assigned externally rather than generated by a
+ * constructor.
+ */
+
+/**
+ * ProviderArticleContent represents content that came back from an AI
+ * provider for a given ArticleBrief. Tenant-scoped like every entity in
+ * this chain, and references the source ArticleBrief by id. Carries only
+ * an opaque pointer to the raw provider response envelope — see the
+ * file-level "Opaque-provider-envelope design note" above for why no
+ * specific provider response shape is modeled here, and why no payload
+ * content field exists on this type at all.
+ */
+export interface ProviderArticleContent {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** The ArticleBrief this content was generated for. */
+  articleBriefId: string;
+  /**
+   * Opaque pointer to wherever the raw provider response envelope is
+   * actually stored (e.g. an evidence/object store), out-of-band from this
+   * type. Deliberately not a payload field — this type must never carry
+   * raw provider response content directly.
+   */
+  providerResponseEnvelopeId: string;
+  receivedAt: string;
+}
+
+/**
+ * One compiled section of an ArticleDraft, corresponding 1:1 (by position)
+ * with an entry in the source ArticleBrief's `outline`. Carries only the
+ * heading structure, not provider payload text — consistent with
+ * ProviderArticleContent above never exposing raw provider content, this
+ * checkpoint's compiler only structures *references*, not extracted
+ * provider text (there is no field on ProviderArticleContent to extract
+ * such text from in the first place).
+ */
+export interface ArticleDraftSection {
+  /** Carried forward verbatim from ArticleBrief.outline at this position. */
+  heading: string;
+  /** Position within the outline, 0-based, for stable ordering. */
+  order: number;
+}
+
+/**
+ * The compiled, user-visible draft article. Tenant-scoped, references the
+ * ArticleBrief it was compiled from and every ProviderArticleContent it
+ * was compiled from (non-empty tuple-with-rest, mirroring
+ * OpportunityFamily.members and ArticleBriefPlanningContextV1.targetKeywords
+ * elsewhere in this file: a draft compiled from zero provider contents
+ * cannot be constructed at the type level either).
+ *
+ * Versioning follows the same DRAFT/SEALED discriminated-union pattern as
+ * KnowledgePackage (see that interface's doc comment above): a draft is
+ * mutable while `status: "DRAFT"`; once transitioned to `"SEALED"` it is
+ * immutable history, with `sealedAt` only present on the sealed variant.
+ * `compileArticleDraft` below only ever produces the DRAFT variant —
+ * sealing is a separate, not-yet-modeled step, just as no function in this
+ * file seals a KnowledgePackage either.
+ */
+interface ArticleDraftBase {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** The ArticleBrief this draft was compiled from. */
+  articleBriefId: string;
+  /** Every ProviderArticleContent this draft was compiled from. */
+  sourceProviderArticleContentIds: [string, ...string[]];
+  /** Monotonically increasing per (clientOrganizationId, projectId, articleBriefId). */
+  version: number;
+  /** Carried forward from ArticleBrief.workingTitle at compile time. */
+  title: string;
+  sections: ArticleDraftSection[];
+  compiledAt: string;
+}
+
+export interface DraftArticleDraft extends ArticleDraftBase {
+  status: "DRAFT";
+}
+
+export interface SealedArticleDraft extends ArticleDraftBase {
+  status: "SEALED";
+  /** Set once, at seal time. The draft must be treated as immutable from this point on. */
+  sealedAt: string;
+}
+
+export type ArticleDraft = DraftArticleDraft | SealedArticleDraft;
+
+/**
+ * Caller-supplied identity/versioning/timestamp values for one
+ * `compileArticleDraft` call. Deliberately a separate, explicit input
+ * rather than something the function invents internally — see the
+ * file-level "Determinism note" above.
+ */
+export interface ArticleDraftCompilationIdentity {
+  id: string;
+  version: number;
+  compiledAt: string;
+}
+
+/**
+ * ArticleDraftCompiler — the type of the pure compiler function below,
+ * named to match GEO_BUSINESS_CHAIN_V1.md chain item 7 ("Article
+ * compiler"). Exported as a type alias (rather than only exporting the
+ * function) so the compiler's shape can be referenced/asserted against
+ * independently of its implementation, e.g. by the determinism tests in
+ * tests/contracts/geo-business-compiler.test.ts.
+ */
+export type ArticleDraftCompiler = typeof compileArticleDraft;
+
+/**
+ * Compiles a DraftArticleDraft from an ArticleBrief and the
+ * ProviderArticleContent records generated for it. Pure, deterministic
+ * data transformation only:
+ *
+ * - Zero external calls: no provider SDK, no `fetch`/`http`/network import
+ *   of any kind anywhere in this module (see the static import-list test
+ *   in tests/contracts/geo-business-compiler.test.ts).
+ * - Zero I/O: no filesystem, no database access.
+ * - Deterministic: given the same `brief`, `providerContents`, and
+ *   `identity`, this function returns a deep-equal result every time — it
+ *   never reads the clock, never generates randomness, and never mutates
+ *   its inputs.
+ *
+ * Per this checkpoint's explicit scope (no real provider integration
+ * exists yet), this performs structural validation and reference
+ * assembly only — it does not stub out a fake "call a provider" step, and
+ * there is no async/network-shaped code path anywhere in this function.
+ *
+ * @throws if `brief.planningContext` is missing (defensive runtime check;
+ *   TypeScript already makes `planningContext` non-optional at the type
+ *   level — see BRIEF_PLANNING_CONTEXT_REQUIRED above — but this guards
+ *   the boundary where a `brief` value arrives from outside static typing,
+ *   e.g. deserialized JSON).
+ * @throws if `providerContents` is empty, or if any entry's
+ *   `articleBriefId` does not match `brief.id` (an ArticleDraft may never
+ *   be compiled from orphaned/mismatched provider content).
+ */
+export function compileArticleDraft(
+  brief: ArticleBrief,
+  providerContents: ProviderArticleContent[],
+  identity: ArticleDraftCompilationIdentity,
+): DraftArticleDraft {
+  if (!brief.planningContext) {
+    throw new Error(
+      "compileArticleDraft: brief.planningContext is required (see BRIEF_PLANNING_CONTEXT_REQUIRED).",
+    );
+  }
+
+  if (providerContents.length === 0) {
+    throw new Error(
+      "compileArticleDraft: at least one ProviderArticleContent is required to compile an ArticleDraft.",
+    );
+  }
+
+  const mismatched = providerContents.find((content) => content.articleBriefId !== brief.id);
+  if (mismatched) {
+    throw new Error(
+      `compileArticleDraft: ProviderArticleContent "${mismatched.id}" references ArticleBrief ` +
+        `"${mismatched.articleBriefId}", not the compiled brief "${brief.id}".`,
+    );
+  }
+
+  const sourceProviderArticleContentIds = providerContents.map(
+    (content) => content.id,
+  ) as [string, ...string[]];
+
+  const sections: ArticleDraftSection[] = brief.outline.map((heading, order) => ({
+    heading,
+    order,
+  }));
+
+  return {
+    id: identity.id,
+    clientOrganizationId: brief.clientOrganizationId,
+    projectId: brief.projectId,
+    articleBriefId: brief.id,
+    sourceProviderArticleContentIds,
+    version: identity.version,
+    title: brief.workingTitle,
+    sections,
+    status: "DRAFT",
+    compiledAt: identity.compiledAt,
+  };
+}
+
+/**
+ * Checkpoint D5 — next chain step per
+ * docs/architecture/GEO_BUSINESS_CHAIN_V1.md ("Chain (P2 priority)", item
+ * 8): "Quality gates".
+ *
+ * NAMING CAUTION (see GEO_BUSINESS_CHAIN_V1.md, "Explicit caution for
+ * reconstruction", and the D1 caption above): the owner-recalled
+ * `PLATFORM_RULE_GATE` / `VERTICAL_RULE_GATE` identifiers had ZERO literal
+ * hits in recovered evidence, and D1 already reconstructed the *gate level*
+ * concept as `GeoValidationGateLevel` ("PLATFORM_WIDE_GATE" /
+ * "INDUSTRY_VERTICAL_GATE") to avoid reusing those unconfirmed names. This
+ * checkpoint introduces a *different* concept — not a gate level on an
+ * `IndustryProfile`, but the pass/fail *outcome* of running an
+ * `ArticleDraft` through a gate — and deliberately does not reuse
+ * `GeoValidationGateLevel` as a type name for it. `PlatformGate` and
+ * `VerticalGate` below are this checkpoint's own reconstructed naming for
+ * that outcome concept (a "gate result", not a "gate level"); each
+ * references `GeoValidationGateLevel` via a `gateLevelApplied` field
+ * (reusing D2's `OpportunityValidation.gateLevelApplied` pattern for
+ * auditability) rather than duplicating the enum's members. `QualityGate`
+ * is a third, distinct outcome type for deterministic content-presence
+ * checks that are neither platform-wide nor vertical-specific rules.
+ *
+ * Non-boolean pass/fail shape: per D2's `HumanReviewDecision` precedent
+ * (SYSTEM_INVARIANTS_V1.md, "no silently-approved state"), none of
+ * `QualityGate` / `PlatformGate` / `VerticalGate` is a bare
+ * `{ passed: boolean }`. Each is a discriminated union on `status:
+ * "PASSED" | "FAILED"`, and the `"FAILED"` variant requires a non-empty
+ * `failureReasons` tuple — a failure can never be silent/reasonless, and a
+ * pass can never be spoofed by an empty-but-truthy shape.
+ *
+ * `ArticleApproval` gating: per this checkpoint's requirement that
+ * publication approval is gated on all three of `QualityGate`,
+ * `PlatformGate`, and `VerticalGate` having passed, `ArticleApproval`
+ * mirrors D3's `OpportunityFamilyMember` pattern
+ * (`authorizingHumanReviewDecisionId` + a status field pinned to the
+ * literal `"APPROVED"`) three times over: each gate is referenced by id
+ * plus a status field pinned to the literal `"PASSED"` (not the wider
+ * `QualityGateStatus`/`GateOutcomeStatus` union). A `FailedQualityGate`'s
+ * `status` is statically `"FAILED"`, which is not assignable to a field
+ * typed as the literal `"PASSED"` — so an `ArticleApproval` object literal
+ * built from a failed (or altogether missing) gate result does not
+ * type-check, the same structural guarantee D3 established for family
+ * membership. See the `@ts-expect-error` cases in
+ * tests/contracts/geo-business-entities.test.ts.
+ *
+ * Determinism (docs/governance/SYSTEM_INVARIANTS_V1.md): `evaluateQualityGate`
+ * below is a pure data-transformation function, following the exact same
+ * discipline as D4's `compileArticleDraft` — no imports, no I/O, no
+ * `Date.now()`/`Math.random()`/uuid generation inside it. Identity/
+ * timestamp values are supplied by the caller via an explicit `identity`
+ * parameter, exactly like `ArticleDraftCompilationIdentity` in D4.
+ */
+
+/**
+ * Shared pass/fail discriminant for the three gate-outcome types below.
+ * Deliberately not a bare `boolean` — see the file-level "Non-boolean
+ * pass/fail shape" note above.
+ */
+export type GateOutcomeStatus = "PASSED" | "FAILED";
+
+interface QualityGateBase {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** The ArticleDraft this gate evaluated. */
+  articleDraftId: string;
+  status: GateOutcomeStatus;
+  evaluatedAt: string;
+}
+
+export interface PassedQualityGate extends QualityGateBase {
+  status: "PASSED";
+}
+
+export interface FailedQualityGate extends QualityGateBase {
+  status: "FAILED";
+  /** Required, non-empty: a failed gate must state why, never silently. */
+  failureReasons: [string, ...string[]];
+}
+
+/**
+ * QualityGate is the outcome of running an ArticleDraft through the
+ * deterministic quality checks in `evaluateQualityGate` below: minimum
+ * content presence (at least one non-empty-heading section), required
+ * `ArticleBrief.planningContext` fields present (`targetKeywords`,
+ * `authorizingHumanReviewDecisionIds`), and no empty
+ * `sourceProviderArticleContentIds` — all facts already established as
+ * required by the ArticleDraft/ArticleBrief contracts above (D1-D4); this
+ * type does not invent any new field or check beyond re-verifying those at
+ * the runtime boundary, the same defensive posture `compileArticleDraft`
+ * already takes for `brief.planningContext`.
+ */
+export type QualityGate = PassedQualityGate | FailedQualityGate;
+
+interface PlatformGateBase {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** Discriminant so PlatformGate and VerticalGate are never structurally interchangeable, despite otherwise-identical shapes. */
+  gateKind: "PLATFORM_GATE";
+  /** The ArticleDraft this gate evaluated. */
+  articleDraftId: string;
+  /** The IndustryProfile in effect when this gate ran. */
+  industryProfileId: string;
+  /**
+   * The gate level in effect on the IndustryProfile at evaluation time,
+   * captured alongside the reference for auditability — same pattern as
+   * D2's OpportunityValidation.gateLevelApplied.
+   */
+  gateLevelApplied: GeoValidationGateLevel;
+  status: GateOutcomeStatus;
+  evaluatedAt: string;
+}
+
+export interface PassedPlatformGate extends PlatformGateBase {
+  status: "PASSED";
+}
+
+export interface FailedPlatformGate extends PlatformGateBase {
+  status: "FAILED";
+  /** Required, non-empty: a failed gate must state why, never silently. */
+  failureReasons: [string, ...string[]];
+}
+
+/**
+ * PlatformGate is the outcome of running an ArticleDraft through
+ * platform-wide rules (rules that apply regardless of industry vertical).
+ * Distinct from VerticalGate below — see the file-level NAMING CAUTION —
+ * and distinct from GeoValidationGateLevel, which is a gate *level* on an
+ * IndustryProfile, not a gate *outcome* on a draft.
+ */
+export type PlatformGate = PassedPlatformGate | FailedPlatformGate;
+
+interface VerticalGateBase {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** Discriminant so VerticalGate and PlatformGate are never structurally interchangeable, despite otherwise-identical shapes. */
+  gateKind: "VERTICAL_GATE";
+  /** The ArticleDraft this gate evaluated. */
+  articleDraftId: string;
+  /** The IndustryProfile whose vertical-specific rules this gate applied. */
+  industryProfileId: string;
+  /**
+   * The gate level in effect on the IndustryProfile at evaluation time,
+   * captured alongside the reference for auditability — same pattern as
+   * D2's OpportunityValidation.gateLevelApplied. Expected to be
+   * "INDUSTRY_VERTICAL_GATE" for a VerticalGate in practice, but not
+   * pinned to that literal here since the type only records what was
+   * actually applied, mirroring OpportunityValidation's own field.
+   */
+  gateLevelApplied: GeoValidationGateLevel;
+  status: GateOutcomeStatus;
+  evaluatedAt: string;
+}
+
+export interface PassedVerticalGate extends VerticalGateBase {
+  status: "PASSED";
+}
+
+export interface FailedVerticalGate extends VerticalGateBase {
+  status: "FAILED";
+  /** Required, non-empty: a failed gate must state why, never silently. */
+  failureReasons: [string, ...string[]];
+}
+
+/**
+ * VerticalGate is the outcome of running an ArticleDraft through the
+ * IndustryProfile-specific vertical rules (D1's IndustryProfile /
+ * GeoValidationGateLevel). Distinct from PlatformGate above — see the
+ * file-level NAMING CAUTION.
+ */
+export type VerticalGate = PassedVerticalGate | FailedVerticalGate;
+
+/**
+ * ArticleApproval is the final human approval of an ArticleDraft for
+ * publication readiness. Per this checkpoint's requirement (and
+ * SYSTEM_INVARIANTS_V1.md's Publication invariant that nothing publishes
+ * automatically), an ArticleApproval requires a real, non-optional
+ * `approverId` + `approvedAt` (same "no decision without an identity and
+ * timestamp" shape as D2's HumanReviewDecision), and is gated on all three
+ * of QualityGate, PlatformGate, and VerticalGate having passed: each is
+ * referenced by id plus a status field pinned to the literal `"PASSED"` —
+ * see the file-level doc comment above for why this makes the gating
+ * structural (a compile-time failure to construct with a failed/missing
+ * gate), not merely a runtime check.
+ */
+export interface ArticleApproval {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** The ArticleDraft this approval makes publication-ready. */
+  articleDraftId: string;
+  /** Required, non-optional: no approval may exist without a real approver identity. */
+  approverId: string;
+  /** Required, non-optional: no approval may exist without an approval timestamp. */
+  approvedAt: string;
+  /** The QualityGate that authorized this approval. */
+  qualityGateId: string;
+  /** Pinned to the literal "PASSED" — see the interface doc comment above. */
+  qualityGateStatus: "PASSED";
+  /** The PlatformGate that authorized this approval. */
+  platformGateId: string;
+  /** Pinned to the literal "PASSED" — see the interface doc comment above. */
+  platformGateStatus: "PASSED";
+  /** The VerticalGate that authorized this approval. */
+  verticalGateId: string;
+  /** Pinned to the literal "PASSED" — see the interface doc comment above. */
+  verticalGateStatus: "PASSED";
+}
+
+/**
+ * Caller-supplied identity/timestamp values for one `evaluateQualityGate`
+ * call. Deliberately a separate, explicit input rather than something the
+ * function invents internally — see the file-level "Determinism" note
+ * above and D4's identical `ArticleDraftCompilationIdentity` pattern.
+ */
+export interface QualityGateEvaluationIdentity {
+  id: string;
+  evaluatedAt: string;
+}
+
+/**
+ * Evaluates an ArticleDraft (and the ArticleBrief it was compiled from)
+ * against the deterministic quality checks described in the `QualityGate`
+ * doc comment above:
+ *
+ * 1. Minimum content presence: `draft.sections` is non-empty and every
+ *    section has a non-blank `heading`.
+ * 2. Required `planningContext` fields present: `brief.planningContext`
+ *    itself, plus its non-empty `targetKeywords` and
+ *    `authorizingHumanReviewDecisionIds` — all already required by the
+ *    ArticleBrief/ArticleBriefPlanningContextV1 contracts (D3), re-checked
+ *    here defensively at the runtime boundary the same way
+ *    `compileArticleDraft` re-checks `planningContext` in D4.
+ * 3. No empty `sourceProviderArticleContentIds` — already a non-empty
+ *    tuple at the type level (D4), re-checked here for the same
+ *    defensive-boundary reason.
+ * 4. `draft.articleBriefId` actually matches `brief.id` (the draft being
+ *    graded must be the one compiled from the brief passed in, not an
+ *    unrelated pair).
+ *
+ * Pure, deterministic data transformation only, matching D4's
+ * `compileArticleDraft` discipline exactly: zero imports, zero I/O, no
+ * provider/network call of any kind, never reads the clock or generates
+ * randomness, never mutates its inputs. `id` and `evaluatedAt` are
+ * supplied by the caller via `identity` for the same reason D4's
+ * `compileArticleDraft` takes an `identity` parameter instead of calling
+ * `Date.now()`/generating a uuid itself.
+ */
+export function evaluateQualityGate(
+  draft: ArticleDraft,
+  brief: ArticleBrief,
+  identity: QualityGateEvaluationIdentity,
+): QualityGate {
+  const failureReasons: string[] = [];
+
+  if (draft.sections.length === 0) {
+    failureReasons.push(
+      "ArticleDraft has zero sections; minimum content presence check failed.",
+    );
+  } else if (draft.sections.some((section) => section.heading.trim().length === 0)) {
+    failureReasons.push(
+      "ArticleDraft has one or more sections with an empty or blank heading.",
+    );
+  }
+
+  if (!brief.planningContext) {
+    failureReasons.push("ArticleBrief.planningContext is missing.");
+  } else {
+    if (brief.planningContext.targetKeywords.length === 0) {
+      failureReasons.push("ArticleBriefPlanningContextV1.targetKeywords is empty.");
+    }
+    if (brief.planningContext.authorizingHumanReviewDecisionIds.length === 0) {
+      failureReasons.push(
+        "ArticleBriefPlanningContextV1.authorizingHumanReviewDecisionIds is empty.",
+      );
+    }
+  }
+
+  if (draft.sourceProviderArticleContentIds.length === 0) {
+    failureReasons.push("ArticleDraft.sourceProviderArticleContentIds is empty.");
+  }
+
+  if (draft.articleBriefId !== brief.id) {
+    failureReasons.push(
+      `ArticleDraft.articleBriefId "${draft.articleBriefId}" does not match the evaluated ` +
+        `ArticleBrief.id "${brief.id}".`,
+    );
+  }
+
+  if (failureReasons.length > 0) {
+    return {
+      id: identity.id,
+      clientOrganizationId: draft.clientOrganizationId,
+      projectId: draft.projectId,
+      articleDraftId: draft.id,
+      status: "FAILED",
+      failureReasons: failureReasons as [string, ...string[]],
+      evaluatedAt: identity.evaluatedAt,
+    };
+  }
+
+  return {
+    id: identity.id,
+    clientOrganizationId: draft.clientOrganizationId,
+    projectId: draft.projectId,
+    articleDraftId: draft.id,
+    status: "PASSED",
+    evaluatedAt: identity.evaluatedAt,
+  };
+}
+
+/**
+ * Checkpoint D6 (final chain step for this rebuild pass) —
+ * PublishPackage / ChannelNeutralContentPackage / DistributionPlan /
+ * PublicationReceipt. D1-D5 covered every numbered item in
+ * docs/architecture/GEO_BUSINESS_CHAIN_V1.md's "Chain (P2 priority)" list
+ * (items 1-8, ending at "Quality gates" -> ArticleApproval). This
+ * checkpoint extends past that list into
+ * docs/architecture/SYSTEM_BLUEPRINT_V1.md's "Layering" section
+ * ("Distribution layer (lowest priority): distribution, publisher bridge,
+ * visibility placeholder") and is governed by that same document's
+ * "Publication principles (frozen, non-negotiable)" plus
+ * docs/governance/SYSTEM_INVARIANTS_V1.md's "Publication" section:
+ *
+ *   - Platform-neutral by default: never auto-select the client's own
+ *     website or a specific large platform as a default target.
+ *   - No automatic publication under any circumstance.
+ *   - External publisher bridges (WeChatSync-style) are future, opt-in,
+ *     explicit — never wired in as a default path.
+ *
+ * NAMING CAUTION (see GEO_BUSINESS_CHAIN_V1.md, "Explicit caution for
+ * reconstruction"): the owner-recalled identifier
+ * `ChannelNeutralContentPackageV1` had ZERO literal hits in recovered
+ * evidence — same standing as `ArticleFamily`/`ArticleExecutionContext`/
+ * the other zero-hit names flagged in the D1/D2/D3 captions above. The
+ * type below is therefore deliberately named `ChannelNeutralContentPackage`
+ * (no `V1` suffix — no versioned-schema literal was recovered for this
+ * concept the way `ArticleBriefPlanningContextV1`'s exact string was), and
+ * every field on it is this checkpoint's own reconstructed naming, not a
+ * recovered fact. `PublishPackage`, `DistributionPlan`, and
+ * `PublicationReceipt` are likewise entirely own-naming: the chain
+ * description and recovered evidence name no fields or identifiers for
+ * them at all.
+ *
+ * Structural enforcement of "no automatic publication" for this
+ * checkpoint's four types:
+ *
+ * 1. `PublishPackage.articleApprovalId` is a required, non-optional
+ *    string — mirroring D2/D5's "no silently-approved state" discipline
+ *    (`HumanReviewDecision.reviewerId`, `ArticleApproval.approverId`):
+ *    there is no field default and no optional-with-fallback path that
+ *    lets a `PublishPackage` object literal type-check without a real
+ *    `ArticleApproval` reference. The only function that produces one,
+ *    `buildPublishPackage` below, takes a real `ArticleApproval` value
+ *    (not just an id) as its first parameter, so there is no call site
+ *    that can build a `PublishPackage` from a missing/undefined approval
+ *    either.
+ * 2. `ChannelNeutralContentPackage` carries no "default channel" concept
+ *    anywhere in its shape: content lives in channel-agnostic
+ *    `blocks` (structural units — heading/paragraph/list/image-reference —
+ *    with no platform-specific markup), and `targetChannelIds` is a plain
+ *    `string[]` that only this module's `createChannelNeutralContentPackage`
+ *    smart constructor can populate — and it always initializes that field
+ *    to `[]`, with no parameter anywhere that accepts a pre-seeded channel
+ *    list. Adding a channel is only possible via the separate, explicit,
+ *    one-channel-at-a-time `addTargetChannel` step. This mirrors, in a
+ *    backend data-contract module, the same "0 selected/enabled by
+ *    default" discipline the frontend C2/C3/C4 checkpoints enforced
+ *    through their fixture shapes — here enforced through the smart
+ *    constructor's signature instead, since there is no UI fixture
+ *    convention to reuse in this module.
+ * 3. `DistributionPlan.channelIds` is a non-empty tuple-with-rest
+ *    (`[string, ...string[]]`), the same pattern D3 used for
+ *    `OpportunityFamily.members` ("one or more" enforced at the type
+ *    level, not just at runtime): there is no way to construct a
+ *    `DistributionPlan` object literal with zero channels. On top of
+ *    that, `selectedByActorId` + `selectedAt` are required and
+ *    non-optional — the same "no decision without an identity and
+ *    timestamp" shape as D2's `HumanReviewDecision` / D5's
+ *    `ArticleApproval` — so a `DistributionPlan` can never represent
+ *    "ready to distribute" without recording which human explicitly chose
+ *    those channels and when.
+ * 4. `PublicationReceipt.publishedByActorId` is required and non-optional,
+ *    and this module's only `PublicationReceipt`-producing function,
+ *    `createPublicationReceipt` below, throws (a runtime guard, since
+ *    TypeScript's `string` type cannot statically exclude specific
+ *    literal values while still accepting arbitrary real actor ids) if
+ *    that value is empty or one of `"system"`/`"auto"`/`"automated"`/
+ *    `"automatic"` (case-insensitive) — the concrete, executable form of
+ *    "no automatic publication under any circumstance". Fixtures in the
+ *    test suite use obviously-fake placeholder actor ids
+ *    (`user_platform_jane`-style, or a `svc_`-prefixed service id), never
+ *    a real identity.
+ *
+ * Determinism (docs/governance/SYSTEM_INVARIANTS_V1.md): both
+ * `buildPublishPackage` and `createPublicationReceipt` follow the exact
+ * same discipline as D4's `compileArticleDraft` / D5's
+ * `evaluateQualityGate`: zero imports, zero I/O, no
+ * `Date.now()`/`Math.random()`/uuid generation, no mutation of inputs.
+ * `addTargetChannel` and `createChannelNeutralContentPackage` follow the
+ * same discipline (the latter's `id`/`createdAt` are also caller-supplied
+ * via an explicit `identity` parameter, not generated internally).
+ */
+
+/**
+ * One structural, channel-agnostic unit of content. Deliberately no
+ * platform-specific markup/formatting field (no "html", no "wechatXml",
+ * no "wordpressBlocks") — see the file-level note above on why
+ * `ChannelNeutralContentPackage` must not bake in any one channel's shape.
+ * `text` is plain content; for `"IMAGE_REFERENCE"` it is an opaque
+ * pointer id, following the same "never inline raw payload content"
+ * discipline D4's `ProviderArticleContent.providerResponseEnvelopeId`
+ * established for provider envelopes.
+ */
+export interface ChannelNeutralContentBlock {
+  kind: "HEADING" | "PARAGRAPH" | "LIST" | "IMAGE_REFERENCE";
+  text: string;
+  /** Position within the content package, 0-based, for stable ordering. */
+  order: number;
+}
+
+/**
+ * Channel-agnostic, publication-ready content, built from a
+ * `PublishPackage`. Per the file-level note above, this type has no
+ * "default channel" concept: `targetChannelIds` can only be produced by
+ * `createChannelNeutralContentPackage` (always `[]`) and grown one entry
+ * at a time by `addTargetChannel` — there is no constructor path in this
+ * module that yields a non-empty `targetChannelIds` directly.
+ */
+export interface ChannelNeutralContentPackage {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** The PublishPackage this channel-neutral content was built from. */
+  publishPackageId: string;
+  blocks: ChannelNeutralContentBlock[];
+  /**
+   * Zero by construction (see `createChannelNeutralContentPackage`), grown
+   * only via the separate, explicit `addTargetChannel` step. Never
+   * pre-populated with a "default" channel.
+   */
+  targetChannelIds: string[];
+  createdAt: string;
+}
+
+/**
+ * DistributionPlan references a ChannelNeutralContentPackage plus the
+ * explicit, human-chosen set of channels to distribute it to. See the
+ * file-level note above (item 3) for why `channelIds` being a non-empty
+ * tuple, plus the required `selectedByActorId`/`selectedAt` pair, together
+ * make "ready to distribute with zero explicit human action" impossible
+ * to construct.
+ */
+export interface DistributionPlan {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** The ChannelNeutralContentPackage this plan distributes. */
+  channelNeutralContentPackageId: string;
+  /**
+   * Required, non-empty tuple-with-rest — mirrors D3's
+   * `OpportunityFamily.members`. There is no `DistributionPlan` shape
+   * with zero channels.
+   */
+  channelIds: [string, ...string[]];
+  /** Required, non-optional: no plan may exist without the human who explicitly chose these channels. */
+  selectedByActorId: string;
+  /** Required, non-optional: no plan may exist without a selection timestamp. */
+  selectedAt: string;
+}
+
+/**
+ * PublicationReceipt records that a specific channel was actually
+ * published to, at a specific time, by a specific (never automatic)
+ * actor. See the file-level note above (item 4) for how
+ * `createPublicationReceipt` enforces the "never automatic" half of this
+ * at runtime, since TypeScript's `string` type cannot exclude specific
+ * literal values statically.
+ */
+export interface PublicationReceipt {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** The DistributionPlan this receipt records execution against. */
+  distributionPlanId: string;
+  /** The specific channel actually published to; expected to be one of the source DistributionPlan's channelIds (checked at runtime by createPublicationReceipt). */
+  channelId: string;
+  /**
+   * Required, non-optional real human/service actor identity. Never
+   * "system"/"auto"/"automated"/"automatic" — see
+   * docs/governance/SYSTEM_INVARIANTS_V1.md, "Publication": "No automatic
+   * publication under any circumstance". Fixtures must use an obviously
+   * fake placeholder id, never a real identity.
+   */
+  publishedByActorId: string;
+  publishedAt: string;
+}
+
+/**
+ * Acceptance-phase canonicalization (REBUILD_INTEGRATION_ACCEPTANCE_V1):
+ * `PublicationStatus` is the single canonical cross-cutting status for
+ * "where is this PublishPackage in its journey to being published" -
+ * introduced now because no lane had previously needed to summarize this
+ * across the three distribution-layer entities (PublishPackage /
+ * DistributionPlan / PublicationReceipt) for a read model. Derived purely
+ * from which of those records exist for a given PublishPackage id -
+ * see `derivePublicationStatus` below - never stored as its own mutable
+ * field, so it cannot drift from the real underlying records.
+ *
+ *   PACKAGED           - a PublishPackage exists, no DistributionPlan yet.
+ *   CHANNELS_SELECTED  - a DistributionPlan exists (per D6, this always
+ *                        means a non-empty, explicitly human-chosen
+ *                        channel list - there is no "ready" state with 0
+ *                        channels), but no PublicationReceipt yet for any
+ *                        of its channels.
+ *   PARTIALLY_PUBLISHED - at least one PublicationReceipt exists, but not
+ *                        for every channel in the DistributionPlan.
+ *   PUBLISHED          - a PublicationReceipt exists for every channel in
+ *                        the DistributionPlan.
+ */
+export type PublicationStatus =
+  | "PACKAGED"
+  | "CHANNELS_SELECTED"
+  | "PARTIALLY_PUBLISHED"
+  | "PUBLISHED";
+
+/**
+ * Derives `PublicationStatus` from the real records - never trust a
+ * separately-stored status field, since one would inevitably drift from
+ * these three entities' actual state (the same discipline D6's
+ * `createChannelNeutralContentPackage`/`createPublicationReceipt` already
+ * apply to their own invariants).
+ */
+export function derivePublicationStatus(
+  plan: DistributionPlan | null,
+  receipts: readonly PublicationReceipt[],
+): PublicationStatus {
+  if (plan === null) {
+    return "PACKAGED";
+  }
+  const publishedChannelIds = new Set(
+    receipts.filter((r) => r.distributionPlanId === plan.id).map((r) => r.channelId),
+  );
+  if (publishedChannelIds.size === 0) {
+    return "CHANNELS_SELECTED";
+  }
+  const allPublished = plan.channelIds.every((channelId) => publishedChannelIds.has(channelId));
+  return allPublished ? "PUBLISHED" : "PARTIALLY_PUBLISHED";
+}
+
+/**
+ * Caller-supplied identity/timestamp values for one `buildPublishPackage`
+ * call — same explicit-identity discipline as D4's
+ * `ArticleDraftCompilationIdentity` / D5's `QualityGateEvaluationIdentity`.
+ */
+export interface PublishPackageIdentity {
+  id: string;
+  builtAt: string;
+}
+
+/**
+ * PublishPackage is the final publication-ready package built from an
+ * ArticleApproval. Per the file-level note above (item 1), `articleApprovalId`
+ * is required and non-optional — nothing may be published without a real
+ * ArticleApproval reference, and `buildPublishPackage` below is the only
+ * function in this module that produces a `PublishPackage`, taking a real
+ * `ArticleApproval` value (not merely an id) as input.
+ */
+export interface PublishPackage {
+  id: string;
+  clientOrganizationId: string;
+  projectId: string;
+  /** Required, non-optional: no PublishPackage may exist without a real ArticleApproval reference. */
+  articleApprovalId: string;
+  /** The ArticleDraft the approval and this package both trace back to, carried forward for traceability. */
+  articleDraftId: string;
+  /** Carried forward from the compiled ArticleDraft at build time. */
+  title: string;
+  builtAt: string;
+}
+
+/**
+ * Builds a `PublishPackage` from an `ArticleApproval` and the
+ * `ArticleDraft` it approved. Pure, deterministic data transformation
+ * only, matching D4's `compileArticleDraft` / D5's `evaluateQualityGate`
+ * discipline exactly: zero imports, zero I/O, no provider/network call of
+ * any kind, never reads the clock or generates randomness, never mutates
+ * its inputs. `id`/`builtAt` are supplied by the caller via `identity`
+ * for the same reason D4/D5's functions take an `identity` parameter
+ * instead of generating their own.
+ *
+ * @throws if `approval` is missing/undefined — the concrete, executable
+ *   form of "nothing may be published without an ArticleApproval"
+ *   (defensive runtime check for the boundary where a value arrives from
+ *   outside static typing, e.g. deserialized JSON — TypeScript already
+ *   makes `approval` a required parameter and `PublishPackage.articleApprovalId`
+ *   non-optional at the type level).
+ * @throws if `approval.articleDraftId` does not match `draft.id` (a
+ *   PublishPackage may never be built from an approval/draft pair that do
+ *   not actually reference each other).
+ */
+export function buildPublishPackage(
+  approval: ArticleApproval,
+  draft: ArticleDraft,
+  identity: PublishPackageIdentity,
+): PublishPackage {
+  if (!approval) {
+    throw new Error(
+      "buildPublishPackage: approval is required — a PublishPackage may never be built without a real ArticleApproval.",
+    );
+  }
+
+  if (approval.articleDraftId !== draft.id) {
+    throw new Error(
+      `buildPublishPackage: ArticleApproval "${approval.id}" references ArticleDraft ` +
+        `"${approval.articleDraftId}", not the given draft "${draft.id}".`,
+    );
+  }
+
+  return {
+    id: identity.id,
+    clientOrganizationId: approval.clientOrganizationId,
+    projectId: approval.projectId,
+    articleApprovalId: approval.id,
+    articleDraftId: draft.id,
+    title: draft.title,
+    builtAt: identity.builtAt,
+  };
+}
+
+/**
+ * Caller-supplied identity/timestamp values for one
+ * `createChannelNeutralContentPackage` call — same explicit-identity
+ * discipline as `PublishPackageIdentity` above.
+ */
+export interface ChannelNeutralContentPackageIdentity {
+  id: string;
+  createdAt: string;
+}
+
+/**
+ * Smart constructor for `ChannelNeutralContentPackage`. This is the ONLY
+ * function in this module that produces one, and it always initializes
+ * `targetChannelIds` to an empty array — there is no parameter here that
+ * accepts a pre-populated channel list, so a package with a non-empty
+ * target-channel list cannot come into existence except via the separate
+ * `addTargetChannel` step below. Pure: no imports, no I/O, no clock/random
+ * access, does not mutate `blocks`.
+ */
+export function createChannelNeutralContentPackage(
+  publishPackage: PublishPackage,
+  blocks: ChannelNeutralContentBlock[],
+  identity: ChannelNeutralContentPackageIdentity,
+): ChannelNeutralContentPackage {
+  return {
+    id: identity.id,
+    clientOrganizationId: publishPackage.clientOrganizationId,
+    projectId: publishPackage.projectId,
+    publishPackageId: publishPackage.id,
+    blocks: [...blocks],
+    targetChannelIds: [],
+    createdAt: identity.createdAt,
+  };
+}
+
+/**
+ * The only way to add a target channel to a `ChannelNeutralContentPackage`:
+ * explicit, one channel at a time, pure (returns a new object; does not
+ * mutate `pkg`). There is no bulk "set channels" function and no path
+ * that skips straight to a populated list — every channel added this way
+ * is an explicit, separate, auditable step, per the file-level note above
+ * (item 2). Idempotent: adding a channel id already present returns an
+ * equivalent package rather than duplicating it.
+ */
+export function addTargetChannel(
+  pkg: ChannelNeutralContentPackage,
+  channelId: string,
+): ChannelNeutralContentPackage {
+  if (pkg.targetChannelIds.includes(channelId)) {
+    return pkg;
+  }
+
+  return {
+    ...pkg,
+    targetChannelIds: [...pkg.targetChannelIds, channelId],
+  };
+}
+
+/**
+ * Case-insensitive set of actor-id values that must never appear as
+ * `PublicationReceipt.publishedByActorId`. Concrete, executable form of
+ * docs/governance/SYSTEM_INVARIANTS_V1.md's "Publication" invariant: "No
+ * automatic publication under any circumstance."
+ */
+const FORBIDDEN_AUTOMATIC_ACTOR_IDS = new Set([
+  "system",
+  "auto",
+  "automated",
+  "automatic",
+  "",
+]);
+
+/**
+ * Caller-supplied identity/timestamp values for one
+ * `createPublicationReceipt` call — same explicit-identity discipline as
+ * `PublishPackageIdentity` / `ChannelNeutralContentPackageIdentity` above.
+ */
+export interface PublicationReceiptIdentity {
+  id: string;
+  publishedAt: string;
+}
+
+/**
+ * Smart constructor for `PublicationReceipt`. Pure: no imports, no I/O,
+ * no clock/random access, does not mutate `plan`.
+ *
+ * @throws if `channelId` is not one of `plan.channelIds` (a receipt may
+ *   never record publication to a channel the DistributionPlan never
+ *   selected).
+ * @throws if `publishedByActorId` is empty or is one of
+ *   `FORBIDDEN_AUTOMATIC_ACTOR_IDS` (case-insensitive) — the runtime
+ *   enforcement of "no automatic publication under any circumstance",
+ *   since TypeScript's `string` type cannot statically exclude specific
+ *   literal values while still accepting arbitrary real actor ids.
+ */
+export function createPublicationReceipt(
+  plan: DistributionPlan,
+  channelId: string,
+  publishedByActorId: string,
+  identity: PublicationReceiptIdentity,
+): PublicationReceipt {
+  if (!plan.channelIds.includes(channelId)) {
+    throw new Error(
+      `createPublicationReceipt: channel "${channelId}" is not one of DistributionPlan ` +
+        `"${plan.id}"'s selected channelIds.`,
+    );
+  }
+
+  const normalizedActorId = publishedByActorId.trim().toLowerCase();
+  if (FORBIDDEN_AUTOMATIC_ACTOR_IDS.has(normalizedActorId)) {
+    throw new Error(
+      `createPublicationReceipt: publishedByActorId "${publishedByActorId}" looks like an ` +
+        `automatic/system actor, which is never allowed (see SYSTEM_INVARIANTS_V1.md, ` +
+        `"Publication": "No automatic publication under any circumstance").`,
+    );
+  }
+
+  return {
+    id: identity.id,
+    clientOrganizationId: plan.clientOrganizationId,
+    projectId: plan.projectId,
+    distributionPlanId: plan.id,
+    channelId,
+    publishedByActorId,
+    publishedAt: identity.publishedAt,
+  };
+}

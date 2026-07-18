@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "declaration": true
+  },
+  "include": ["src/contracts", "src/composition"],
+  "exclude": ["src/app", "src/components", "src/lib"]
+}

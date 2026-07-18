@@ -5,6 +5,7 @@ build/
 coverage/
 .pnpm-store/
 .turbo/
+*.tsbuildinfo
 *.log
 .env
 .env.*
