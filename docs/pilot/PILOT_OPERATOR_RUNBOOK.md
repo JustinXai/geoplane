@@ -53,7 +53,10 @@ provider flag posture).
 
 ## 2. Migrate
 
-Migrations are `migrations/0001…0007_*.sql`, applied in order and idempotently (a re-run applies 0).
+Migrations are `migrations/0001…0008_*.sql`, applied in order and idempotently (a re-run applies 0).
+`0008_provider_identity.sql` adds the canonical provider identity columns (`gateway_vendor` /
+`model_vendor` / `protocol`) to the append-only `provider_execution` ledger; pre-0008 rows are
+backfilled by DDL as `UNKNOWN_LEGACY` / `DEEPSEEK` / `OPENAI_COMPATIBLE` without any row UPDATE.
 
 ```
 # Runtime database

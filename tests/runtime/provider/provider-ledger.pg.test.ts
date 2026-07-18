@@ -21,6 +21,10 @@
  *   7. the D2 OpenAI-compatible adapter, wired to the ledger via asObserver()
  *      with a FAKE fetch (zero real network), lands a durable OK row — and the
  *      API key never reaches the persisted row.
+ *   8. PROVIDER_IDENTITY_LEDGER_V1: the canonical identity columns (0008 —
+ *      gateway_vendor / model_vendor / protocol) persist verbatim, are
+ *      CHECK-constrained to the closed sets in identity.ts, must be declared on
+ *      INSERT (backfill DEFAULTs dropped), and are equally append-only.
  *
  * ZERO REAL NETWORK: the one adapter test injects a fake fetch and additionally
  * spies the global fetch to assert it is never called.
@@ -35,6 +39,7 @@ import { applyMigrations } from "../../../src/persistence/pg/migrator.js";
 import { createPgDatabase } from "../../../src/persistence/pg/pg-database.js";
 import { PgProviderLedger } from "../../../src/runtime/provider/pg-provider-ledger.js";
 import { ProviderErrorCode } from "../../../src/runtime/provider/errors.js";
+import { DEFAULT_PROVIDER_IDENTITY } from "../../../src/runtime/provider/identity.js";
 import {
   buildProviderFailureRecord,
   buildProviderSuccessRecord,
@@ -112,6 +117,7 @@ function metaFor(
     projectId: t.projectId,
     articleBriefId: overrides.articleBriefId ?? randomUUID(),
     model: overrides.model ?? "deepseek-chat",
+    identity: overrides.identity ?? DEFAULT_PROVIDER_IDENTITY,
     latencyMs: overrides.latencyMs ?? 42,
   };
 }
@@ -164,12 +170,15 @@ describe.skipIf(testConfig === null)(
           "completion_tokens",
           "created_at",
           "error_code",
+          "gateway_vendor",
           "id",
           "idempotency_key",
           "latency_ms",
           "model",
+          "model_vendor",
           "project_id",
           "prompt_tokens",
+          "protocol",
           "request_id",
           "status",
           "total_tokens",
@@ -197,6 +206,17 @@ describe.skipIf(testConfig === null)(
         "messages",
         "raw_prompt",
         "raw_response",
+        // PROVIDER_IDENTITY_LEDGER_V1: identity is closed enums only — never an
+        // endpoint, base URL, host, or workspace identifier.
+        "base_url",
+        "baseurl",
+        "url",
+        "endpoint",
+        "endpoint_host",
+        "host",
+        "api_base",
+        "workspace",
+        "workspace_id",
       ]);
       for (const column of columns) {
         expect(forbidden.has(column)).toBe(false);
@@ -219,6 +239,12 @@ describe.skipIf(testConfig === null)(
       expect(entry?.clientOrganizationId).toBe(t.orgId);
       expect(entry?.articleBriefId).toBe(record.articleBriefId);
       expect(entry?.model).toBe("deepseek-chat");
+      // The canonical identity persisted verbatim (declared config, ALIYUN_MAAS
+      // gateway / DEEPSEEK model / OPENAI_COMPATIBLE protocol for the runtime).
+      expect(entry?.identity).toEqual(DEFAULT_PROVIDER_IDENTITY);
+      expect(entry?.identity.gatewayVendor).toBe("ALIYUN_MAAS");
+      expect(entry?.identity.modelVendor).toBe("DEEPSEEK");
+      expect(entry?.identity.protocol).toBe("OPENAI_COMPATIBLE");
       expect(entry?.promptTokens).toBe(120);
       expect(entry?.completionTokens).toBe(340);
       expect(entry?.totalTokens).toBe(460);
@@ -241,6 +267,79 @@ describe.skipIf(testConfig === null)(
       expect(entry?.completionTokens).toBeNull();
       expect(entry?.totalTokens).toBeNull();
       expect(entry?.clientOrganizationId).toBe(t.orgId);
+      // Failure rows carry the identity exactly like success rows.
+      expect(entry?.identity).toEqual(DEFAULT_PROVIDER_IDENTITY);
+    });
+
+    it("persists a non-default declared identity verbatim (e.g. a DeepSeek-direct call)", async () => {
+      const t = await bootstrapTenant("a");
+      const ledger = new PgProviderLedger(db);
+      const record = successRecord(t, {
+        identity: {
+          gatewayVendor: "DEEPSEEK_DIRECT",
+          modelVendor: "DEEPSEEK",
+          protocol: "OPENAI_COMPATIBLE",
+        },
+      });
+
+      await ledger.recordExecution(record);
+
+      const entry = await ledger.getByIdempotencyKey(record.idempotencyKey);
+      expect(entry?.identity).toEqual({
+        gatewayVendor: "DEEPSEEK_DIRECT",
+        modelVendor: "DEEPSEEK",
+        protocol: "OPENAI_COMPATIBLE",
+      });
+    });
+
+    it("rejects off-enum identity values via the 0008 CHECK constraints", async () => {
+      const t = await bootstrapTenant("a");
+
+      const insert = (gateway: string, modelVendor: string, protocol: string) =>
+        db.query(
+          `INSERT INTO provider_execution
+             (request_id, idempotency_key, project_id, client_organization_id, article_brief_id,
+              model, gateway_vendor, model_vendor, protocol,
+              status, error_code, prompt_tokens, completion_tokens, total_tokens, latency_ms)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'OK', NULL, 1, 2, 3, 10)`,
+          [
+            `req_${randomUUID()}`,
+            `idem_${randomUUID()}`,
+            t.projectId,
+            t.orgId,
+            randomUUID(),
+            "deepseek-chat",
+            gateway,
+            modelVendor,
+            protocol,
+          ],
+        );
+
+      await expect(insert("EVIL_GATEWAY", "DEEPSEEK", "OPENAI_COMPATIBLE")).rejects.toThrow(
+        /ck_provider_execution_gateway_vendor/,
+      );
+      await expect(insert("ALIYUN_MAAS", "EVIL_VENDOR", "OPENAI_COMPATIBLE")).rejects.toThrow(
+        /ck_provider_execution_model_vendor/,
+      );
+      await expect(insert("ALIYUN_MAAS", "DEEPSEEK", "GRPC")).rejects.toThrow(
+        /ck_provider_execution_protocol/,
+      );
+    });
+
+    it("requires the identity to be declared on INSERT (the 0008 backfill DEFAULTs are dropped)", async () => {
+      const t = await bootstrapTenant("a");
+
+      // A pre-0008-shaped INSERT (no identity columns) must fail NOT NULL — a
+      // writer can never silently mint a legacy-looking row after the backfill.
+      await expect(
+        db.query(
+          `INSERT INTO provider_execution
+             (request_id, idempotency_key, project_id, client_organization_id, article_brief_id,
+              model, status, error_code, prompt_tokens, completion_tokens, total_tokens, latency_ms)
+           VALUES ($1, $2, $3, $4, $5, 'deepseek-chat', 'OK', NULL, 1, 2, 3, 10)`,
+          [`req_${randomUUID()}`, `idem_${randomUUID()}`, t.projectId, t.orgId, randomUUID()],
+        ),
+      ).rejects.toThrow(/gateway_vendor|not-null|null value/i);
     });
 
     it("dedupes on idempotency key: same key -> exactly one row (first write wins)", async () => {
@@ -276,6 +375,20 @@ describe.skipIf(testConfig === null)(
           record.idempotencyKey,
         ]),
       ).rejects.toThrow(/append-only/i);
+      // The 0008 identity columns are equally immutable — history can never be
+      // relabeled to a different gateway/vendor/protocol after the fact.
+      await expect(
+        db.query(
+          `UPDATE provider_execution SET gateway_vendor = 'DEEPSEEK_DIRECT' WHERE idempotency_key = $1`,
+          [record.idempotencyKey],
+        ),
+      ).rejects.toThrow(/append-only/i);
+      await expect(
+        db.query(
+          `UPDATE provider_execution SET model_vendor = 'OTHER', protocol = 'OPENAI_COMPATIBLE' WHERE idempotency_key = $1`,
+          [record.idempotencyKey],
+        ),
+      ).rejects.toThrow(/append-only/i);
       await expect(
         db.query(`DELETE FROM provider_execution WHERE idempotency_key = $1`, [
           record.idempotencyKey,
@@ -294,6 +407,7 @@ describe.skipIf(testConfig === null)(
         projectId: randomUUID(), // no such project row
         articleBriefId: randomUUID(),
         model: "deepseek-chat",
+        identity: DEFAULT_PROVIDER_IDENTITY,
         outcome: "OK",
         latencyMs: 10,
         usage: {
@@ -423,6 +537,8 @@ describe.skipIf(testConfig === null)(
         expect(entry?.promptTokens).toBe(11);
         expect(entry?.completionTokens).toBe(22);
         expect(entry?.totalTokens).toBe(33);
+        // The adapter's declared identity (its config default) landed on the row.
+        expect(entry?.identity).toEqual(DEFAULT_PROVIDER_IDENTITY);
 
         // The API key never reached the persisted row.
         expect(JSON.stringify(entry)).not.toContain(SECRET_KEY);

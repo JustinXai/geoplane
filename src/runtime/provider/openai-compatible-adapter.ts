@@ -2,10 +2,13 @@
  * Recovery classification: RECONSTRUCTED_FROM_FROZEN_SPEC (net-new runtime-phase file)
  * reconstruction_reason: OPENAI_COMPATIBLE_ADAPTER_V1 (checkpoint D2 of the
  *   controlled-provider lane) — the real, network-shaped ProviderPort
- *   implementation for a DeepSeek/OpenAI-compatible /v1/chat/completions API.
- *   Built on the D1 boundary (provider-port / errors / records / feature-flag /
- *   contract-validation); adds NO dependency — it uses the built-in global
- *   `fetch` (Node 22), never an OpenAI SDK.
+ *   implementation for an OpenAI-compatible /v1/chat/completions API (in the
+ *   real deployment: a DeepSeek model reached through the Aliyun MaaS
+ *   OpenAI-compatible gateway — see identity.ts for the canonical
+ *   gateway/model-vendor/protocol contract; a DeepSeek-direct endpoint speaks
+ *   the same protocol). Built on the D1 boundary (provider-port / errors /
+ *   records / feature-flag / contract-validation); adds NO dependency — it uses
+ *   the built-in global `fetch` (Node 22), never an OpenAI SDK.
  * original_file_unavailable: n/a (net-new runtime-phase file)
  *
  * WHAT THIS ADAPTER IS ALLOWED TO DO, AND WHAT IT IS NOT
@@ -49,6 +52,11 @@ import { validateProviderContent } from "./contract-validation.js";
 import { ProviderErrorCode } from "./errors.js";
 import { assertRealProviderCallAllowed } from "./feature-flag.js";
 import {
+  assertRuntimeProviderIdentity,
+  DEFAULT_PROVIDER_IDENTITY,
+  type ProviderIdentity,
+} from "./identity.js";
+import {
   buildProviderFailureRecord,
   buildProviderSuccessRecord,
   buildProviderUsageRecord,
@@ -85,7 +93,12 @@ export const DEEPSEEK_API_KEY_ENV_VAR = "DEEPSEEK_API_KEY" as const;
 export const PROVIDER_MAX_TOKENS_ENV_VAR = "PROVIDER_MAX_TOKENS" as const;
 export const PROVIDER_TIMEOUT_MS_ENV_VAR = "PROVIDER_TIMEOUT_MS" as const;
 
-/** DeepSeek is OpenAI-compatible; this is the default base when none is set. */
+/**
+ * Default base when none is set. NOTE: the base URL is a transport detail only —
+ * it never decides the recorded provider identity (identity is DECLARED
+ * configuration, see `OpenAICompatibleAdapterOptions.identity`), and it is never
+ * written to a record, ledger row, or log.
+ */
 export const DEFAULT_PROVIDER_BASE_URL = "https://api.deepseek.com" as const;
 
 /** Default allow-list of DeepSeek/OpenAI-compatible models. */
@@ -129,6 +142,16 @@ export interface OpenAICompatibleAdapterOptions {
   readonly maxTokensCeiling?: number;
   /** Ceiling for the timeout budget. Defaults to env PROVIDER_TIMEOUT_MS, else 60000. */
   readonly timeoutMsCeiling?: number;
+  /**
+   * Canonical Provider Identity stamped on every emitted record (identity.ts):
+   * which gateway terminates the request, whose model answers, over which wire
+   * protocol. DECLARED configuration — deliberately NOT derived from the base
+   * URL (the endpoint host must never be needed, carried, or persisted).
+   * Defaults to DEFAULT_PROVIDER_IDENTITY (Aliyun MaaS gateway / DeepSeek model
+   * / OpenAI-compatible protocol — the real integration). 'UNKNOWN_LEGACY' is
+   * backfill-only and rejected at construction.
+   */
+  readonly identity?: ProviderIdentity;
   /** Non-secret record sink (D3 ledger / test capture). Defaults to no-op. */
   readonly observer?: ProviderCallObserver;
   /** Injectable clock for latency measurement. Defaults to Date.now. */
@@ -236,7 +259,9 @@ function extractMessageContent(body: unknown): string | undefined {
 }
 
 /**
- * A DeepSeek/OpenAI-compatible ProviderPort adapter.
+ * An OpenAI-compatible ProviderPort adapter (real deployment: a DeepSeek model
+ * behind the Aliyun MaaS gateway; a DeepSeek-direct or other OpenAI-compatible
+ * endpoint speaks the same wire protocol — the recorded identity says which).
  *
  * Constructed with an injectable fetch (default: the built-in global fetch) so
  * tests are fully offline. All secret/config material is read from the injected
@@ -248,6 +273,7 @@ export class OpenAICompatibleProviderAdapter implements ProviderPort {
   readonly #explicitAllowedModels: readonly string[] | undefined;
   readonly #maxTokensCeilingOverride: number | undefined;
   readonly #timeoutMsCeilingOverride: number | undefined;
+  readonly #identity: ProviderIdentity;
   readonly #observer: ProviderCallObserver;
   readonly #now: () => number;
 
@@ -257,6 +283,10 @@ export class OpenAICompatibleProviderAdapter implements ProviderPort {
     this.#explicitAllowedModels = options.allowedModels;
     this.#maxTokensCeilingOverride = options.maxTokensCeiling;
     this.#timeoutMsCeilingOverride = options.timeoutMsCeiling;
+    // Declared, validated once: never derived from the URL, never legacy-marked.
+    this.#identity = assertRuntimeProviderIdentity(
+      options.identity ?? DEFAULT_PROVIDER_IDENTITY,
+    );
     this.#observer = options.observer ?? {};
     this.#now = options.now ?? Date.now;
   }
@@ -515,6 +545,7 @@ export class OpenAICompatibleProviderAdapter implements ProviderPort {
       projectId: req.projectId,
       articleBriefId: req.articleBriefId,
       model: req.model,
+      identity: this.#identity,
       latencyMs,
     };
   }

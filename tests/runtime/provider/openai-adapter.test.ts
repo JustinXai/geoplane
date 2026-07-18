@@ -28,6 +28,10 @@ import {
   type ProviderCallObserver,
 } from "../../../src/runtime/provider/openai-compatible-adapter.js";
 import { ProviderErrorCode } from "../../../src/runtime/provider/errors.js";
+import {
+  DEFAULT_PROVIDER_IDENTITY,
+  type ProviderIdentity,
+} from "../../../src/runtime/provider/identity.js";
 import { validateProviderContent } from "../../../src/runtime/provider/contract-validation.js";
 import { PROVIDER_ARTICLE_CONTENT_V1, type ProviderGenerateArticleContentRequest } from "../../../src/runtime/provider/provider-port.js";
 import type {
@@ -681,6 +685,151 @@ describe("OpenAICompatibleProviderAdapter — the API key never leaks", () => {
       expect(consoleBlob).not.toContain(SECRET_KEY);
     } finally {
       for (const spy of consoleSpies) spy.mockRestore();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Canonical provider identity (PROVIDER_IDENTITY_LEDGER_V1)
+// ---------------------------------------------------------------------------
+
+describe("OpenAICompatibleProviderAdapter — canonical provider identity", () => {
+  it("stamps the default identity (ALIYUN_MAAS / DEEPSEEK / OPENAI_COMPATIBLE) on success records", async () => {
+    const { fn } = sequenceFetch([{ status: 200, body: GOOD_ENVELOPE }]);
+    const captured = captureObserver();
+    const adapter = new OpenAICompatibleProviderAdapter({
+      fetch: fn,
+      env: ENV_ON,
+      observer: captured.observer,
+    });
+
+    const result = await adapter.generateArticleContent(REQUEST);
+    expect(result.ok).toBe(true);
+
+    const execution = requireFirst(captured.executions);
+    expect(execution.identity).toEqual(DEFAULT_PROVIDER_IDENTITY);
+    expect(execution.identity.gatewayVendor).toBe("ALIYUN_MAAS");
+    expect(execution.identity.modelVendor).toBe("DEEPSEEK");
+    expect(execution.identity.protocol).toBe("OPENAI_COMPATIBLE");
+  });
+
+  it("stamps the identity on failure records too", async () => {
+    const { fn } = sequenceFetch([{ status: 401, body: { error: { message: "bad key" } } }]);
+    const captured = captureObserver();
+    const adapter = new OpenAICompatibleProviderAdapter({
+      fetch: fn,
+      env: ENV_ON,
+      observer: captured.observer,
+    });
+
+    const result = await adapter.generateArticleContent(REQUEST);
+    expect(result.ok).toBe(false);
+
+    const execution = requireFirst(captured.executions);
+    expect(execution.outcome).toBe("ERROR");
+    expect(execution.identity).toEqual(DEFAULT_PROVIDER_IDENTITY);
+  });
+
+  it("carries a DECLARED identity verbatim — never derived from the base URL", async () => {
+    const { fn, calls } = sequenceFetch([{ status: 200, body: GOOD_ENVELOPE }]);
+    const captured = captureObserver();
+    // The base URL says "deepseek", but the DECLARED identity is a custom
+    // OpenAI-compatible gateway fronting an OTHER-vendor model. The record must
+    // carry the declaration, proving no URL sniffing decides identity.
+    const declared: ProviderIdentity = {
+      gatewayVendor: "CUSTOM_OPENAI_COMPATIBLE",
+      modelVendor: "OTHER",
+      protocol: "OPENAI_COMPATIBLE",
+    };
+    const adapter = new OpenAICompatibleProviderAdapter({
+      fetch: fn,
+      env: ENV_ON, // PROVIDER_BASE_URL=https://api.deepseek.test
+      identity: declared,
+      observer: captured.observer,
+    });
+
+    const result = await adapter.generateArticleContent(REQUEST);
+    expect(result.ok).toBe(true);
+    expect(requireFirst(calls).url).toBe("https://api.deepseek.test/v1/chat/completions");
+    expect(requireFirst(captured.executions).identity).toEqual(declared);
+  });
+
+  it("rejects the backfill-only 'UNKNOWN_LEGACY' gateway at construction", () => {
+    expect(
+      () =>
+        new OpenAICompatibleProviderAdapter({
+          identity: {
+            gatewayVendor: "UNKNOWN_LEGACY",
+            modelVendor: "DEEPSEEK",
+            protocol: "OPENAI_COMPATIBLE",
+          },
+        }),
+    ).toThrow(/UNKNOWN_LEGACY/);
+  });
+
+  it("record shapes have NO field for an api key, base URL, workspace id, prompt, or response", async () => {
+    const { fn } = sequenceFetch([{ status: 200, body: GOOD_ENVELOPE }]);
+    const captured = captureObserver();
+    const adapter = new OpenAICompatibleProviderAdapter({
+      fetch: fn,
+      env: ENV_ON,
+      observer: captured.observer,
+    });
+    await adapter.generateArticleContent(REQUEST);
+
+    const execution = requireFirst(captured.executions);
+    // Exact, whitelisted key set — an extra field (a leaked secret/endpoint/
+    // content field) would break this equality.
+    expect(Object.keys(execution).sort()).toEqual(
+      [
+        "articleBriefId",
+        "errorCode",
+        "identity",
+        "idempotencyKey",
+        "latencyMs",
+        "model",
+        "outcome",
+        "projectId",
+        "requestId",
+        "usage",
+      ].sort(),
+    );
+    expect(Object.keys(execution.identity).sort()).toEqual(
+      ["gatewayVendor", "modelVendor", "protocol"].sort(),
+    );
+    expect(Object.keys(requireFirst(captured.usages)).sort()).toEqual(
+      [
+        "completionTokens",
+        "idempotencyKey",
+        "latencyMs",
+        "model",
+        "promptTokens",
+        "requestId",
+        "totalTokens",
+      ].sort(),
+    );
+
+    // Defense in depth: none of these forbidden names appear anywhere in any
+    // emitted record (nested keys included).
+    const blob = JSON.stringify({
+      executions: captured.executions,
+      usages: captured.usages,
+      failures: captured.failures,
+    }).toLowerCase();
+    for (const forbidden of [
+      "apikey",
+      "api_key",
+      "authorization",
+      "bearer",
+      "baseurl",
+      "base_url",
+      "endpoint",
+      "host",
+      "workspace",
+      "prompt\":",
+      "response\":",
+    ]) {
+      expect(blob).not.toContain(forbidden);
     }
   });
 });

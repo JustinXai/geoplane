@@ -13,7 +13,9 @@
  * ####################################################################### --
  * This repository writes ONLY the fields carried by the record types in
  * records.ts — correlation/idempotency ids, tenant/project/brief scope, the
- * model name, an outcome, a taxonomy error code, token COUNTS, and latency.
+ * model name, the canonical provider identity (closed gateway/model-vendor/
+ * protocol enums, identity.ts — never a base URL, endpoint host, or workspace
+ * id), an outcome, a taxonomy error code, token COUNTS, and latency.
  * Those record shapes have nowhere to put an api key, a bearer token, or the
  * raw prompt/response text (see records.ts), and the 0007 table has no column
  * for one either. This file therefore cannot persist a secret or model content
@@ -34,6 +36,12 @@
  */
 import type { Queryable } from "../../persistence/database-port.js";
 import { isProviderErrorCode, type ProviderErrorCode } from "./errors.js";
+import {
+  isProviderGatewayVendor,
+  isProviderModelVendor,
+  isProviderProtocol,
+  type ProviderIdentity,
+} from "./identity.js";
 import type { ProviderCallObserver } from "./openai-compatible-adapter.js";
 import type {
   ProviderExecutionRecord,
@@ -54,6 +62,12 @@ export interface ProviderExecutionLedgerEntry {
   readonly clientOrganizationId: string;
   readonly articleBriefId: string;
   readonly model: string;
+  /**
+   * Canonical Provider Identity (identity.ts) as persisted on the row. A
+   * pre-0008 backfilled row reads gatewayVendor 'UNKNOWN_LEGACY'; a row written
+   * by the runtime always carries the declared adapter identity.
+   */
+  readonly identity: ProviderIdentity;
   readonly status: "OK" | "ERROR";
   readonly errorCode: ProviderErrorCode | null;
   readonly promptTokens: number | null;
@@ -89,6 +103,9 @@ interface ProviderExecutionRow {
   client_organization_id: string;
   article_brief_id: string;
   model: string;
+  gateway_vendor: string;
+  model_vendor: string;
+  protocol: string;
   status: string;
   error_code: string | null;
   prompt_tokens: number | null;
@@ -113,6 +130,21 @@ function toErrorCode(value: string | null): ProviderErrorCode | null {
   return value;
 }
 
+/** Validate the three identity columns against the closed sets in identity.ts. */
+function toIdentity(row: ProviderExecutionRow): ProviderIdentity {
+  const { gateway_vendor, model_vendor, protocol } = row;
+  if (!isProviderGatewayVendor(gateway_vendor)) {
+    throw new Error(`provider_execution.gateway_vendor is off-enum: ${gateway_vendor}`);
+  }
+  if (!isProviderModelVendor(model_vendor)) {
+    throw new Error(`provider_execution.model_vendor is off-enum: ${model_vendor}`);
+  }
+  if (!isProviderProtocol(protocol)) {
+    throw new Error(`provider_execution.protocol is off-enum: ${protocol}`);
+  }
+  return { gatewayVendor: gateway_vendor, modelVendor: model_vendor, protocol };
+}
+
 function mapRow(row: ProviderExecutionRow): ProviderExecutionLedgerEntry {
   return {
     id: row.id,
@@ -122,6 +154,7 @@ function mapRow(row: ProviderExecutionRow): ProviderExecutionLedgerEntry {
     clientOrganizationId: row.client_organization_id,
     articleBriefId: row.article_brief_id,
     model: row.model,
+    identity: toIdentity(row),
     status: toStatus(row.status),
     errorCode: toErrorCode(row.error_code),
     promptTokens: row.prompt_tokens,
@@ -164,9 +197,10 @@ export class PgProviderLedger implements ProviderExecutionRecordSink {
     const res = await this.#db.query<{ id: string }>(
       `INSERT INTO provider_execution
          (request_id, idempotency_key, project_id, client_organization_id, article_brief_id,
-          model, status, error_code, prompt_tokens, completion_tokens, total_tokens, latency_ms)
+          model, gateway_vendor, model_vendor, protocol,
+          status, error_code, prompt_tokens, completion_tokens, total_tokens, latency_ms)
        SELECT $1, $2, p.id, p.client_organization_id, $4::uuid,
-              $5, $6, $7, $8, $9, $10, $11
+              $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
        FROM project p
        WHERE p.id = $3::uuid
        ON CONFLICT (idempotency_key) DO NOTHING
@@ -177,6 +211,10 @@ export class PgProviderLedger implements ProviderExecutionRecordSink {
         record.projectId,
         record.articleBriefId,
         record.model,
+        // Canonical identity — three closed-enum strings, never a URL/host/key.
+        record.identity.gatewayVendor,
+        record.identity.modelVendor,
+        record.identity.protocol,
         record.outcome,
         errorCode,
         usage ? usage.promptTokens : null,
