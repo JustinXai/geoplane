@@ -1,64 +1,65 @@
 # PRODUCT_RUNTIME_STATUS_MATRIX
 
-Phase: `PRODUCT_RUNTIME_CLOSURE_V1` — Supervisor baseline (read-only static audit).
-Product base: `21e36aa`. Method: static (read + grep). No code modified.
+Phase: `PRODUCT_RUNTIME_CLOSURE_V1` — Supervisor **re-audit of the INTEGRATED runtime** (cycle 1 + 2).
+Product base: `12a727a` (prodint HEAD). Method: static (read + grep). No source modified.
 
-### Note on "section-15 acceptance criteria"
-There is **no literal document titled "section 15"** in this tree (searched
-`docs/**`; the acceptance docs use CJK section markers 五/六/七/八 and named
-checkpoints). This matrix therefore maps the **PRODUCT_RUNTIME_CLOSURE_V1
-acceptance criteria as enumerated in the Supervisor charter** (the nine audited
-invariants), cross-referenced to the frozen `docs/governance/SYSTEM_INVARIANTS_V1.md`
-and `docs/acceptance/RUNTIME_COMPOSITION_ROOT.md`. Stated so the mapping is not
-mistaken for a recovered artifact.
+### Note on "section-16 acceptance criteria"
+As at baseline, there is **no literal document titled "section 16"** in-tree (searched
+`docs/**`). This matrix maps the **acceptance criteria as enumerated in the coordinator's
+re-audit charter**, cross-referenced to `docs/governance/SYSTEM_INVARIANTS_V1.md` and
+the migrations. Stated so the mapping is not mistaken for a recovered artifact.
 
-Status: **PASS** · **IN_PROGRESS** (a lane is actively closing it this phase) ·
-**GAP** (real, open, no owner identified in-tree). Companion detail in the three
-sibling audit docs.
+Status: **PASS** · **IN_PROGRESS** (owner/checkpoint active) · **GAP** (real, open).
+Detail in the three sibling audit docs.
 
 ---
 
-## Acceptance matrix
+## Acceptance matrix (current)
 
-| # | Acceptance criterion | Status | Evidence | Disposition |
+| # | Acceptance criterion | Status | Evidence | Δ vs baseline |
 |---|---|---|---|---|
-| 1 | **No in-memory business adapter in the product runtime** | IN_PROGRESS | `pg-application-runtime.ts:186,208,218` (3 Mem* adapters for KnowledgePackage/IndustryProfile/ProviderArticleContent); migration `0005` absent (only `0001-0004` exist). Live HTTP path is Pg-only except `InMemoryKnowledgeContentStore`. | KNOWN-IN-PROGRESS (0005 + Agent B) |
-| 2 | **Durable single source of truth for enterprise knowledge** | PASS | D-lane KnowledgePackage/EnterpriseProfile persisted via Pg knowledge repos (`migrations/0002`; `runtime/knowledge/runtime-context.ts:99-107`). | — |
-| 2b | **Raw knowledge source text durably persisted** | GAP | `InMemoryKnowledgeContentStore` backs the live knowledge runtime (`content-store.ts:28-46`; `runtime-context.ts:137`); only `storage_path`+`content_hash` are in Pg. | REAL, documented seam (no durable store landed) |
-| 3 | **No business fixtures backing formal pages (real data)** | IN_PROGRESS | All 27 `/app`,`/agency`,`/ops` pages import `_fixtures.ts`; no page uses `api-client`/`fetch`. | KNOWN-IN-PROGRESS (C1–C6 presentation-only) |
-| 4 | **No client-surface leak (UUID/Hash/Provider/Schema/Candidate/Brief/Artifact)** | PASS | Reference-code view-models; `client-workspace-copy.test.ts` / `ops-workspace-copy.test.ts`; ops UUID truncated via `actorDisplay` (`ops/_fixtures.ts:271-273`). | — |
-| 5 | **Tenant isolation — a CLIENT cannot reach another client's data** | PASS* | `principalCanReadClientOrganization` (`geo/runtime-context.ts:72-81`), `principalOwnsClient` (`knowledge/runtime-context.ts:77-83`), `canAccessClientOrganization` (`auth-service.ts:504`); scope from DB-loaded resource. | *capped by unsigned-cookie caveat (#12) |
-| 6 | **Authorization server-derived, never from client-supplied org ids** | PASS | `resolveSession` re-derives role/org/assignments from DB (`auth/runtime-context.ts:191-229` + geo/knowledge equivalents); only `agency/context` reads a body client id, re-validated (`auth-service.ts:419-435`). | — |
-| 7 | **Agency assignment isolation — no non-ACTIVE-assigned client exposed** | PASS | `listActiveClientsForAgency` (`auth/runtime-context.ts:118-137`); `setAgencyContext` re-checks assignment; fixture `AGENCY_VISIBLE_CLIENT_PROJECTS` filters ACTIVE (`agency/_fixtures.ts:123-129`); `tests/agency-client-isolation.test.ts`. | — |
-| 8 | **Command API does not trust body/param role or org id** | PASS / N/A | Client-id-trust grep over `src/app/api` → only `agency/context` body id (re-validated). Command (write) routes proper are **not yet present** (Agent C). | command routes N/A |
-| 9 | **Audit actor genuine & server-derived on business writes** | PASS (partial) | Actor always from session in `persistAuditIntents`/`PgAuditPort` (`auth/runtime-context.ts:231-264`, `pg-application-runtime.ts:131-158`); no forge/omit path. | see #9b |
-| 9b | **Audit-event coverage on all business writes** | GAP | Knowledge writes (create/confirm/files/urls) + login/logout persist actor on the domain row but emit **no** `audit_event`. | REAL coverage gap (likely later checkpoint) |
-| 10 | **Historical artifact immutability — no UPDATE/DELETE on append-only tables + triggers present** | PASS | Forbid-mutation UPDATE+DELETE triggers on all 7: artifact_index (`0001:422-433`), opportunity_validation (`0003:192-203`), human_review_decision (`0003:282-293`), article_draft (`0004:203-214`), article_approval (`0004:351-362`), publication_receipt (`0004:497-509`), delivery (`0004:539-551`). No UPDATE/DELETE against them in `src/` (grep). | — |
-| 11 | **Publication safety** | PASS | Default channels 0: `channel_neutral_content_package.target_channel_ids DEFAULT '{}'` (`0004:402`). Automatic publication rejected: `ck_publication_receipt_no_auto_publish` (`0004:487-490`). Non-empty human-selected distribution: `ck_distribution_plan_channels_nonempty`+actor (`0004:455-458`). Provider calls 0: no network/provider port anywhere (grep `fetch/axios/http/openai/anthropic` in runtime/composition/contracts → none); URL ingest requires pre-fetched bytes (`urls/route.ts:44-52`). | — |
-| 12 | **Session cookie authentication integrity** | IN_PROGRESS | Cookie is unsigned base64url JSON, "trivially forgeable" (`session-cookie.ts:20-30`); middleware + resolveSession trust it for `actorUserId`. | KNOWN-IN-PROGRESS (documented; future signed/server-side session) |
-| 13 | **DTO single-source (no redeclared equivalent DTO)** | PASS | All `…ViewV1` DTOs in `runtime/api-contracts/index.ts`; every route imports from it. `knowledge/views.ts:70-95` adds 3 **new** (document/version/ingest-result) leak-free DTOs, not duplicates. Fixture view-models are deliberately different reference-code shapes. Prior local enum redeclarations removed in canonical unification (`agency/_fixtures.ts:24-29`, `ops/_fixtures.ts:24-28`). | — |
-| 14 | **Role/surface boundary enforced at HTTP layer (not UI-only)** | PASS* | `middleware.ts:37-64` returns 302→/login (unauth) or 403 (cross-surface) for `/app`,`/agency`,`/ops`. | *authorization boundary real; strength capped by #12 |
-
-\* PASS entries marked with an asterisk are correct **given an authentic
-principal**; their strength is capped by the documented unsigned-cookie limitation
-(#12), which is KNOWN-IN-PROGRESS, not a silent defect.
+| 1 | **0 in-memory business adapters in the formal runtime** | PASS | `pg-application-runtime.ts:306-308,277` (KnowledgePackageBridge + Pg industry/provider + PgKnowledgeContentStore); command runtime same (`geo-command-runtime.ts:255-272`). Grep: no `Mem*/InMemory/new Map` in `createPgApplicationRuntime` body. | was IN_PROGRESS (3) → **PASS (0)** |
+| 1b | **Durable knowledge content store wired everywhere it's used** | GAP | Composition uses `PgKnowledgeContentStore` (`:277`); the LIVE knowledge lane `getKnowledgeRuntime()` still defaults to `InMemoryKnowledgeContentStore` (`runtime/knowledge/runtime-context.ts:137,187`) — files/urls ingestion text is process-local. | WARN, REAL residual |
+| 2 | **Enterprise-knowledge single source of truth** | PASS | `KnowledgePackageBridge` projects/writes the one `knowledge_package` table, refuses to fabricate provenance (`knowledge-package-bridge.ts:1-37,139-148`). | naming-collision risk CLOSED |
+| 3 | **No formal page renders business fixtures** | GAP | 3 agency pages still render fixtures: `batch-tasks` (`:35`), `team` (`:35`), `templates` (`:33`). 14 pages API-wired; rest empty placeholders. `app/**`+`ops/**` = 0 fixture imports. | was IN_PROGRESS (≈27) → **3 left** |
+| 4 | **No client-surface leak (UUID/Hash/Provider/Schema/Candidate/Brief/Artifact)** | PASS | Reference-code discipline in the 3 residual fixture pages; API DTOs are `…ViewV1` (leak-free); compliance tests present. | — |
+| 5 | **Server-derived tenant on ALL command routes** | PASS | `requireSession` + `denyIfCrossTenant` + `sessionCanAccessClientOrganization` (`geo-command-http.ts:29-64`, `geo-command-runtime.ts:388-400`); tenant from session or DB-loaded artifact on all 27 writes. | was N/A (no command routes) → **PASS** |
+| 6 | **Command routes trust no client-supplied org id / role** | PASS | Client-id-trust scan clean; `commands/projects` body org id validated vs session assignments / in-tx; ops body ids are targets under a PLATFORM role check. | — |
+| 7 | **audit_event on every business write incl. knowledge** | PASS | `runWriteCommand` ALLOWED (`runtime-context.ts:193`) + `denyIfCrossTenant`/`recordDeniedCommand` DENIED; knowledge create/confirm emit `knowledge_package.created/.confirmed` (`geo-command-runtime.ts:309,328`). | baseline GAP 9b CLOSED |
+| 7b | **Legacy knowledge lane writes also audited** | GAP | `knowledge/packages/[id]/{confirm,files,urls}` on `getKnowledgeRuntime()` persist actor on the domain row but emit no `audit_event`; audited path exists only on the command route. | WARN, REAL residual (duplicate surface) |
+| 8 | **No auto-approve — human review** | PASS | Explicit `CONFIRMED` only; omission → 422; note required for CHANGES/REJECT; append-only (`opportunities/[id]/reviews/route.ts:85-103,130-143`). | — |
+| 9 | **No auto-approve — article approval** | PASS | 3 gates must all PASS else 422 + no write (`article-drafts/[id]/reviews/route.ts:120-135`); DB `ck_article_approval_no_silent_approve` (`0004:338`). | — |
+| 10 | **Historical artifacts append-only (triggers + no UPDATE/DELETE)** | PASS | Forbid update+delete triggers on all 7 baseline tables + `provider_article_content` (`0005:143-149`) + `knowledge_content` (`0006:92-98`). No UPDATE/DELETE against any in `src/` (grep). | extended to 0005/0006 tables |
+| 11 | **Default channels 0** | PASS | `channel_neutral_content_package.target_channel_ids DEFAULT '{}'` (`0004:402`); untouched by 0005/0006. | — |
+| 12 | **No automatic publication** | PASS | `ck_publication_receipt_no_auto_publish` (`0004:487-490`) + route domain guard; distribution requires ≥1 channel + non-blank human actor (`0004:455-458`). | — |
+| 13 | **Provider calls 0** | PASS | No provider/network port in commands/continuity/geo-services (grep `fetch/axios/http/openai/anthropic` → none); command runtime header `:8-9`; URL ingest requires pre-fetched bytes. | — |
+| 14 | **Agency assignment isolation** | PASS | `sessionCanAccessClientOrganization` restricts AGENCY to `assignedClientOrganizationIds` (`geo-command-runtime.ts:396-398`); read-side `listActiveClientsForAgency`; `tests/agency-client-isolation.test.ts`. | — |
+| 15 | **Audit actor integrity (genuine, no forge/omit)** | PASS | `CommandActor` always `{session.userId, session.organizationId}`; `recordAuditEvent` actor never from request input. INFO: body `selectedByActorId`/`publishedByActorId` are provenance fields, not the audit actor. | — |
+| 16 | **Session cookie authentication integrity** | IN_PROGRESS | Unsigned base64url cookie, forgeable (`session-cookie.ts:11-18`); caps every "server-derived" verdict given an authentic principal. | unchanged (documented) |
+| 17 | **DTO single-source (no redeclared equivalent DTO)** | PASS | `…ViewV1` DTOs in `runtime/api-contracts`; command DTOs in `runtime/commands/geo-dto.ts` are new concepts, not duplicates. | — |
 
 ---
 
 ## Roll-up
 
-- **PASS:** 2, 4, 5*, 6, 7, 8, 9, 10, 11, 13, 14* (11 criteria).
-- **IN_PROGRESS:** 1 (in-memory GEO aggregates), 3 (frontend fixtures), 12
-  (cookie signing) — all with an active owner/checkpoint.
-- **GAP (real, open):** 2b (durable content store for raw knowledge text), 9b
-  (audit-event coverage for knowledge writes + login/logout).
+- **PASS (13):** 1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17. (Criteria 5/14
+  capped by the documented unsigned-cookie caveat #16, given an authentic principal.)
+- **GAP (real, open) (3):**
+  - **1b** — live knowledge lane runtime still uses `InMemoryKnowledgeContentStore`
+    (durable store wired only into the composition root).
+  - **3** — 3 agency pages (`batch-tasks`, `team`, `templates`) still render fixture
+    business data (target 0).
+  - **7b** — legacy knowledge lane writes (`confirm`/`files`/`urls`) emit no dedicated
+    `audit_event`; ingestion has no audited command equivalent.
+- **IN_PROGRESS (1):** 16 (session cookie signing).
 
-**No BLOCKER.** The two GAPs are real but bounded and non-destructive: 2b risks
-loss of *extracted text* (metadata + hash remain), 9b weakens audit *completeness*
-(the actor that is recorded is genuine). Both are candidates for an explicit owner
-this phase.
+**No BLOCKER.** Baseline closures this cycle: in-memory adapters 3→0 (crit 1),
+frontend fixtures ≈27→3 (crit 3), command API server-derived + audited (crit 5/6/7),
+durable content store in composition (crit 1b partial), knowledge create/confirm audit
+gap (crit 7). All three remaining GAPs are WARN-level and bounded.
 
 ### Suggested single next action
-Assign an owner for **GAP 9b** (emit `audit_event` on the knowledge write routes
-via the existing `recordAuditEvent` path) — it is the smallest, highest-integrity
-closure and reuses machinery already proven in the auth lane.
+Wire `getKnowledgeRuntime()` to `PgKnowledgeContentStore` (one line —
+`runtime/knowledge/runtime-context.ts:187`, adapter already exists). It closes GAP 1b
+and, together with an audited ingestion command, is the highest-integrity remaining
+continuity closure.

@@ -1,117 +1,112 @@
 # FRONTEND_FIXTURE_LEAK_AUDIT
 
-Phase: `PRODUCT_RUNTIME_CLOSURE_V1` — Supervisor baseline (read-only static audit).
-Product base: `21e36aa`. Method: static (read + grep). No code modified.
+Phase: `PRODUCT_RUNTIME_CLOSURE_V1` — Supervisor **re-audit of the INTEGRATED runtime** (cycle 1 + 2).
+Product base: `12a727a`. Method: static (read + grep). No source modified.
 
-Question: do the formal pages under `src/app/{app,agency,ops}` still import/use
-business fixtures (`_fixtures.ts`) for real data, and do those fixtures risk
-leaking client-surface internals (UUID / Hash / Provider / Schema / Candidate /
-Brief / Artifact)?
+Question: for each formal page under `src/app/{app,agency,ops}`, does it still
+**render business fixture data** (VIOLATION), is it **wired to a real API**
+(acceptable), or is it a **clean empty placeholder** (acceptable)? Plus the
+client-surface leak-vector check (UUID/Hash/Provider/Schema/Candidate/Brief/Artifact).
 
-Severity: **BLOCKER / WARN / INFO**. Disposition: **REAL** vs **KNOWN-IN-PROGRESS**.
+Severity: **BLOCKER / WARN / INFO**. Disposition: **PASS** · **IN_PROGRESS** · **GAP**.
+
+Classification: **A** = renders fixture business data (violation) · **B** = wired to a
+real API · **C** = clean empty placeholder / chrome (acceptable).
 
 ---
 
 ## 1. Headline
 
-- **Every** formal page under `src/app/{app,agency,ops}` is **100% fixture-backed.**
-  There is **no** real-data wiring in any page: grep for `api-client`/`apiClient`/
-  `fetch(` across `src/app/**` and `src/components/**` returns **only**
-  `src/components/runtime/AsyncBoundary.tsx` + `async-state.ts` — generic runtime
-  helpers that **no page imports**. The typed client (`src/lib/api-client/*`) and
-  the real API routes exist, but the pages are not connected to them.
-- **Leak risk: LOW.** Fixtures are engineered to never surface internals, and two
-  compliance tests assert it (`tests/client-workspace-copy.test.ts`,
-  `tests/ops-workspace-copy.test.ts`).
-- **Disposition: KNOWN-IN-PROGRESS.** This is the frozen C1–C6 presentation-only
-  state (`RUNTIME_COMPOSITION_ROOT.md` §"FrontendReadModelService does not replace
-  the frontend's fixtures"; per-page headers say "占位数据 - 无真实客户数据、无数据库连接").
-  Wiring pages to the read model is a later checkpoint.
+- **Fixture-DISPLAYING formal pages: 3** — all in `/agency`, all surfaces with no
+  backing endpoint yet. Baseline was effectively all 27 pages; now down to 3.
+- The `app/**` and `ops/**` page directories contain **zero** fixture imports. Every
+  one is either wired to a real API (B) or a clean empty placeholder (C).
+- **Leak risk: LOW / none observed.** The 3 remaining fixture pages use the same
+  reference-code discipline (no UUID/hash/provider/schema/pipeline vocabulary); the
+  `_fixtures.ts` modules still exist but are no longer imported by `app`/`ops` pages.
 
 ---
 
-## 2. Fixture-backed formal pages (27)
+## 2. The 3 fixture-DISPLAYING pages (Category A — VIOLATION vs target 0)
 
-Three fixture modules: `src/app/app/_fixtures.ts`, `src/app/agency/_fixtures.ts`,
-`src/app/ops/_fixtures.ts`. Pages importing them:
+| # | Page | Fixture rendered | Import → JSX evidence |
+|---|---|---|---|
+| 1 | `src/app/agency/batch-tasks/page.tsx` | `BATCH_TASKS` | import `:15` → `BATCH_TASKS.map(...)` `:35` (renders `item.name`/`referenceCode`/`statusLabel` `:37-41`) |
+| 2 | `src/app/agency/team/page.tsx` | `AGENCY_TEAM_MEMBERS` | import `:18` → `AGENCY_TEAM_MEMBERS.map(...)` `:35` (renders `displayName`/`roleLabel` `:37-39`) |
+| 3 | `src/app/agency/templates/page.tsx` | `INDUSTRY_TEMPLATES` | import `:16` → `INDUSTRY_TEMPLATES.map(...)` `:33` (renders `name`/`industryLabel`/`summary` `:35-39`) |
 
-### Client workspace `/app` (7 pages)
-| Page | Fixture symbols | Evidence |
-|---|---|---|
-| `app/page.tsx` | `ACTIVE_PROJECT` | `:15` |
-| `app/knowledge/page.tsx` | `KNOWLEDGE_PACKAGES` | `:16` |
-| `app/knowledge/[packageId]/page.tsx` | `KNOWLEDGE_PACKAGES` | `:17` |
-| `app/keywords/page.tsx` | `KEYWORD_QUESTION_ITEMS` | `:16` |
-| `app/content/page.tsx` | `CONTENT_SOURCING_ITEMS` | `:20` |
-| `app/delivery/page.tsx` | `DELIVERY_ITEMS`, `DELIVERY_CHANNEL_NOTICE` | `:20` |
-| `app/performance/page.tsx` | (uses fixture module) | fixture ref present |
+- **Severity WARN, GAP (REAL) vs the "0 fixture pages" target.** These are
+  presentation-only placeholders for surfaces (batch tasks / team & permissions /
+  industry templates) that have **no read or command endpoint** in this cycle. They
+  render fixture business lists instead of an empty state — the same treatment the ops
+  pages already received. Not a security BLOCKER (no real client data, reference codes
+  only), but they are the residual gap to close.
+- **Smallest fix:** convert each to a clean empty placeholder (Category C) — the exact
+  pattern already applied to `ops/executions`, `ops/review-queue`, etc. — until an
+  endpoint exists.
 
-### Agency workspace `/agency` (8 pages)
-| Page | Fixture symbols | Evidence |
-|---|---|---|
-| `agency/page.tsx` | acting context | fixture ref present |
-| `agency/projects/page.tsx` | `AGENCY_ACTING_CONTEXT`, `AGENCY_VISIBLE_CLIENT_PROJECTS` | `:20` |
-| `agency/deliveries/page.tsx` | `AGENCY_DELIVERY_PACKAGES`, notice | `:19` |
-| `agency/review-queue/page.tsx` | `REVIEW_QUEUE_ITEMS`, notice | `:19` |
-| `agency/team/page.tsx` | `AGENCY_TEAM_MEMBERS` | `:18` |
-| `agency/templates/page.tsx` | `INDUSTRY_TEMPLATES` | `:16` |
-| `agency/batch-tasks/page.tsx` | `BATCH_TASKS`, notice | `:15` |
-| `agency/branding/page.tsx` | `AGENCY_ACTING_CONTEXT` | `:16` |
-
-### Ops console `/ops` (12 pages)
-| Page | Fixture symbols | Evidence |
-|---|---|---|
-| `ops/page.tsx` | (uses fixture module) | fixture ref present |
-| `ops/organizations/page.tsx` | `ORGANIZATIONS` | `:15` |
-| `ops/client-assignments/page.tsx` | `PLATFORM_CLIENT_ASSIGNMENTS` | `:19` |
-| `ops/invitations/page.tsx` | `INVITATIONS` | `:18` |
-| `ops/audit/page.tsx` | `AUDIT_EVENTS`, `actorDisplay` | `:29` |
-| `ops/evidence-audit/page.tsx` | `EVIDENCE_AUDIT_EVENTS` | `:14` |
-| `ops/executions/page.tsx` | `EXECUTION_RECORDS` | `:17` |
-| `ops/review-queue/page.tsx` | `PLATFORM_REVIEW_QUEUE_ITEMS`, notice | `:20` |
-| `ops/models-usage/page.tsx` | `MODEL_USAGE_SUMMARIES`, notice | `:17` |
-| `ops/rule-packs/page.tsx` | `RULE_PACKS` | `:15` |
-| `ops/publisher-connectors/page.tsx` | `PUBLISHER_CONNECTORS`, notice | `:23` |
-| `ops/system-health/page.tsx` | `SYSTEM_HEALTH_COMPONENTS` | `:12` |
-
-Shared components `src/components/agency/agency-acting-banner.tsx` and the three
-`workspace-nav/*` also reference fixtures (banner label / nav copy).
-
-**Fixture-backed formal page count: 27.**
+**Note — not a violation:** `agency/branding/page.tsx` imports only
+`AGENCY_ACTING_CONTEXT` (`:16`), the two-string acting-context **banner label**
+(`agency/_fixtures.ts:45-48`), and renders a static placeholder body (`:29`). Banner
+label ≠ business data → Category C.
 
 ---
 
-## 3. Client-surface leak-vector assessment
+## 3. Pages wired to real APIs (Category B — 14)
+
+| Page | Endpoint(s) |
+|---|---|
+| `app/page.tsx` | GET /api/account, GET /api/projects |
+| `app/content/page.tsx` | GET /api/projects/[id]/opportunities |
+| `app/delivery/page.tsx` | GET /api/projects/[id]/deliveries |
+| `app/keywords/page.tsx` | GET /api/projects/[id]/keyword-questions |
+| `app/knowledge/[packageId]/page.tsx` | GET /api/knowledge/packages/[id] (+ /issues) |
+| `agency/page.tsx` | GET /api/agency/clients |
+| `agency/clients/page.tsx` | GET /api/agency/clients, POST /api/agency/context |
+| `agency/projects/page.tsx` | GET /api/projects |
+| `agency/deliveries/page.tsx` | GET /api/projects (+ /deliveries) |
+| `agency/keyword-questions/page.tsx` | GET /api/projects (+ /keyword-questions) |
+| `agency/review-queue/page.tsx` | GET /api/projects (+ /review-queue) |
+| `ops/audit/page.tsx` | GET /api/ops/audit |
+| `ops/client-assignments/page.tsx` | GET /api/ops/audit (filtered to assignment actions) |
+| `ops/invitations/page.tsx` | GET /api/ops/audit (filtered to invitation actions) |
+| `ops/organizations/page.tsx` | GET /api/ops/organizations, GET /api/projects |
+
+## 4. Clean empty placeholders (Category C — incl. 3 layouts)
+
+`app/knowledge/page.tsx`, `app/performance/page.tsx`, `ops/page.tsx`,
+`ops/evidence-audit`, `ops/executions`, `ops/models-usage`, `ops/publisher-connectors`,
+`ops/review-queue`, `ops/rule-packs`, `ops/system-health`, `agency/branding`, plus the
+`app`/`agency`/`ops` `layout.tsx` chrome. Each renders headers + an empty-state string
+(e.g. "暂无…数据"); most carry a comment noting the fixture list was removed.
+
+---
+
+## 5. Client-surface leak-vector assessment (the 3 fixture pages + fixture modules)
 
 | Vector | Status | Evidence |
 |---|---|---|
-| **UUID / DB primary key** | **No leak on client/agency surface.** All ids are human reference codes (`KB-0142`, `KW-0007`, `PRJ-0007`, `DLV-0011`, `CLI-0002`, `TPL-0004`, `ORG-0001`, `RVW-0021`, `INV-0101`…). | `app/_fixtures.ts:12-28` (rule), values throughout; `agency/_fixtures.ts:20-21`; `ops/_fixtures.ts:30-36` |
-| **UUID (ops only)** | **INFO.** `ops/_fixtures.ts` `AUDIT_EVENTS[].actorUserId` holds UUID-shaped values (`ops/_fixtures.ts:245-266`) to mirror recovered evidence, but is **truncated to 8 chars** via `actorDisplay()` (`:271-273`) before render and the full value is **never** collected into a display-string list (`collectOpsVisibleStrings` `:510-512` uses `actorDisplay(event)`). Ops is a PLATFORM-only surface. Low risk; watch that no page renders `event.actorUserId` raw — `ops/audit/page.tsx:29` imports `actorDisplay`, consistent with the truncation contract. |
-| **Hash** | No leak. No content/artifact hash appears in any fixture display string. | grep: no `hash`/`Hash` in `src/app/**/_fixtures.ts` |
-| **Provider / vendor name** | No leak. Model identities genericized to `模型 A/B/C` with codes `MDL-A…`; explicit rule + targeted test collector. | `ops/_fixtures.ts:360-394`, `collectModelUsageVisibleStrings :546-552` |
-| **Schema / version internals** | No leak on client surface. No `…V1Schema` / `schema_version` in fixture display strings. | `app/_fixtures.ts:19-24` (rule) |
-| **Candidate / Brief / Artifact / Compiler vocabulary** | No leak. Fixtures deliberately avoid internal pipeline vocabulary in display strings (explicitly names `ArticleBriefCandidateV1` as the forbidden internal term). | `app/_fixtures.ts:20-24`; asserted by `client-workspace-copy.test.ts` |
-| **Publication defaults** | No leak / invariant held. `DELIVERY_ITEMS[].selectedChannelCount` typed literal `0`; `AGENCY_DELIVERY_PACKAGES[].autoPublishedCount` literal `0`; `PUBLISHER_CONNECTORS[].enabled:false, connectedCount:0`. | `app/_fixtures.ts:169-195`; `agency/_fixtures.ts:234-260`; `ops/_fixtures.ts:440-466` |
+| **UUID / DB key** | No leak. Reference codes only (`BTH-0031`, `USR-0101`, `TPL-0004`, `CLI-0002`…). | `agency/_fixtures.ts:20-21` (rule) + rendered values |
+| **Hash** | No leak. No hash in any rendered fixture string. | grep `hash` in agency fixtures → none |
+| **Provider / vendor name** | No leak. No vendor names in agency fixtures (models surface is ops-only, now unrendered). | `ops/_fixtures.ts:360-394` no longer imported by any page |
+| **Schema / version internals** | No leak. No `…V1Schema` / `schema_version` in rendered strings. | agency fixtures |
+| **Candidate / Brief / Artifact / Compiler vocab** | No leak. Rendered labels are plain business terms (批量任务 / 团队 / 行业模板). | pages 1-3 JSX |
+| **Publication defaults** | Held. `AGENCY_DELIVERY_PACKAGES.autoPublishedCount:0` / `PUBLISHER_CONNECTORS.enabled:false` remain, but those fixtures are no longer rendered (delivery is now API-wired). | `agency/_fixtures.ts:234-260` |
 
-### Compliance tests (present, not re-run here)
-- `tests/client-workspace-copy.test.ts` — asserts `/app` display strings hold to
-  the no-UUID / no-provider / no-internal-vocabulary rules.
-- `tests/ops-workspace-copy.test.ts` — asserts ops strings, incl. the
-  vendor-name check and that only truncated actor prefixes are surfaced.
+Compliance tests `tests/client-workspace-copy.test.ts` and `tests/ops-workspace-copy.test.ts`
+remain present (not re-run here).
 
 ---
 
-## 4. Findings
+## 6. Summary
 
 | Finding | Severity | Disposition |
 |---|---|---|
-| All 27 formal pages render fixtures, no real-data wiring | WARN | KNOWN-IN-PROGRESS (C1–C6 presentation-only, read-model wiring pending) |
-| Client/agency fixtures use reference codes, no UUID/hash/provider/schema/pipeline leak | INFO | PASS (test-guarded) |
-| Ops `AUDIT_EVENTS.actorUserId` holds full UUIDs in source (truncated before render) | INFO | acceptable; keep render on `actorDisplay()` |
-| Publication defaults (`0` channels / `0` auto-published / connectors disabled) pinned by type | INFO | PASS |
+| 3 agency pages still render fixture business data | WARN | GAP (REAL) vs target 0 — batch-tasks, team, templates |
+| 14 pages wired to real APIs | — | PASS (was IN_PROGRESS at baseline) |
+| `app/**` + `ops/**` pages: 0 fixture imports | — | PASS |
+| No client-surface leak (UUID/Hash/Provider/Schema/pipeline) | — | PASS |
+| `agency/branding` imports only the banner label | INFO | not a violation (Category C) |
 
-**No REAL client-surface leak found.** The dominant fact is that the formal pages
-are **not yet wired to real data at all** — so today they cannot leak live
-business internals; the risk to manage is *at wiring time*, when reference-code
-view-models must be replaced by the frozen `…ViewV1` DTOs without importing raw
-ids/hashes. **Fixture-backed formal page count: 27.**
+**Fixture-DISPLAYING formal page count: 3** — `agency/batch-tasks`, `agency/team`,
+`agency/templates`. No BLOCKER; no client-surface leak.
