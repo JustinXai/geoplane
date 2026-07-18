@@ -1,51 +1,73 @@
+"use client";
+
 /**
- * Recovery classification: RECONSTRUCTED_FROM_FROZEN_SPEC
- * reconstruction_source: docs/architecture/SYSTEM_BLUEPRINT_V1.md (business core item 4,
- *   "Client delivery"; "Publication principles" - platform-neutral, no automatic
- *   publication, no default distribution target), docs/governance/SYSTEM_INVARIANTS_V1.md
- *   ("Publication"), src/app/app/delivery/page.tsx (checkpoint C2 client-workspace
- *   delivery center - same no-auto-publish rule applied here for the agency view)
- * reconstruction_reason: no original page code recoverable beyond the 7 files already
- *   in recovered/partial-source/
- * original_file_unavailable: true
+ * AGENCY_OPS_WORKSPACE_RUNTIME_V1 (batch 1) — 交付包 (delivery packages) for the AGENCY
+ * workspace, wired to the REAL API, replacing fixtures.
  *
- * Checkpoint C3: 交付包 (delivery packages) list view for the AGENCY workspace.
- * Fixture data only (src/app/agency/_fixtures.ts AGENCY_DELIVERY_PACKAGES). Per
- * SYSTEM_INVARIANTS_V1 "Publication": no automatic publication under any circumstance
- * - every fixture row shows 0 auto-published items, same rule as the client
- * workspace's delivery center (src/app/app/delivery/page.tsx).
+ * Read-only preview across the agency's authorized projects: loads GET /api/projects (scoped
+ * server-side to ACTIVE-assigned clients) then GET /api/projects/[id]/deliveries per project, so
+ * no unauthorized client's deliveries can appear. No auto-publish and no write actions are wired
+ * — this is a preview surface only.
  */
-import { AgencyActingBanner } from "@/components/agency/agency-acting-banner";
-import { AGENCY_ACTING_CONTEXT, AGENCY_DELIVERY_NOTICE, AGENCY_DELIVERY_PACKAGES } from "../_fixtures";
+import { useAsyncData } from "@/components/runtime";
+import {
+  type AgencyProjectReadGroup,
+  AgencyAsyncView,
+  isAggregateEmpty,
+  listClientDeliveries,
+  loadAgencyProjectReads,
+} from "@/components/agency-runtime";
+import type { ArticleDeliveryViewV1 } from "@/runtime/api-contracts";
+
+type DeliveryGroups = readonly AgencyProjectReadGroup<ArticleDeliveryViewV1>[];
 
 export default function AgencyDeliveryPackagesPage() {
+  const { state } = useAsyncData<DeliveryGroups>(
+    () => loadAgencyProjectReads<ArticleDeliveryViewV1>(listClientDeliveries),
+    { isEmpty: isAggregateEmpty },
+  );
+
   return (
     <>
-      <AgencyActingBanner
-        actingForClientOrgName={AGENCY_ACTING_CONTEXT.actingForClientOrgName}
-        actingForClientReferenceCode={AGENCY_ACTING_CONTEXT.actingForClientReferenceCode}
-      />
       <header className="cp-page-header">
         <div>
           <p className="eyebrow">代理商工作台</p>
           <h1>交付包</h1>
-          <span>占位数据 - 无真实客户数据、无数据库连接。</span>
+          <span>授权客户项目的交付内容只读预览；不触发任何自动发布。</span>
         </div>
       </header>
-      <p className="cp-callout" role="note">
-        {AGENCY_DELIVERY_NOTICE}
-      </p>
-      <ul className="cp-list">
-        {AGENCY_DELIVERY_PACKAGES.map((item) => (
-          <li className="cp-list-row" key={item.referenceCode}>
-            <span className="cp-list-title">{item.title}</span>
-            <span className="cp-list-meta">
-              {item.clientOrgName} · 参考编号 {item.referenceCode} · 状态：{item.statusLabel}
-            </span>
-            <span className="cp-list-summary">已自动发布：{item.autoPublishedCount} 个</span>
-          </li>
-        ))}
-      </ul>
+
+      <AgencyAsyncView<DeliveryGroups>
+        state={state}
+        empty={<p className="cp-list-row cp-list-empty">暂无交付内容。</p>}
+      >
+        {(groups) =>
+          groups.map((group) => (
+            <section className="cp-section" key={group.project.id}>
+              <h2>
+                {group.project.name}{" "}
+                <span className="cp-list-meta">
+                  （{group.project.clientOrganizationName}）
+                </span>
+              </h2>
+              <ul className="cp-list">
+                {group.items.map((delivery) => (
+                  <li className="cp-list-row" key={delivery.id}>
+                    <span className="cp-list-title">{delivery.title}</span>
+                    <span className="cp-list-meta">
+                      状态：{delivery.status} · 交付时间：{delivery.deliveredAt ?? "未交付"} ·
+                      发布登记：{delivery.publicationRegisteredAt ?? "未登记"}
+                    </span>
+                  </li>
+                ))}
+                {group.items.length === 0 ? (
+                  <li className="cp-list-row cp-list-empty">该项目暂无交付内容。</li>
+                ) : null}
+              </ul>
+            </section>
+          ))
+        }
+      </AgencyAsyncView>
     </>
   );
 }

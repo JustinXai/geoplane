@@ -1,56 +1,86 @@
+"use client";
+
 /**
- * Recovery classification: RECONSTRUCTED_FROM_FROZEN_SPEC
- * reconstruction_source: docs/architecture/MULTI_TENANT_ACCOUNT_MODEL_V1.md ("An AGENCY
- *   user manages multiple CLIENT organizations, but only ones it has been explicitly
- *   granted access to"), recovered/partial-source/00040000000C9C607C9A7F12-page.tsx
- *   (AssignmentForm, "只有有效分配中的客户可被代理商选择" - only clients within an
- *   active assignment can be selected by an agency)
- * reconstruction_reason: no original page code recoverable beyond the 7 files already
- *   in recovered/partial-source/
- * original_file_unavailable: true
+ * AGENCY_OPS_WORKSPACE_RUNTIME_V1 (batch 1) — 客户项目 (client projects) for the AGENCY
+ * workspace, wired to the REAL API (GET /api/projects), replacing the fixture list.
  *
- * Checkpoint C3: 客户项目 (client projects) view for the AGENCY workspace. Lists only
- * the CLIENT organizations this agency currently has an ACTIVE assignment to
- * (src/app/agency/_fixtures.ts AGENCY_VISIBLE_CLIENT_PROJECTS - derived by filtering
- * AGENCY_CLIENT_ASSIGNMENTS to status === "ACTIVE"), each with its projects. No client
- * outside that fixture's ACTIVE assignment rows is reachable from this page. Fixture
- * data only - no real customer data, no database connection.
+ * Assignment isolation: GET /api/projects scopes results server-side to the agency's
+ * ACTIVE-assigned client organizations, so no unauthorized client's project can appear.
+ * Read-only preview — projects are grouped by client for display; no write actions.
  */
-import { AgencyActingBanner } from "@/components/agency/agency-acting-banner";
-import { AGENCY_ACTING_CONTEXT, AGENCY_VISIBLE_CLIENT_PROJECTS } from "../_fixtures";
+import { useAsyncData } from "@/components/runtime";
+import { AgencyAsyncView, listAgencyProjects } from "@/components/agency-runtime";
+import type { ProjectViewV1 } from "@/runtime/api-contracts";
+
+interface ClientGroup {
+  readonly clientOrganizationId: string;
+  readonly clientOrganizationName: string;
+  readonly projects: readonly ProjectViewV1[];
+}
+
+function groupByClient(projects: readonly ProjectViewV1[]): readonly ClientGroup[] {
+  const order: string[] = [];
+  const byClient = new Map<string, ProjectViewV1[]>();
+  for (const project of projects) {
+    const existing = byClient.get(project.clientOrganizationId);
+    if (existing === undefined) {
+      order.push(project.clientOrganizationId);
+      byClient.set(project.clientOrganizationId, [project]);
+    } else {
+      existing.push(project);
+    }
+  }
+  return order.map((clientOrganizationId) => {
+    const groupProjects = byClient.get(clientOrganizationId) ?? [];
+    const first = groupProjects[0];
+    return {
+      clientOrganizationId,
+      clientOrganizationName: first?.clientOrganizationName ?? clientOrganizationId,
+      projects: groupProjects,
+    };
+  });
+}
 
 export default function AgencyClientProjectsPage() {
+  const { state } = useAsyncData<readonly ProjectViewV1[]>(() => listAgencyProjects(), {
+    isEmpty: (projects) => projects.length === 0,
+  });
+
   return (
     <>
-      <AgencyActingBanner
-        actingForClientOrgName={AGENCY_ACTING_CONTEXT.actingForClientOrgName}
-        actingForClientReferenceCode={AGENCY_ACTING_CONTEXT.actingForClientReferenceCode}
-      />
       <header className="cp-page-header">
         <div>
           <p className="eyebrow">代理商工作台</p>
           <h1>客户项目</h1>
-          <span>占位数据 - 仅展示当前有效分配中的客户及其项目，无真实客户数据、无数据库连接。</span>
+          <span>仅展示当前有效分配中的客户及其项目（只读预览）。</span>
         </div>
       </header>
-      {AGENCY_VISIBLE_CLIENT_PROJECTS.map((client) => (
-        <section className="cp-section" key={client.clientReferenceCode}>
-          <h2>
-            {client.clientOrgName} <span className="cp-list-meta">（{client.clientReferenceCode}）</span>
-          </h2>
-          <ul className="cp-list">
-            {client.projects.map((project) => (
-              <li className="cp-list-row" key={project.referenceCode}>
-                <span className="cp-list-title">{project.name}</span>
-                <span className="cp-list-meta">
-                  参考编号 {project.referenceCode} · 阶段：{project.stageLabel} · 更新于 {project.updatedLabel}
-                </span>
-              </li>
-            ))}
-            {client.projects.length === 0 ? <li className="cp-list-row cp-list-empty">暂无项目</li> : null}
-          </ul>
-        </section>
-      ))}
+
+      <AgencyAsyncView<readonly ProjectViewV1[]>
+        state={state}
+        empty={<p className="cp-list-row cp-list-empty">暂无授权客户项目。</p>}
+      >
+        {(projects) =>
+          groupByClient(projects).map((group) => (
+            <section className="cp-section" key={group.clientOrganizationId}>
+              <h2>
+                {group.clientOrganizationName}{" "}
+                <span className="cp-list-meta">（{group.clientOrganizationId}）</span>
+              </h2>
+              <ul className="cp-list">
+                {group.projects.map((project) => (
+                  <li className="cp-list-row" key={project.id}>
+                    <span className="cp-list-title">{project.name}</span>
+                    <span className="cp-list-meta">
+                      项目编号 {project.id} · 创建于 {project.createdAt}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))
+        }
+      </AgencyAsyncView>
     </>
   );
 }
