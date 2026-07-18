@@ -58,11 +58,15 @@
 
 | Category | Items | PASS | PENDING_REMOTE_CI | HUMAN_PENDING |
 | --- | --- | --- | --- | --- |
-| 自动 Gate (Automated) | 6 | 5 | 1 | 0 |
+| 自动 Gate (Automated) | 6 | 6 | 0 | 0 |
 | 人工 Gate (Human) | 4 | 2 | 0 | 2 |
-| 环境 Gate (Environment) | 4 | 2 | 1 | 1 |
+| 环境 Gate (Environment) | 4 | 3 | 0 | 1 |
 | 试点运营 Gate (Pilot Operations) | 5 | 2 | 0 | 3 |
-| **Total** | **19** | **11** | **2** | **6** |
+| **Total** | **19** | **13** | **0** | **6** |
+
+Update 2026-07-19 (Agent A): A6 and E1 closed as PASS from observed run 29654550660
+(PostgreSQL 16.14, all three jobs green, 0 real provider calls in CI). All technical gates are
+now complete; the 6 remaining HUMAN_PENDING items are exactly the human sign-off set.
 
 ## Go/no-go rule
 
