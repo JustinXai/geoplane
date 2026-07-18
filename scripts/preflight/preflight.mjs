@@ -15,16 +15,22 @@
  * Reads config from process.env, then a gitignored .env.local at repo root. Never prints a secret
  * value (no DB URL, no signing-key material). Exits non-zero if any BLOCKER check FAILs.
  */
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
 
-const EXPECTED_MIGRATION_VERSIONS = ["0001", "0002", "0003", "0004", "0005", "0006"];
-const CURRENT_MIGRATION_VERSION = "0006";
+// Derived from migrations/ at runtime so a new migration never requires editing this file
+// (kept behaviourally identical to src/runtime/observability/preflight.ts).
+const EXPECTED_MIGRATION_VERSIONS = readdirSync(join(repoRoot, "migrations"))
+  .filter((f) => /^\d{4}_.*\.sql$/.test(f))
+  .map((f) => f.slice(0, 4))
+  .sort();
+const CURRENT_MIGRATION_VERSION =
+  EXPECTED_MIGRATION_VERSIONS[EXPECTED_MIGRATION_VERSIONS.length - 1] ?? "0000";
 const MIN_PROD_SIGNING_KEY_LENGTH = 16;
 const INSECURE_SESSION_KEY_PLACEHOLDERS = new Set([
   "change_me", "changeme", "change-me", "dev", "development", "insecure",

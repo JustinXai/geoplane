@@ -16,8 +16,8 @@
  *     no signing-key material). We report presence/shape, never contents.
  *   - Only imports from persistence/** (allowed) — never modifies it.
  */
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadDatabaseConfig } from "../../persistence/config.js";
 import type { Queryable } from "../../persistence/database-port.js";
@@ -119,21 +119,29 @@ export function isProductionRun(nodeEnv: string | undefined = process.env.NODE_E
 }
 
 // ---------------------------------------------------------------------------
-// Expected migrations — the ledger stores FILENAMES; we compare 4-digit versions.
-// Keep this list identical to scripts/preflight/preflight.mjs.
+// Expected migrations — DERIVED at runtime from the migrations/ directory (the
+// ledger stores FILENAMES; we compare 4-digit versions). Deriving them means a
+// newly-added migration (0007, 0008, …) never requires editing this file, so the
+// readiness check can never go stale against the actual migration set.
 // ---------------------------------------------------------------------------
 
-export const EXPECTED_MIGRATION_VERSIONS: readonly string[] = [
-  "0001",
-  "0002",
-  "0003",
-  "0004",
-  "0005",
-  "0006",
-];
+function migrationsDirectory(): string {
+  return join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "migrations");
+}
+
+/** The 4-digit versions of every migrations/NNNN_*.sql present, sorted ascending. */
+export function readExpectedMigrationVersions(): readonly string[] {
+  return readdirSync(migrationsDirectory())
+    .filter((f) => /^\d{4}_.*\.sql$/.test(f))
+    .map((f) => f.slice(0, 4))
+    .sort();
+}
+
+export const EXPECTED_MIGRATION_VERSIONS: readonly string[] = readExpectedMigrationVersions();
 
 /** The highest expected version — /ready reports migrations "current" when this is applied. */
-export const CURRENT_MIGRATION_VERSION = "0006";
+export const CURRENT_MIGRATION_VERSION: string =
+  EXPECTED_MIGRATION_VERSIONS[EXPECTED_MIGRATION_VERSIONS.length - 1] ?? "0000";
 
 // ---------------------------------------------------------------------------
 // Insecure signing-key placeholders (defence-in-depth; never a real key value)
@@ -312,7 +320,7 @@ export async function checkMigrations(db: Queryable | null): Promise<PreflightCh
         name: "migrations",
         status: "FAIL",
         blocker: true,
-        detail: `missing migration version(s): ${missing.join(", ")} (need 0001-0006)`,
+        detail: `missing migration version(s): ${missing.join(", ")} (need ${EXPECTED_MIGRATION_VERSIONS[0] ?? "0001"}-${CURRENT_MIGRATION_VERSION})`,
       };
     }
     const highest = [...appliedVersions].sort().at(-1) ?? "none";
