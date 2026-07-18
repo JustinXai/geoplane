@@ -97,7 +97,7 @@ jobs:
       SESSION_SIGNING_KEY_CURRENT: ci-only-session-signing-key-not-secret-0001
       # Admin connection for database creation (geoplane_ci is the service
       # container superuser). CI-only throwaway credential — not a secret.
-      GEO_CI_ADMIN_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/geoplane_ci_runtime
+      GEO_CI_ADMIN_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/postgres
       # Three isolated CI databases (runtime / test / canary roles).
       GEO_DATABASE_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/geoplane_ci_runtime
       GEO_TEST_DATABASE_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/geoplane_ci_test
@@ -167,7 +167,7 @@ jobs:
     env:
       PROVIDER_RUNTIME_ENABLED: "false"
       SESSION_SIGNING_KEY_CURRENT: ci-only-session-signing-key-not-secret-0001
-      GEO_CI_ADMIN_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/geoplane_ci_runtime
+      GEO_CI_ADMIN_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/postgres
       GEO_DATABASE_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/geoplane_ci_runtime
       GEO_TEST_DATABASE_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/geoplane_ci_test
       GEO_CANARY_DATABASE_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/geoplane_ci_canary
