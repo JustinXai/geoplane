@@ -1,8 +1,9 @@
 /**
  * Standalone migration CLI for the core runtime.
  *
- *   node scripts/db/migrate.mjs            # apply to GEO_DATABASE_URL
- *   node scripts/db/migrate.mjs --test     # apply to GEO_TEST_DATABASE_URL
+ *   node scripts/db/migrate.mjs            # apply to GEO_DATABASE_URL (runtime role)
+ *   node scripts/db/migrate.mjs --test     # apply to GEO_TEST_DATABASE_URL (automated-test role)
+ *   node scripts/db/migrate.mjs --canary   # apply to GEO_CANARY_DATABASE_URL (provider-canary role)
  *
  * Reads the connection string from process.env or a gitignored .env.local at repo root.
  * Never hardcodes a secret. Each migration file carries its own BEGIN/COMMIT, so it is
@@ -44,7 +45,8 @@ function resolveUrl(name) {
 }
 
 const isTest = process.argv.includes("--test");
-const varName = isTest ? "GEO_TEST_DATABASE_URL" : "GEO_DATABASE_URL";
+const isCanary = process.argv.includes("--canary");
+const varName = isCanary ? "GEO_CANARY_DATABASE_URL" : isTest ? "GEO_TEST_DATABASE_URL" : "GEO_DATABASE_URL";
 const connectionString = resolveUrl(varName);
 
 if (!connectionString) {
