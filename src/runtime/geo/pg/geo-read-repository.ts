@@ -25,6 +25,12 @@ import type { TenantScope } from "../ports.js";
 
 /** One opportunity_validation row, reduced to the fields the read side needs. */
 export interface OpportunityValidationReadRow {
+  /**
+   * The validation's own id. NOT for client-facing views — the read mappers use it only to build
+   * the OPAQUE, HMAC-signed reviewReferenceCode (review-reference.ts); the raw UUID never reaches a
+   * client-facing body.
+   */
+  readonly validationId: string;
   readonly opportunityId: string;
   readonly status: OpportunityValidationStatus;
   readonly validatedAt: string;
@@ -46,6 +52,7 @@ export interface DeliveryArticleReadModel {
 }
 
 interface ValidationRow {
+  id: string;
   opportunity_id: string;
   status: OpportunityValidationStatus;
   validated_at: Date;
@@ -75,13 +82,14 @@ export class GeoReadRepository {
     scope: TenantScope,
   ): Promise<OpportunityValidationReadRow[]> {
     const res = await this.db.query<ValidationRow>(
-      `SELECT opportunity_id, status, validated_at
+      `SELECT id, opportunity_id, status, validated_at
          FROM opportunity_validation
         WHERE client_organization_id = $1 AND project_id = $2
         ORDER BY validated_at, id`,
       [scope.clientOrganizationId, scope.projectId],
     );
     return res.rows.map((row) => ({
+      validationId: row.id,
       opportunityId: row.opportunity_id,
       status: row.status,
       validatedAt: row.validated_at.toISOString(),

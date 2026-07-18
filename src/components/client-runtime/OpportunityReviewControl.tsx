@@ -1,54 +1,65 @@
 "use client";
 
 /**
- * CLIENT_WORKSPACE_RUNTIME_V1 (Agent D — batch 2) — client review/confirmation of a content
- * opportunity, wired to the real command API (POST /api/opportunities/[id]/reviews).
+ * CLIENT_REVIEW_RUNTIME_V1 (Agent C2) — client review/confirmation of a content opportunity, wired
+ * end-to-end to the real command API (POST /api/opportunities/[id]/reviews).
  *
- * The three real decisions the command accepts are offered (确认 / 需要修改 / 否决); there is no
- * boolean "approve" — never auto-approved. On success the parent list refreshes (onReviewed) so the
- * opportunity's new status shows. The reviewer is derived from the session server-side: this control
- * sends only the decision (+ a note where the command requires one) — never a reviewer / actor / org id.
+ * The three real client decisions are offered (确认 / 要求修改 / 暂不处理 = CONFIRMED /
+ * CHANGES_REQUESTED / DEFERRED); there is no boolean "approve" — never auto-approved. The reviewer is
+ * derived from the session server-side: this control sends only the OPAQUE reviewReferenceCode, the
+ * version it read, the decision and (where required) a note — never a reviewer / actor / org id, and
+ * never a raw internal UUID.
  *
- * The command keys the decision on a specific validation reference (opportunityValidationId). The
- * client read surface (OpportunityViewV1) deliberately does not expose that internal reference — so
- * when it is unavailable this control renders a clean, disabled affordance rather than fabricating an
- * id. Passing a real reference (once a client-facing read surfaces one) enables it with no other change.
+ * The command keys the decision on a validation the client read surface deliberately never exposes as
+ * a UUID; instead OpportunityViewV1.review carries the opaque reviewReferenceCode. When `review` is
+ * absent (the opportunity is not reviewable) the control renders a clean, disabled affordance rather
+ * than fabricating a reference. On success the parent list refreshes (onReviewed) so the new status
+ * shows; a stale-version write surfaces a distinct conflict message.
  */
 import { useState } from "react";
+import type { OpportunityReviewRefV1 } from "../../runtime/api-contracts/index.js";
 import {
   type OpportunityReviewDecision,
   submitOpportunityReview,
 } from "./commands.js";
 import { WriteActionFeedback, useWriteAction } from "./WriteAction.js";
 
-const DECISION_LABELS: Readonly<Record<OpportunityReviewDecision, string>> = {
+/** Human labels for the three client decisions — 确认 / 要求修改 / 暂不处理. */
+export const DECISION_LABELS: Readonly<Record<OpportunityReviewDecision, string>> = {
   CONFIRMED: "确认",
-  CHANGES_REQUESTED: "需要修改",
-  REJECTED: "否决",
+  CHANGES_REQUESTED: "要求修改",
+  DEFERRED: "暂不处理",
 };
 
-/** These decisions require a note; CONFIRMED does not. */
-const DECISION_ORDER: readonly OpportunityReviewDecision[] = [
+/** Stable presentation order for the decisions. */
+export const DECISION_ORDER: readonly OpportunityReviewDecision[] = [
   "CONFIRMED",
   "CHANGES_REQUESTED",
-  "REJECTED",
+  "DEFERRED",
+];
+
+/** These decisions require a note; CONFIRMED does not. */
+const DECISIONS_REQUIRING_NOTE: readonly OpportunityReviewDecision[] = [
+  "CHANGES_REQUESTED",
+  "DEFERRED",
 ];
 
 export interface OpportunityReviewControlProps {
-  /** Opaque action handle (OpportunityViewV1.id); used only for the command path, never rendered. */
+  /** Opportunity id — opaque action handle (OpportunityViewV1.id); used only for the command path, never rendered. */
   readonly opportunityId: string;
   /**
-   * The validation reference the decision acts on. `null` when the client read surface does not
-   * expose one — the control is then disabled (no fabrication). Non-null enables the real submit.
+   * The opaque, client-safe review reference (OpportunityViewV1.review). `undefined` when the
+   * opportunity is not reviewable — the control is then disabled (no fabrication). Present enables
+   * the real submit; the control never displays any field of it (the code is opaque).
    */
-  readonly opportunityValidationId: string | null;
+  readonly review: OpportunityReviewRefV1 | undefined;
   /** Refresh the opportunity list after a recorded decision so the new status shows. */
   readonly onReviewed: () => void;
 }
 
 export function OpportunityReviewControl({
   opportunityId,
-  opportunityValidationId,
+  review,
   onReviewed,
 }: OpportunityReviewControlProps) {
   const [note, setNote] = useState("");
@@ -56,29 +67,50 @@ export function OpportunityReviewControl({
     (decision: OpportunityReviewDecision) =>
       submitOpportunityReview({
         opportunityId,
-        // Guaranteed non-null at the call site: the buttons are disabled when the reference is absent.
-        opportunityValidationId: opportunityValidationId ?? "",
+        // Guaranteed present at the call site: the buttons are disabled when the reference is absent.
+        reviewReferenceCode: review?.reviewReferenceCode ?? "",
+        reviewVersion: review?.reviewVersion ?? 0,
         decision,
-        ...(decision === "CONFIRMED" ? {} : { note }),
+        ...(DECISIONS_REQUIRING_NOTE.includes(decision) ? { note } : {}),
       }),
     onReviewed,
   );
 
-  const actionable = opportunityValidationId !== null;
+  const actionable = review !== undefined;
   const submitting = state.status === "submitting";
-  const disabled = !actionable || submitting;
+  const allowed = review?.allowedDecisions ?? [];
+  const decisions = actionable ? DECISION_ORDER.filter((d) => allowed.includes(d)) : DECISION_ORDER;
+
+  const isConflict = state.status === "error" && state.code === "CONFLICT";
+
+  function disabledFor(decision: OpportunityReviewDecision): boolean {
+    if (!actionable || submitting) return true;
+    // Guard: a changes/defer decision needs a note; keep its button disabled until one is entered.
+    return DECISIONS_REQUIRING_NOTE.includes(decision) && note.trim() === "";
+  }
 
   return (
     <div className="cp-confirm" role="group" aria-label="内容方向确认">
+      <label className="cp-confirm-note">
+        <span className="cp-confirm-note-label">评审备注（要求修改/暂不处理时必填）</span>
+        <textarea
+          className="cp-confirm-note-input"
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          disabled={!actionable || submitting}
+          rows={2}
+          aria-label="评审备注"
+        />
+      </label>
       <div className="cp-confirm-actions">
-        {DECISION_ORDER.map((decision) => (
+        {decisions.map((decision) => (
           <button
             key={decision}
             type="button"
             className="cp-confirm-button"
             onClick={() => submit(decision)}
-            disabled={disabled}
-            aria-disabled={disabled}
+            disabled={disabledFor(decision)}
+            aria-disabled={disabledFor(decision)}
           >
             {DECISION_LABELS[decision]}
           </button>
@@ -89,7 +121,13 @@ export function OpportunityReviewControl({
           该内容方向的确认待评审就绪后开放。
         </p>
       ) : null}
-      <WriteActionFeedback state={state} successLabel="已记录你的决定。" />
+      {isConflict ? (
+        <p className="cp-callout" role="alert">
+          该内容方向已被更新，请刷新后重试。
+        </p>
+      ) : (
+        <WriteActionFeedback state={state} successLabel="已记录你的决定。" />
+      )}
     </div>
   );
 }

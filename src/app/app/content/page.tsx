@@ -51,13 +51,14 @@ export default function ContentSourcingPage() {
                     {/*
                       内容方向 confirmation is the real client review command (POST
                       /api/opportunities/[id]/reviews). The opportunity id is an opaque action
-                      handle (never rendered). The validation reference the command keys on is not
-                      exposed by the client read surface, so the control is disabled until one is —
-                      no fabricated id. 信源类型 has no modeled command and stays presentation-only.
+                      handle (never rendered). The validation the command keys on is carried by the
+                      client-safe OPAQUE reviewReferenceCode on opportunity.review — never a raw UUID.
+                      When review is absent the control renders a disabled affordance (no fabrication).
+                      信源类型 has no modeled command and stays presentation-only.
                     */}
                     <OpportunityReviewControl
                       opportunityId={opportunity.id}
-                      opportunityValidationId={null}
+                      review={opportunity.review}
                       onReviewed={reload}
                     />
                     <ClientConfirmationControl subjectLabel="信源类型" />

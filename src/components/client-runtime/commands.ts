@@ -11,6 +11,7 @@
  * so the calling component drives one submitting / success / forbidden / error pipeline.
  */
 import type { KnowledgePackageViewV1 } from "../../runtime/api-contracts/index.js";
+import type { ClientReviewDecisionValue } from "../../contracts/tenancy/entities.js";
 import type { HumanReviewDecisionViewV1 } from "../../runtime/commands/geo-dto.js";
 import { type ApiClient, defaultApiClient, type Result } from "../../lib/api-client/http.js";
 
@@ -23,27 +24,32 @@ function enc(segment: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * The decisions the human-review command accepts (GEO chain human-review gate). Mirrors the route's
- * accepted set exactly — there is no default / omission path to an approval (never auto-approved).
- * Note this is the human-review command's set (…/REJECTED), not the tenancy ClientReviewDecision
- * three-state (…/DEFERRED): the opportunity reviews route records a HumanReviewDecision.
+ * The client-facing three-state review decision (frozen tenancy ClientReviewDecisionValue): confirm
+ * the content direction, ask for changes, or defer it. There is no default / omission path to an
+ * approval (never auto-approved). CONFIRMED maps server-side to an APPROVED human-review outcome;
+ * DEFERRED to a held (non-approved) one.
  */
-export type OpportunityReviewDecision = "CONFIRMED" | "CHANGES_REQUESTED" | "REJECTED";
+export type OpportunityReviewDecision = ClientReviewDecisionValue;
 
 export interface OpportunityReviewInput {
   /** Opportunity id — opaque action handle (OpportunityViewV1.id); used only in the path, never rendered. */
   readonly opportunityId: string;
-  /** The specific validation outcome this decision acts on (required by the command). */
-  readonly opportunityValidationId: string;
+  /**
+   * The OPAQUE, tamper-evident review reference (OpportunityViewV1.review.reviewReferenceCode). It is
+   * NEVER a raw validation UUID — the server verifies + decodes it. The client treats it as opaque.
+   */
+  readonly reviewReferenceCode: string;
+  /** The version the client read (OpportunityViewV1.review.reviewVersion) — optimistic concurrency. */
+  readonly reviewVersion: number;
   readonly decision: OpportunityReviewDecision;
-  /** Required by the route for CHANGES_REQUESTED / REJECTED; omitted (not sent) for CONFIRMED. */
+  /** Required by the route for CHANGES_REQUESTED / DEFERRED; omitted (not sent) for CONFIRMED. */
   readonly note?: string;
 }
 
 /**
- * Record the client's review decision on an opportunity's validation. The reviewer is derived from
- * the session server-side — this body carries only the subject reference (validation id), the
- * decision and, when the decision requires it, a note. It NEVER carries a reviewer / actor / org id.
+ * Record the client's review decision on an opportunity. The reviewer is derived from the session
+ * server-side — this body carries only the OPAQUE review reference, the version, the decision and,
+ * when required, a note. It NEVER carries a reviewer / actor / org id, nor any raw internal UUID.
  */
 export function submitOpportunityReview(
   input: OpportunityReviewInput,
@@ -51,7 +57,8 @@ export function submitOpportunityReview(
 ): Promise<Result<HumanReviewDecisionViewV1>> {
   const hasNote = input.note !== undefined && input.note !== "";
   const body = {
-    opportunityValidationId: input.opportunityValidationId,
+    reviewReferenceCode: input.reviewReferenceCode,
+    reviewVersion: input.reviewVersion,
     decision: input.decision,
     ...(hasNote ? { note: input.note } : {}),
   };
