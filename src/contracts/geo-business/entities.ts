@@ -255,6 +255,19 @@ export interface OpportunityValidation {
  */
 export type HumanReviewDecisionStatus = "APPROVED" | "CHANGES_REQUESTED" | "REJECTED";
 
+/**
+ * Acceptance-phase canonicalization (REBUILD_INTEGRATION_ACCEPTANCE_V1):
+ * `ContentApprovalStatus` is the single canonical name for "what state is
+ * a piece of content's human-review approval in" across this codebase.
+ * Deliberately an alias, not a new independent type - `HumanReviewDecisionStatus`
+ * already is this concept for the GEO chain; giving it a second canonical
+ * name would itself become a duplicate this acceptance phase exists to
+ * eliminate. Any future service/UI surface that needs to talk about
+ * content-approval status in general terms (not specifically "this is a
+ * HumanReviewDecision") should import `ContentApprovalStatus`.
+ */
+export type ContentApprovalStatus = HumanReviewDecisionStatus;
+
 interface HumanReviewDecisionBase {
   id: string;
   clientOrganizationId: string;
@@ -1197,6 +1210,58 @@ export interface PublicationReceipt {
    */
   publishedByActorId: string;
   publishedAt: string;
+}
+
+/**
+ * Acceptance-phase canonicalization (REBUILD_INTEGRATION_ACCEPTANCE_V1):
+ * `PublicationStatus` is the single canonical cross-cutting status for
+ * "where is this PublishPackage in its journey to being published" -
+ * introduced now because no lane had previously needed to summarize this
+ * across the three distribution-layer entities (PublishPackage /
+ * DistributionPlan / PublicationReceipt) for a read model. Derived purely
+ * from which of those records exist for a given PublishPackage id -
+ * see `derivePublicationStatus` below - never stored as its own mutable
+ * field, so it cannot drift from the real underlying records.
+ *
+ *   PACKAGED           - a PublishPackage exists, no DistributionPlan yet.
+ *   CHANNELS_SELECTED  - a DistributionPlan exists (per D6, this always
+ *                        means a non-empty, explicitly human-chosen
+ *                        channel list - there is no "ready" state with 0
+ *                        channels), but no PublicationReceipt yet for any
+ *                        of its channels.
+ *   PARTIALLY_PUBLISHED - at least one PublicationReceipt exists, but not
+ *                        for every channel in the DistributionPlan.
+ *   PUBLISHED          - a PublicationReceipt exists for every channel in
+ *                        the DistributionPlan.
+ */
+export type PublicationStatus =
+  | "PACKAGED"
+  | "CHANNELS_SELECTED"
+  | "PARTIALLY_PUBLISHED"
+  | "PUBLISHED";
+
+/**
+ * Derives `PublicationStatus` from the real records - never trust a
+ * separately-stored status field, since one would inevitably drift from
+ * these three entities' actual state (the same discipline D6's
+ * `createChannelNeutralContentPackage`/`createPublicationReceipt` already
+ * apply to their own invariants).
+ */
+export function derivePublicationStatus(
+  plan: DistributionPlan | null,
+  receipts: readonly PublicationReceipt[],
+): PublicationStatus {
+  if (plan === null) {
+    return "PACKAGED";
+  }
+  const publishedChannelIds = new Set(
+    receipts.filter((r) => r.distributionPlanId === plan.id).map((r) => r.channelId),
+  );
+  if (publishedChannelIds.size === 0) {
+    return "CHANNELS_SELECTED";
+  }
+  const allPublished = plan.channelIds.every((channelId) => publishedChannelIds.has(channelId));
+  return allPublished ? "PUBLISHED" : "PARTIALLY_PUBLISHED";
 }
 
 /**

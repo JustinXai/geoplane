@@ -16,12 +16,17 @@
  *
  * Checkpoint C3 fixture data for the AGENCY workspace surfaces (/agency/*). Plain
  * in-memory arrays/objects only - no database, no real customer data, no network calls.
- * View-model types below are local to this lane (they intentionally do NOT import from
- * another lane's src/contracts) and follow the same client-facing-copy conventions
- * established in src/app/app/_fixtures.ts: short human-readable reference codes (never
- * raw UUIDs), no AI/model provider or vendor name, no internal production-pipeline
- * vocabulary.
+ * View-model types below follow the same client-facing-copy conventions established in
+ * src/app/app/_fixtures.ts: short human-readable reference codes (never raw UUIDs), no
+ * AI/model provider or vendor name, no internal production-pipeline vocabulary.
+ *
+ * Updated during REBUILD_INTEGRATION_ACCEPTANCE_V1's canonical contract unification
+ * (docs/acceptance/CANONICAL_CONTRACT_UNIFICATION.md): this file used to redeclare
+ * `AgencyClientAssignmentStatus` and a narrowed `AgencyTeamRole` locally because this
+ * lane's branch could not import across branches at the time. Both now import the
+ * canonical tenancy types directly.
  */
+import type { AgencyClientAssignmentStatus, PlatformRole } from "@/contracts/tenancy/entities";
 
 // ---------------------------------------------------------------------------
 // Agency-acting-for-client context (drives the shared AgencyActingBanner).
@@ -45,8 +50,6 @@ export const AGENCY_ACTING_CONTEXT: AgencyActingContextView = {
 // ---------------------------------------------------------------------------
 // 客户项目 (client projects) - only ACTIVE-assignment clients are ever visible.
 // ---------------------------------------------------------------------------
-
-export type AgencyClientAssignmentStatus = "ACTIVE" | "REVOKED";
 
 export interface AgencyClientAssignmentView {
   readonly clientReferenceCode: string;
@@ -261,20 +264,12 @@ export const AGENCY_DELIVERY_NOTICE =
 // ---------------------------------------------------------------------------
 
 /**
- * Display-only role union mirroring the AGENCY_OWNER / AGENCY_OPERATOR members of
- * `PlatformRole` defined in `rebuild/tenancy-auth`'s src/contracts/tenancy/entities.ts.
- * That file lives on a different rebuild lane's branch and is not present on
- * rebuild/frontend-workspaces yet (see AGENTS.md, "Agents B, C, D - Parallel rebuild
- * workstreams" - each lane works from an independent worktree), so it is intentionally
- * NOT imported here rather than reimplemented in full: this local type only needs to
- * match the two agency-facing role name strings for display purposes.
- *
- * TODO(rebuild/tenancy-auth): once that branch merges and src/contracts/tenancy/
- * entities.ts exists on this lane, replace this local type with
- * `import type { PlatformRole } from "@/contracts/tenancy/entities"` (narrowed to
- * "AGENCY_OWNER" | "AGENCY_OPERATOR" for this page) instead of duplicating it.
+ * Display-only narrowing of the canonical `PlatformRole` to the two roles this page
+ * ever shows. `Extract<>` over the canonical union rather than a locally-declared
+ * literal union, so this stays correct (or fails to compile) if `PlatformRole` ever
+ * changes upstream - it cannot silently drift into an independent duplicate.
  */
-export type AgencyTeamRole = "AGENCY_OWNER" | "AGENCY_OPERATOR";
+export type AgencyTeamRole = Extract<PlatformRole, "AGENCY_OWNER" | "AGENCY_OPERATOR">;
 
 export interface AgencyTeamMemberView {
   readonly referenceCode: string;

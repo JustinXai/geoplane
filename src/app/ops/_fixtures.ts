@@ -20,9 +20,12 @@
  *
  * Checkpoint C4 fixture data for the PLATFORM/ops workspace surfaces (/ops/*). Plain
  * in-memory arrays/objects only - no database, no real customer data, no network calls.
- * View-model types below are local to this lane (they intentionally do NOT import from
- * another lane's src/contracts) and follow the same conventions established in
- * src/app/app/_fixtures.ts and src/app/agency/_fixtures.ts:
+ * View-model types below follow the same conventions established in
+ * src/app/app/_fixtures.ts and src/app/agency/_fixtures.ts. Updated during
+ * REBUILD_INTEGRATION_ACCEPTANCE_V1's canonical contract unification
+ * (docs/acceptance/CANONICAL_CONTRACT_UNIFICATION.md): `PlatformAssignmentStatus` and
+ * `InvitationStatus` used to be redeclared locally; both now import the canonical
+ * tenancy types directly.
  *
  * - every identifier is a short human-readable reference code (e.g. "ORG-0001"), never a
  *   raw UUID or database primary key - EXCEPT the 账户审计 section below, which
@@ -50,13 +53,16 @@
  *
  * tests/ops-workspace-copy.test.ts asserts this file's display strings hold to those rules.
  */
+import type {
+  AgencyClientAssignmentStatus,
+  InvitationStatus as CanonicalInvitationStatus,
+  OrganizationType,
+} from "@/contracts/tenancy/entities";
 
 // ---------------------------------------------------------------------------
 // 组织 (organizations) - all organizations across all types, platform-only visibility
 // per MULTI_TENANT_ACCOUNT_MODEL_V1 ("A PLATFORM user can manage all organizations").
 // ---------------------------------------------------------------------------
-
-export type OrganizationType = "PLATFORM" | "AGENCY" | "CLIENT";
 
 export interface OrganizationView {
   readonly referenceCode: string;
@@ -124,7 +130,7 @@ export const ORGANIZATIONS: readonly OrganizationView[] = [
 // AGENCY_CLIENT_ASSIGNMENTS, which is scoped to one acting agency.
 // ---------------------------------------------------------------------------
 
-export type PlatformAssignmentStatus = "ACTIVE" | "REVOKED";
+export type PlatformAssignmentStatus = AgencyClientAssignmentStatus;
 
 export interface PlatformClientAssignmentView {
   readonly referenceCode: string;
@@ -166,7 +172,7 @@ export const PLATFORM_CLIENT_ASSIGNMENTS: readonly PlatformClientAssignmentView[
 // 邀请 (invitations) - platform-wide invitation list/status view.
 // ---------------------------------------------------------------------------
 
-export type InvitationStatus = "PENDING" | "ACCEPTED" | "EXPIRED" | "REVOKED";
+export type InvitationStatus = CanonicalInvitationStatus;
 
 export interface InvitationView {
   readonly referenceCode: string;

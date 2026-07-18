@@ -74,6 +74,14 @@ export interface Membership {
 }
 
 /**
+ * Acceptance-phase canonicalization: named (not inline) so the frontend's
+ * agency/ops assignment-status view-models can import this instead of
+ * redeclaring an equivalent "ACTIVE" | "REVOKED" union under a local name
+ * (see docs/acceptance/CANONICAL_CONTRACT_UNIFICATION.md).
+ */
+export type AgencyClientAssignmentStatus = "ACTIVE" | "REVOKED";
+
+/**
  * Explicit, non-implicit grant of an AGENCY organization over a specific
  * CLIENT organization. Existence of a row is the only thing that grants
  * access — no wildcard/implicit agency access is permitted.
@@ -82,7 +90,7 @@ export interface AgencyClientAssignment {
   id: string;
   agencyOrganizationId: string;
   clientOrganizationId: string;
-  status: "ACTIVE" | "REVOKED";
+  status: AgencyClientAssignmentStatus;
   assignedByUserId: string;
   assignedAt: string;
   revokedAt: string | null;

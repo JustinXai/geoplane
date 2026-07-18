@@ -2,25 +2,30 @@
  * Recovery classification: RECONSTRUCTED_FROM_FROZEN_SPEC
  * reconstruction_source: docs/architecture/SYSTEM_BLUEPRINT_V1.md (business core item 2,
  *   "Keyword and user-question mapping" and item 3, "Content and source grounding" -
- *   both call out an explicit client-confirmation step before an item moves forward)
+ *   both call out an explicit client-confirmation step before an item moves forward),
+ *   src/contracts/tenancy/review.ts (canonical ClientReviewDecisionValue)
  * reconstruction_reason: no original page/component code recoverable beyond the 7 files
  *   already in recovered/partial-source/
  * original_file_unavailable: true
  *
- * Checkpoint C5: shared client-confirmation view-model for the CLIENT workspace
- * (keyword confirmation, content-direction confirmation, source-type confirmation).
+ * Checkpoint C5, refactored during REBUILD_INTEGRATION_ACCEPTANCE_V1's canonical
+ * contract unification (docs/acceptance/CANONICAL_CONTRACT_UNIFICATION.md): this file
+ * used to redeclare its own `ClientConfirmationDecision` union mirroring
+ * `ClientReviewDecisionValue` (necessary at the time because this lane's branch could
+ * not import across branches). Now that both lanes live in one tree, this file imports
+ * the canonical type directly instead of maintaining a parallel duplicate.
  *
- * `ClientConfirmationDecision` deliberately mirrors the three-state shape of
- * `ClientReviewDecision.decision` from `src/contracts/tenancy/entities.ts` on the
- * separate, not-yet-merged `rebuild/tenancy-auth` branch (CONFIRMED / CHANGES_REQUESTED /
- * DEFERRED, per B1-CORRECTION on that lane) - NOT a boolean/two-state approve shortcut.
- * This lane cannot import that file (cross-branch import, established in checkpoint C3),
- * so the shape is redeclared locally here and kept consistent by convention so the two
- * lanes line up once the branches eventually integrate.
+ * `NOT_YET_REVIEWED` remains a genuinely UI-only presentation state - there is no
+ * "unreviewed" variant of `ClientReviewDecision` on the business/persistence side (an
+ * unreviewed item simply has no `ClientReviewDecision` row at all), so this sentinel has
+ * no canonical business-layer equivalent to import. Per this phase's mandate, the
+ * conversion between the two is explicit: `toReviewDecision`/`fromReviewDecision` below,
+ * not an implicit cast.
  */
+import type { ClientReviewDecisionValue } from "@/contracts/tenancy/review";
 
-/** The three real decisions a client can make about a confirmable item. */
-export type ClientConfirmationDecision = "CONFIRMED" | "CHANGES_REQUESTED" | "DEFERRED";
+/** Alias kept for call-site readability in this UI module; identical to the canonical type. */
+export type ClientConfirmationDecision = ClientReviewDecisionValue;
 
 export const CLIENT_CONFIRMATION_DECISIONS: readonly ClientConfirmationDecision[] = [
   "CONFIRMED",
@@ -31,7 +36,8 @@ export const CLIENT_CONFIRMATION_DECISIONS: readonly ClientConfirmationDecision[
 /**
  * Sentinel for "no explicit decision made yet". Deliberately a fourth, distinct value -
  * never one of the three real decisions - so a freshly-constructed confirmation item can
- * never be mistaken for (or silently default to) "CONFIRMED".
+ * never be mistaken for (or silently default to) "CONFIRMED". UI-only: has no canonical
+ * business-layer (`ClientReviewDecision`) equivalent - see file header.
  */
 export const NOT_YET_REVIEWED = "NOT_YET_REVIEWED" as const;
 
@@ -58,4 +64,22 @@ export function applyClientConfirmationDecision(
   decision: ClientConfirmationDecision,
 ): ClientConfirmationState {
   return decision;
+}
+
+/**
+ * Explicit UI-state -> canonical-business-type conversion, per this phase's mandate that
+ * `NOT_YET_REVIEWED` "必须与业务 Decision 明确转换" (must have an explicit conversion
+ * to/from the business Decision). Returns `null` for the not-yet-reviewed sentinel,
+ * matching the business-layer reality that an unreviewed item has no
+ * `ClientReviewDecision` row - never fabricates a placeholder decision value.
+ */
+export function toReviewDecision(state: ClientConfirmationState): ClientReviewDecisionValue | null {
+  return state === NOT_YET_REVIEWED ? null : state;
+}
+
+/**
+ * The inverse conversion: a real (or absent) business decision -> UI presentation state.
+ */
+export function fromReviewDecision(decision: ClientReviewDecisionValue | null): ClientConfirmationState {
+  return decision ?? NOT_YET_REVIEWED;
 }
