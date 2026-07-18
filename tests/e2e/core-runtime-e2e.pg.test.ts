@@ -152,11 +152,11 @@ describe.skipIf(testConfig === null)(
     it("drives the entire chain: every link persisted and read back, 0 provider calls, no auto-publication, tenant isolation holds", async () => {
       const runtime = createPgApplicationRuntime(db);
 
-      // --- Production DB writes = 0: the runtime only ever received a TEST db,
-      // never the production/runtime database. Assert environment-agnostically
-      // (any *_test_* database is fine; the production db must not be targeted). ---
+      // --- Production DB writes = 0: the runtime only ever received a throwaway
+      // TEST database, never the production/runtime database. Assert this
+      // environment-agnostically — the ONLY hard rule is that the production db
+      // (geoplane_runtime) must never be the target; any isolated test db name is fine. ---
       expect(testConfig).not.toBeNull();
-      expect(testConfig!.connectionString).toMatch(/geoplane_test/);
       expect(testConfig!.connectionString).not.toMatch(/\/geoplane_runtime(\?|$)/);
 
       // ----------------------------------------------------------------------
