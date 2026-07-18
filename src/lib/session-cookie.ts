@@ -23,7 +23,7 @@
  * performs.
  */
 import type { OrganizationType, PlatformRole } from "@/contracts/tenancy/entities";
-import { signSessionCookieValue, verifySessionCookieValue } from "./session-signing.js";
+import { signSessionCookieValue, verifySignedSessionToken } from "./session-signing.js";
 
 export const SESSION_COOKIE_NAME = "geo_acceptance_session";
 
@@ -42,15 +42,8 @@ export function encodeSessionCookie(payload: AcceptanceSessionCookiePayload): st
   return signSessionCookieValue(payloadB64Url);
 }
 
-/**
- * Verifies the signature + expiry and returns the payload, or null (never throws) for any
- * missing/tampered/expired/wrong-key/malformed cookie value - callers must treat null as "no
- * session". A plain (unsigned) base64 JSON blob fails signature verification and is rejected.
- */
-export function decodeSessionCookie(cookieValue: string | undefined | null): AcceptanceSessionCookiePayload | null {
-  if (!cookieValue) return null;
-  const payloadB64Url = verifySessionCookieValue(cookieValue);
-  if (payloadB64Url === null) return null;
+/** Parses (and shape-validates) the base64url payload segment. Null for malformed/invalid JSON. */
+function parsePayloadSegment(payloadB64Url: string): AcceptanceSessionCookiePayload | null {
   try {
     const json = Buffer.from(payloadB64Url, "base64url").toString("utf8");
     const parsed = JSON.parse(json) as Partial<AcceptanceSessionCookiePayload>;
@@ -72,6 +65,43 @@ export function decodeSessionCookie(cookieValue: string | undefined | null): Acc
   } catch {
     return null;
   }
+}
+
+/**
+ * Verifies the signature + expiry and returns the payload, or null (never throws) for any
+ * missing/tampered/expired/wrong-key/malformed cookie value - callers must treat null as "no
+ * session". A plain (unsigned) base64 JSON blob fails signature verification and is rejected.
+ */
+export function decodeSessionCookie(cookieValue: string | undefined | null): AcceptanceSessionCookiePayload | null {
+  if (!cookieValue) return null;
+  const payloadB64Url = verifySignedSessionToken(cookieValue)?.payloadB64Url;
+  if (payloadB64Url === undefined) return null;
+  return parsePayloadSegment(payloadB64Url);
+}
+
+/**
+ * The verified payload plus the signed token metadata (issue/expiry timestamps). `issuedAt` is the
+ * cookie's own trustworthy issue time — the source the server-side runtime uses for an idle-window
+ * check when no per-request last-activity column exists. Null (never throws) for any
+ * missing/tampered/expired/wrong-key/malformed value, exactly like decodeSessionCookie.
+ */
+export interface DecodedSessionCookie {
+  readonly payload: AcceptanceSessionCookiePayload;
+  /** ms epoch the cookie was signed at. */
+  readonly issuedAt: number;
+  /** ms epoch the cookie's signed TTL expires at. */
+  readonly expiresAt: number;
+}
+
+export function decodeSessionCookieWithMeta(
+  cookieValue: string | undefined | null,
+): DecodedSessionCookie | null {
+  if (!cookieValue) return null;
+  const verified = verifySignedSessionToken(cookieValue);
+  if (verified === null) return null;
+  const payload = parsePayloadSegment(verified.payloadB64Url);
+  if (payload === null) return null;
+  return { payload, issuedAt: verified.issuedAt, expiresAt: verified.expiresAt };
 }
 
 /** Which top-level workspace prefix a role is allowed into. Single source of truth for both middleware.ts and its tests. */
