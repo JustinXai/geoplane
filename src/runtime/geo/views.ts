@@ -13,9 +13,11 @@ import type {
   ArticleDeliveryStatusV1,
   ArticleDeliveryViewV1,
   KeywordQuestionViewV1,
+  OpportunityReviewRefV1,
   OpportunityStatusV1,
   OpportunityViewV1,
 } from "../api-contracts/index.js";
+import type { ClientReviewDecisionValue } from "../../contracts/tenancy/entities.js";
 import type {
   HumanReviewDecision,
   KeywordQuestionMap,
@@ -25,6 +27,14 @@ import type {
   DeliveryArticleReadModel,
   OpportunityValidationReadRow,
 } from "./pg/geo-read-repository.js";
+import { encodeReviewReferenceCode } from "./review-reference.js";
+
+/** The three client-facing decisions a reviewable opportunity offers (frozen ClientReviewDecisionValue). */
+const ALL_CLIENT_DECISIONS: readonly ClientReviewDecisionValue[] = [
+  "CONFIRMED",
+  "CHANGES_REQUESTED",
+  "DEFERRED",
+];
 
 // ---------------------------------------------------------------------------
 // Keyword-question views
@@ -81,13 +91,15 @@ export function deriveOpportunityStatus(
  * Map one Opportunity to the frozen OpportunityViewV1. The keyword is the only
  * client-facing handle the Opportunity carries, so it drives both the title and
  * a plain-language summary; grounding/provenance ids are deliberately not
- * exposed.
+ * exposed. `review` is attached only when the opportunity is reviewable — it
+ * carries the OPAQUE reviewReferenceCode, never a raw validation UUID.
  */
 export function toOpportunityView(
   opportunity: Opportunity,
   status: OpportunityStatusV1,
+  review?: OpportunityReviewRefV1,
 ): OpportunityViewV1 {
-  return {
+  const base: OpportunityViewV1 = {
     id: opportunity.id,
     projectId: opportunity.projectId,
     title: opportunity.keyword,
@@ -95,6 +107,7 @@ export function toOpportunityView(
     status,
     createdAt: opportunity.createdAt,
   };
+  return review ? { ...base, review } : base;
 }
 
 /** Latest validation status per opportunity id (rows arrive oldest-first). */
@@ -103,6 +116,15 @@ export function latestValidationStatusByOpportunity(
 ): Map<string, OpportunityValidationReadRow["status"]> {
   const out = new Map<string, OpportunityValidationReadRow["status"]>();
   for (const v of validations) out.set(v.opportunityId, v.status);
+  return out;
+}
+
+/** Latest full validation row per opportunity id (rows arrive oldest-first; last wins). */
+export function latestValidationByOpportunity(
+  validations: readonly OpportunityValidationReadRow[],
+): Map<string, OpportunityValidationReadRow> {
+  const out = new Map<string, OpportunityValidationReadRow>();
+  for (const v of validations) out.set(v.opportunityId, v);
   return out;
 }
 
@@ -115,41 +137,85 @@ export function latestReviewStatusByOpportunity(
   return out;
 }
 
-/** Map every opportunity in a scope to its view, deriving status from validations + reviews. */
+/** All review decisions per opportunity id, in arrival order (oldest-first). */
+export function reviewsByOpportunity(
+  reviews: readonly HumanReviewDecision[],
+): Map<string, HumanReviewDecision[]> {
+  const out = new Map<string, HumanReviewDecision[]>();
+  for (const r of reviews) {
+    const list = out.get(r.opportunityId);
+    if (list) list.push(r);
+    else out.set(r.opportunityId, [r]);
+  }
+  return out;
+}
+
+/**
+ * Builds the client-safe review reference for one opportunity, or undefined when it is NOT reviewable.
+ *
+ * An opportunity is reviewable iff its latest validation is VALIDATED AND it is not in a terminal
+ * reviewed state: with no decision yet (PENDING) or with the latest decision being CHANGES_REQUESTED
+ * (still awaiting a fresh decision). A terminal APPROVED (client CONFIRMED) or REJECTED (client
+ * DEFERRED) closes the review, so no reference is emitted. `reviewVersion` is the count of decisions
+ * recorded so far (0 = pending) — the optimistic-concurrency token the command re-checks on write.
+ */
+function buildReviewReference(
+  latestValidation: OpportunityValidationReadRow | undefined,
+  decisions: readonly HumanReviewDecision[],
+): OpportunityReviewRefV1 | undefined {
+  if (!latestValidation || latestValidation.status !== "VALIDATED") return undefined;
+
+  const reviewVersion = decisions.length;
+  const latest = reviewVersion > 0 ? decisions[reviewVersion - 1] : undefined;
+  // Terminal outcomes (APPROVED / REJECTED) close the review; only PENDING / CHANGES_REQUESTED stay open.
+  if (latest !== undefined && latest.status !== "CHANGES_REQUESTED") return undefined;
+
+  return {
+    reviewReferenceCode: encodeReviewReferenceCode(latestValidation.validationId),
+    reviewVersion,
+    reviewStatus: latest === undefined ? "PENDING" : "CHANGES_REQUESTED",
+    allowedDecisions: ALL_CLIENT_DECISIONS,
+  };
+}
+
+/** Map every opportunity in a scope to its view, deriving status + attaching a review ref where reviewable. */
 export function toOpportunityViews(
   opportunities: readonly Opportunity[],
   validations: readonly OpportunityValidationReadRow[],
   reviews: readonly HumanReviewDecision[],
 ): OpportunityViewV1[] {
-  const validationByOpp = latestValidationStatusByOpportunity(validations);
-  const reviewByOpp = latestReviewStatusByOpportunity(reviews);
-  return opportunities.map((opp) =>
-    toOpportunityView(
-      opp,
-      deriveOpportunityStatus(validationByOpp.get(opp.id), reviewByOpp.get(opp.id)),
-    ),
-  );
+  const validationByOpp = latestValidationByOpportunity(validations);
+  const decisionsByOpp = reviewsByOpportunity(reviews);
+  return opportunities.map((opp) => {
+    const latestValidation = validationByOpp.get(opp.id);
+    const decisions = decisionsByOpp.get(opp.id) ?? [];
+    const latestDecision = decisions.length > 0 ? decisions[decisions.length - 1] : undefined;
+    const status = deriveOpportunityStatus(latestValidation?.status, latestDecision?.status);
+    return toOpportunityView(opp, status, buildReviewReference(latestValidation, decisions));
+  });
 }
 
 /**
  * The review queue: opportunities awaiting a client review decision — those that
  * have passed validation (VALIDATED) but have no HumanReviewDecision yet.
  * Returned as opportunity summaries (OpportunityViewV1), each with status
- * VALIDATED.
+ * VALIDATED and the opaque review reference that enables the client action.
  */
 export function toReviewQueueViews(
   opportunities: readonly Opportunity[],
   validations: readonly OpportunityValidationReadRow[],
   reviews: readonly HumanReviewDecision[],
 ): OpportunityViewV1[] {
-  const validationByOpp = latestValidationStatusByOpportunity(validations);
-  const reviewByOpp = latestReviewStatusByOpportunity(reviews);
+  const validationByOpp = latestValidationByOpportunity(validations);
+  const decisionsByOpp = reviewsByOpportunity(reviews);
   const queue: OpportunityViewV1[] = [];
   for (const opp of opportunities) {
-    const validated = validationByOpp.get(opp.id) === "VALIDATED";
-    const alreadyReviewed = reviewByOpp.has(opp.id);
+    const latestValidation = validationByOpp.get(opp.id);
+    const decisions = decisionsByOpp.get(opp.id) ?? [];
+    const validated = latestValidation?.status === "VALIDATED";
+    const alreadyReviewed = decisions.length > 0;
     if (validated && !alreadyReviewed) {
-      queue.push(toOpportunityView(opp, "VALIDATED"));
+      queue.push(toOpportunityView(opp, "VALIDATED", buildReviewReference(latestValidation, decisions)));
     }
   }
   return queue;

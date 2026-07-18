@@ -16,6 +16,9 @@ import { fakeApiClient } from "./fake-api-client.js";
 
 const OPPORTUNITY_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const VALIDATION_ID = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+// The client only ever holds the OPAQUE reviewReferenceCode — never the raw validation UUID.
+const REVIEW_CODE = "YmJiYmJiYmItYmJiYi1iYmJiLWJiYmItYmJiYmJiYmJiYmJi.deadbeefsignature";
+const REVIEW_VERSION = 0;
 const REVIEW_PATH = `/api/opportunities/${OPPORTUNITY_ID}/reviews`;
 
 const REVIEW_OK: Result<HumanReviewDecisionViewV1> = ok({
@@ -29,7 +32,7 @@ const REVIEW_OK: Result<HumanReviewDecisionViewV1> = ok({
   decidedAt: "2026-07-18T00:00:00.000Z",
 });
 
-// Keys the client must NEVER put in a write body — identity is always server-derived.
+// Keys the client must NEVER put in a write body — identity is server-derived, and no raw internal id.
 const ACTOR_KEYS = [
   "reviewerId",
   "reviewer",
@@ -41,6 +44,7 @@ const ACTOR_KEYS = [
   "organizationId",
   "clientOrganizationId",
   "tenantId",
+  "opportunityValidationId",
 ];
 
 function assertNoActorInBody(body: unknown): void {
@@ -51,14 +55,21 @@ function assertNoActorInBody(body: unknown): void {
       false,
     );
   }
+  // The raw validation UUID must never travel in the body — only the opaque code does.
+  expect(JSON.stringify(obj)).not.toContain(VALIDATION_ID);
 }
 
 describe("submitOpportunityReview — POST /api/opportunities/[id]/reviews", () => {
-  it("POSTs to the opportunity's reviews route with the decision (CONFIRMED sends no note)", async () => {
+  it("POSTs the opaque code + version + decision (CONFIRMED sends no note)", async () => {
     const { client, calls } = fakeApiClient({ [REVIEW_PATH]: REVIEW_OK });
 
     const result = await submitOpportunityReview(
-      { opportunityId: OPPORTUNITY_ID, opportunityValidationId: VALIDATION_ID, decision: "CONFIRMED" },
+      {
+        opportunityId: OPPORTUNITY_ID,
+        reviewReferenceCode: REVIEW_CODE,
+        reviewVersion: REVIEW_VERSION,
+        decision: "CONFIRMED",
+      },
       client,
     );
 
@@ -68,7 +79,11 @@ describe("submitOpportunityReview — POST /api/opportunities/[id]/reviews", () 
     if (!call) throw new Error("expected a recorded call");
     expect(call.path).toBe(REVIEW_PATH);
     expect(call.method).toBe("POST");
-    expect(call.body).toEqual({ opportunityValidationId: VALIDATION_ID, decision: "CONFIRMED" });
+    expect(call.body).toEqual({
+      reviewReferenceCode: REVIEW_CODE,
+      reviewVersion: REVIEW_VERSION,
+      decision: "CONFIRMED",
+    });
     expect((call.body as Record<string, unknown>).note).toBeUndefined();
   });
 
@@ -78,7 +93,8 @@ describe("submitOpportunityReview — POST /api/opportunities/[id]/reviews", () 
     await submitOpportunityReview(
       {
         opportunityId: OPPORTUNITY_ID,
-        opportunityValidationId: VALIDATION_ID,
+        reviewReferenceCode: REVIEW_CODE,
+        reviewVersion: REVIEW_VERSION,
         decision: "CHANGES_REQUESTED",
         note: "请补充数据来源",
       },
@@ -86,31 +102,43 @@ describe("submitOpportunityReview — POST /api/opportunities/[id]/reviews", () 
     );
 
     expect(calls[0]?.body).toEqual({
-      opportunityValidationId: VALIDATION_ID,
+      reviewReferenceCode: REVIEW_CODE,
+      reviewVersion: REVIEW_VERSION,
       decision: "CHANGES_REQUESTED",
       note: "请补充数据来源",
     });
   });
 
-  it("never sends a client-supplied reviewer / actor / org id (identity is server-derived)", async () => {
+  it("never sends a client-supplied reviewer / actor / org id, nor the raw validation UUID", async () => {
     const { client, calls } = fakeApiClient({ [REVIEW_PATH]: REVIEW_OK });
 
     await submitOpportunityReview(
-      { opportunityId: OPPORTUNITY_ID, opportunityValidationId: VALIDATION_ID, decision: "REJECTED", note: "不符合方向" },
+      {
+        opportunityId: OPPORTUNITY_ID,
+        reviewReferenceCode: REVIEW_CODE,
+        reviewVersion: REVIEW_VERSION,
+        decision: "DEFERRED",
+        note: "暂不处理",
+      },
       client,
     );
 
     assertNoActorInBody(calls[0]?.body);
-    // Only the subject reference, the decision and the note may travel in the body.
+    // Only the opaque reference, the version, the decision and the note may travel in the body.
     expect(Object.keys((calls[0]?.body ?? {}) as Record<string, unknown>).sort()).toEqual(
-      ["decision", "note", "opportunityValidationId"],
+      ["decision", "note", "reviewReferenceCode", "reviewVersion"],
     );
   });
 
   it("encodes the opportunity id into the path segment", async () => {
     const { client, calls } = fakeApiClient();
     await submitOpportunityReview(
-      { opportunityId: "opp 1", opportunityValidationId: VALIDATION_ID, decision: "CONFIRMED" },
+      {
+        opportunityId: "opp 1",
+        reviewReferenceCode: REVIEW_CODE,
+        reviewVersion: REVIEW_VERSION,
+        decision: "CONFIRMED",
+      },
       client,
     );
     expect(calls[0]?.path).toBe("/api/opportunities/opp%201/reviews");
@@ -119,7 +147,12 @@ describe("submitOpportunityReview — POST /api/opportunities/[id]/reviews", () 
   it("returns the error variant for a 500 (INTERNAL_ERROR) without throwing", async () => {
     const { client } = fakeApiClient({ [REVIEW_PATH]: err("INTERNAL_ERROR", "boom") });
     const result = await submitOpportunityReview(
-      { opportunityId: OPPORTUNITY_ID, opportunityValidationId: VALIDATION_ID, decision: "CONFIRMED" },
+      {
+        opportunityId: OPPORTUNITY_ID,
+        reviewReferenceCode: REVIEW_CODE,
+        reviewVersion: REVIEW_VERSION,
+        decision: "CONFIRMED",
+      },
       client,
     );
     expect(result.ok).toBe(false);
@@ -129,11 +162,33 @@ describe("submitOpportunityReview — POST /api/opportunities/[id]/reviews", () 
   it("returns the forbidden variant for a 403 (FORBIDDEN)", async () => {
     const { client } = fakeApiClient({ [REVIEW_PATH]: err("FORBIDDEN", "denied") });
     const result = await submitOpportunityReview(
-      { opportunityId: OPPORTUNITY_ID, opportunityValidationId: VALIDATION_ID, decision: "CONFIRMED" },
+      {
+        opportunityId: OPPORTUNITY_ID,
+        reviewReferenceCode: REVIEW_CODE,
+        reviewVersion: REVIEW_VERSION,
+        decision: "CONFIRMED",
+      },
       client,
     );
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.code).toBe("FORBIDDEN");
+  });
+
+  it("returns the conflict variant for a 409 (CONFLICT) on a stale version", async () => {
+    const { client } = fakeApiClient({
+      [REVIEW_PATH]: err("CONFLICT", "This review is out of date."),
+    });
+    const result = await submitOpportunityReview(
+      {
+        opportunityId: OPPORTUNITY_ID,
+        reviewReferenceCode: REVIEW_CODE,
+        reviewVersion: REVIEW_VERSION,
+        decision: "CONFIRMED",
+      },
+      client,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.code).toBe("CONFLICT");
   });
 
   it("returns the validation variant for a 422 (VALIDATION_FAILED)", async () => {
@@ -141,7 +196,12 @@ describe("submitOpportunityReview — POST /api/opportunities/[id]/reviews", () 
       [REVIEW_PATH]: err("VALIDATION_FAILED", "a note is required for a CHANGES_REQUESTED decision."),
     });
     const result = await submitOpportunityReview(
-      { opportunityId: OPPORTUNITY_ID, opportunityValidationId: VALIDATION_ID, decision: "CHANGES_REQUESTED" },
+      {
+        opportunityId: OPPORTUNITY_ID,
+        reviewReferenceCode: REVIEW_CODE,
+        reviewVersion: REVIEW_VERSION,
+        decision: "CHANGES_REQUESTED",
+      },
       client,
     );
     expect(result.ok).toBe(false);
