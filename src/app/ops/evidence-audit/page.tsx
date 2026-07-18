@@ -1,18 +1,9 @@
 /**
- * Recovery classification: RECONSTRUCTED_FROM_FROZEN_SPEC
- * reconstruction_source: docs/architecture/SYSTEM_BLUEPRINT_V1.md ("Content and source
- *   grounding" business-core item), docs/governance/SYSTEM_INVARIANTS_V1.md ("No customer
- *   data, no secrets" - no real customer attachments/evidence)
- * reconstruction_reason: no original page code recoverable beyond the 7 files already in
- *   recovered/partial-source/
- * original_file_unavailable: true
- *
- * Checkpoint C4: Evidence 审计 (evidence audit) - minimal list view of fixture evidence-
- * audit entries (src/app/ops/_fixtures.ts EVIDENCE_AUDIT_EVENTS). Presentation only, no
- * real customer attachments or source-grounding payloads.
+ * AGENCY_OPS_WORKSPACE_RUNTIME_V1 (batch 2): Evidence 审计 (evidence audit) — no read endpoint
+ * exists yet for evidence audit. Per this batch's scope, this surface shows a clean placeholder
+ * EMPTY state and fabricates NO data (the earlier fixture list has been removed). When a real read
+ * endpoint lands, wire it here with the five async states.
  */
-import { EVIDENCE_AUDIT_EVENTS } from "../_fixtures";
-
 export default function OpsEvidenceAuditPage() {
   return (
     <>
@@ -20,19 +11,12 @@ export default function OpsEvidenceAuditPage() {
         <div>
           <p className="eyebrow">平台运营</p>
           <h1>Evidence 审计</h1>
-          <span>占位数据 - 无真实客户数据、无数据库连接。不包含任何真实客户证据或原始信源内容。</span>
+          <span>该功能尚无可用的读取接口。此页面为占位状态，不展示任何模拟数据。</span>
         </div>
       </header>
-      <ul className="cp-list">
-        {EVIDENCE_AUDIT_EVENTS.map((ev) => (
-          <li className="cp-list-row" key={ev.referenceCode}>
-            <span className="cp-list-title">{ev.actionLabel}</span>
-            <span className="cp-list-meta">
-              {ev.targetLabel} · 参考编号 {ev.referenceCode} · {ev.timestampLabel}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <p className="cp-placeholder-note" role="status">
+        暂无证据审计记录 — 证据审计读取接口尚未提供，接入后将在此展示真实记录。
+      </p>
     </>
   );
 }

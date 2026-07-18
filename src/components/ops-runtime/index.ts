@@ -1,0 +1,32 @@
+/**
+ * AGENCY_OPS_WORKSPACE_RUNTIME_V1 (batch 2) — public barrel for the OPS (platform) workspace
+ * runtime: typed loaders over the frozen ApiClient, the single organizations read model, audit
+ * mapping, and the five-state async renderer. Mirrors src/components/agency-runtime/index.ts.
+ */
+export { listAllOrganizations, listOpsAudit, listOpsProjects } from "./ops-api.js";
+export type { OrganizationSummaryV1 } from "./ops-api.js";
+
+export {
+  loadOpsOrganizations,
+  deriveOrganizationKpis,
+  isOpsOrganizationsEmpty,
+  filterOrganizations,
+  organizationTypeLabel,
+  organizationStatusLabel,
+} from "./ops-organizations.js";
+export type {
+  OpsOrganizationsReadModel,
+  OpsOrganizationsKpis,
+} from "./ops-organizations.js";
+
+export {
+  OPS_ASSIGNMENT_ACTIONS,
+  OPS_INVITATION_ACTIONS,
+  toOpsAuditRow,
+  isAuditEmpty,
+  filterAuditByActions,
+} from "./ops-audit.js";
+export type { OpsAuditRowView } from "./ops-audit.js";
+
+export { OpsAsyncView } from "./OpsAsyncView.js";
+export type { OpsAsyncViewProps } from "./OpsAsyncView.js";

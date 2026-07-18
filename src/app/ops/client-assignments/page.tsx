@@ -1,24 +1,30 @@
+"use client";
+
 /**
- * Recovery classification: RECONSTRUCTED_FROM_FROZEN_SPEC
- * reconstruction_source: docs/architecture/MULTI_TENANT_ACCOUNT_MODEL_V1.md ("An AGENCY
- *   user manages multiple CLIENT organizations, but only ones it has been explicitly
- *   granted access to (explicit assignment, not implicit/wildcard access)", AssignmentForm
- *   evidence: "只有有效分配中的客户可被代理商选择"), docs/governance/
- *   SYSTEM_INVARIANTS_V1.md ("Tenant isolation")
- * reconstruction_reason: no original page code recoverable beyond the 7 files already in
- *   recovered/partial-source/
- * original_file_unavailable: true
+ * AGENCY_OPS_WORKSPACE_RUNTIME_V1 (batch 2) — 客户分配 (client assignments) for the OPS (platform)
+ * workspace. No dedicated assignments READ endpoint exists yet (the assignment route is a POST
+ * command, /api/ops/assignments), so this screen is wired to the REAL audit trail (GET /api/ops/
+ * audit) narrowed to the assignment action code — showing REAL platform assignment activity with
+ * real actor / target / timestamp, replacing the fixture table. No fabricated rows.
  *
- * Checkpoint C4: 客户分配 (client assignments) - the PLATFORM-WIDE view of every
- * AgencyClientAssignment record across the entire platform (src/app/ops/_fixtures.ts
- * PLATFORM_CLIENT_ASSIGNMENTS), covering every agency. Contrast with the AGENCY-scoped C3
- * view (src/app/agency/assignments, AGENCY_CLIENT_ASSIGNMENTS in
- * src/app/agency/_fixtures.ts), which only ever shows the single acting agency's own
- * assignments. Fixture data only, presentation only.
+ * Access: GET /api/ops/audit is PLATFORM_SUPER_ADMIN-only; a non-platform principal returns FORBIDDEN
+ * (or UNAUTHENTICATED) -> forbidden state, never any assignment data.
  */
-import { PLATFORM_CLIENT_ASSIGNMENTS } from "../_fixtures";
+import { useAsyncData } from "@/components/runtime";
+import {
+  OPS_ASSIGNMENT_ACTIONS,
+  OpsAsyncView,
+  filterAuditByActions,
+  listOpsAudit,
+  toOpsAuditRow,
+} from "@/components/ops-runtime";
+import type { AuditEventViewV1 } from "@/runtime/api-contracts";
 
 export default function OpsClientAssignmentsPage() {
+  const { state } = useAsyncData<readonly AuditEventViewV1[]>(() => listOpsAudit({ limit: 200 }), {
+    isEmpty: (events) => filterAuditByActions(events, OPS_ASSIGNMENT_ACTIONS).length === 0,
+  });
+
   return (
     <>
       <header className="cp-page-header">
@@ -26,34 +32,43 @@ export default function OpsClientAssignmentsPage() {
           <p className="eyebrow">平台运营</p>
           <h1>客户分配</h1>
           <span>
-            占位数据 - 无真实客户数据、无数据库连接。平台级视图，展示全平台所有代理商的客户分配记录（区别于代理商工作台的单一代理商视图）。
+            平台级视图。分配活动来自真实审计记录（暂无专用的分配读取接口）；展示全平台的客户分配操作。
           </span>
         </div>
       </header>
-      <section className="cp-table-wrap">
-        <table className="cp-data-table">
-          <thead>
-            <tr>
-              <th>参考编号</th>
-              <th>代理商</th>
-              <th>客户</th>
-              <th>状态</th>
-              <th>分配情况</th>
-            </tr>
-          </thead>
-          <tbody>
-            {PLATFORM_CLIENT_ASSIGNMENTS.map((a) => (
-              <tr key={a.referenceCode}>
-                <td>{a.referenceCode}</td>
-                <td>{a.agencyOrgName}</td>
-                <td>{a.clientOrgName}</td>
-                <td>{a.statusLabel}</td>
-                <td>{a.assignedLabel}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+
+      <OpsAsyncView<readonly AuditEventViewV1[]>
+        state={state}
+        empty={<p className="cp-list-row cp-list-empty">暂无客户分配记录。</p>}
+      >
+        {(events) => {
+          const rows = filterAuditByActions(events, OPS_ASSIGNMENT_ACTIONS).map(toOpsAuditRow);
+          return (
+            <section className="cp-table-wrap">
+              <table className="cp-data-table">
+                <thead>
+                  <tr>
+                    <th>时间</th>
+                    <th>动作</th>
+                    <th>目标</th>
+                    <th>操作者</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.occurredAt}</td>
+                      <td>{row.action}</td>
+                      <td>{row.targetLabel}</td>
+                      <td>{row.actorLabel}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          );
+        }}
+      </OpsAsyncView>
     </>
   );
 }
