@@ -64,7 +64,7 @@ describe.skipIf(testConfig === null)("GET /api/health/ready — real Postgres", 
       body.checks.find((c: { name: string }) => c.name === name);
     expect(byName("database").status).toBe("PASS");
     expect(byName("migrations").status).toBe("PASS");
-    expect(byName("migrations").detail).toContain("0006");
+    expect(byName("migrations").detail).toContain("migrations applied");
     expect(byName("environment").status).toBe("PASS");
     expect(byName("file-storage").status).toBe("PASS");
     // Provider flag state is reported in the breakdown.

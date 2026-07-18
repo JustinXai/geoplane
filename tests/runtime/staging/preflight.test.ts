@@ -7,6 +7,8 @@
 import { describe, expect, it } from "vitest";
 import type { DbQueryResult, Queryable, SqlParam } from "../../../src/persistence/database-port.js";
 import {
+  CURRENT_MIGRATION_VERSION,
+  EXPECTED_MIGRATION_VERSIONS,
   checkDatabaseConnection,
   checkEnvironment,
   checkFileStorage,
@@ -46,13 +48,13 @@ const throwingDb: Queryable = {
   },
 };
 
-const allSixMigrations = stubDb((sql) => {
+// Derives the applied set from the SAME dynamic expected list the check reads, so it stays
+// correct as migrations are added (0006, 0007, …) — no hardcoded version list to go stale.
+const allMigrationsApplied = stubDb((sql) => {
   if (sql.includes("schema_migrations")) {
     return {
-      rows: ["0001_a.sql", "0002_b.sql", "0003_c.sql", "0004_d.sql", "0005_e.sql", "0006_f.sql"].map(
-        (filename) => ({ filename }),
-      ),
-      rowCount: 6,
+      rows: EXPECTED_MIGRATION_VERSIONS.map((v) => ({ filename: `${v}_x.sql` })),
+      rowCount: EXPECTED_MIGRATION_VERSIONS.length,
     };
   }
   if (sql.includes("SELECT 1")) return { rows: [{ ok: 1 }], rowCount: 1 };
@@ -158,10 +160,10 @@ describe("checkDatabaseConnection", () => {
 // --- migrations -------------------------------------------------------------
 
 describe("checkMigrations", () => {
-  it("PASSes when all six versions are applied", async () => {
-    const r = await checkMigrations(allSixMigrations);
+  it("PASSes when all expected versions are applied", async () => {
+    const r = await checkMigrations(allMigrationsApplied);
     expect(r.status).toBe("PASS");
-    expect(r.detail).toContain("0006");
+    expect(r.detail).toContain(CURRENT_MIGRATION_VERSION);
   });
 
   it("FAILs and reports the missing version", async () => {
@@ -217,7 +219,7 @@ describe("summarize", () => {
 
 describe("runPreflightChecks", () => {
   it("returns all six checks green for a healthy environment", async () => {
-    const checks = await runPreflightChecks({ env: HEALTHY_ENV, db: allSixMigrations, prod: false });
+    const checks = await runPreflightChecks({ env: HEALTHY_ENV, db: allMigrationsApplied, prod: false });
     expect(checks).toHaveLength(6);
     expect(summarize(checks).ok).toBe(true);
     expect(byName(checks, "database").status).toBe("PASS");
