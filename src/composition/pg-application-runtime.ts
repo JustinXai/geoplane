@@ -48,6 +48,7 @@ import { createRepositories, type Repositories } from "../persistence/repository
 import { KnowledgePackageBridge } from "../persistence/runtime-continuity/knowledge-package-bridge.js";
 import { PgIndustryProfileRepository } from "../persistence/runtime-continuity/industry-profile-repository.js";
 import { PgProviderArticleContentRepository } from "../persistence/runtime-continuity/provider-article-content-repository.js";
+import { PgKnowledgeContentStore } from "../persistence/runtime-continuity/pg-knowledge-content-store.js";
 
 import type {
   IndustryProfile,
@@ -96,7 +97,6 @@ import { PgVerticalGateRepository } from "../runtime/geo/pg/vertical-gate-reposi
 // Knowledge ingestion (migration 0002).
 import { KnowledgeIngestionService } from "../runtime/knowledge/ingestion/ingestion-service.js";
 import {
-  InMemoryKnowledgeContentStore,
   type KnowledgeContentStore,
 } from "../runtime/knowledge/ingestion/content-store.js";
 import { DefaultKnowledgeParser } from "../runtime/knowledge/ingestion/parsers.js";
@@ -274,7 +274,7 @@ export function createPgApplicationRuntime(db: DatabasePort): PgApplicationRunti
     const documents = new PgKnowledgeDocumentRepository(db);
     const versions = new PgKnowledgeVersionRepository(db);
     const enterpriseProfiles = new PgEnterpriseProfileRepository(db);
-    const contentStore = new InMemoryKnowledgeContentStore();
+    const contentStore = new PgKnowledgeContentStore(db);
     const ingestion = new KnowledgeIngestionService(
       new DefaultKnowledgeParser(),
       documents,
