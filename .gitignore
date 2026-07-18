@@ -18,3 +18,6 @@ coverage/
 *.dump
 .DS_Store
 Thumbs.db
+
+# CI-generated machine-readable gate evidence (never committed)
+artifacts/
