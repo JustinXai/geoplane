@@ -1086,6 +1086,19 @@ describe.skipIf(testConfig === null)(
       drillPool.on("error", (err) => {
         poolErrors.push(err); // observed, never crashing the process
       });
+      // pg's pool-level "error" only covers IDLE clients. The backend we kill is
+      // CHECKED OUT (mid-query), and after its query rejects the doomed client
+      // can emit one more socket-level "error" (57P01 / connection terminated)
+      // with no listener — a timing-dependent unhandled error that aborted CI
+      // run 29655238192 while runs 3 and 5 passed. Attach a per-client listener
+      // so the EXPECTED termination error is observed, never unhandled. The
+      // drill's assertions (in-flight query rejects, pool self-heals) are
+      // unchanged.
+      drillPool.on("connect", (client) => {
+        client.on("error", (err: Error) => {
+          poolErrors.push(err);
+        });
+      });
       const admin = createPgDatabase({
         connectionString: withUserAndDb(testConfig!.connectionString, SUPERUSER, "postgres"),
         max: 2,
