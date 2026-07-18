@@ -60,3 +60,34 @@ No secrets are ever recorded in this file.
   refreshed from the operator's reconciled file per C's follow-up note.
 - Agent E: RUNNING (not interrupted).
 - Next: await E → independent E2E re-run → merge E → Supervisor → final full gate.
+
+---
+
+## Checkpoint 3 — 2026-07-18 ~23:40 local
+
+- Integration SHA: 93ad279 (B + D + C + E all merged; local == remote verified)
+- Agent E (qa/closed-pilot-operations-v1): **COMPLETE** @ c505c88 — CLOSED_PILOT_OPERATIONS_V1.
+  Sanitized closed-pilot chain over real route handlers (platform→agency→client→project→invite→
+  client login→DOCX ingest→confirm→profile→keyword map→opportunity→client review via opaque ref→
+  family→brief→offline provider (flag OFF, deterministic)→compile→3 gates→HUMAN approval→publish
+  package (0 channels)→distribution→HUMAN receipt (system actor 422)→delivery→agency progress→
+  ops audit) + 4/4 drills (app restart, pool restart via pg_terminate_backend, session rotation
+  K1→K2, backup→restore-to-fresh→re-login ×3 with field-for-field ledger equality). PDF hop
+  self-skipped (pdf-parse env limitation, tracked); DOCX carried the knowledge hop.
+  Independent re-run at integration: tests/pilot 10 passed / 1 gated skip. Typecheck PASS.
+- Supervisor: RUNNING (read-only audit on audit/closed-pilot-rc-supervisor-v1).
+- **Final gate batch 1 (at 93ad279): PASS** — full tests 876 passed / 1 gated skip (87 files),
+  next build (build:web) PASS, security-scan clean, repo:safety:preflight PASS, typecheck PASS.
+- **Final gate batch 2: PASS** — scripts/backup/pg-verify.mjs --test:
+  PG16 NOT REACHABLE (probe only, no install attempted) → CANONICAL_POSTGRES16_VERIFY =
+  BLOCKED_PENDING_ENV; **PG18_EQUIVALENT = PASS (6/6)**: fresh throwaway DB migrations 8/8 to
+  0008, constraints, append-only triggers, idempotency (re-migrate 0 + dup key rejected),
+  restart read-back, provider_execution 17 cols with NO secret/raw-content columns.
+  Backup (--test --user postgres) → restore.mjs into fresh geoplane_rc_restore_gate: RESTORED
+  tables=42 indexes=179 triggers=25 (gate DB dropped after; note: restore requires --user
+  postgres — geoplane_app lacks CREATEDB, one diagnosed retry, no loop).
+- Invariant facts re-verified directly against DBs (no secrets printed):
+  canary DB provider_execution rows = 1 (the single real call, model deepseek-v4-flash,
+  identity backfilled UNKNOWN_LEGACY/DEEPSEEK/OPENAI_COMPATIBLE); test DB non-offline rows = 0;
+  PROVIDER_RUNTIME_ENABLED=false in .env.local; GEO_CANARY_DATABASE_URL present; table count 42.
+- Next: Supervisor completes → review evidence → merge audit docs → final report + release decision.
