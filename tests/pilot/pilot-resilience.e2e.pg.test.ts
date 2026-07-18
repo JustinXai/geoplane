@@ -65,7 +65,10 @@ const restoreScript = join(repoRoot, "scripts", "backup", "restore.mjs");
 const OOXML_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const OFFLINE_ENVELOPE = "offline_envelope_pilot_resilience_1";
 const CHANNEL = "sample_pilot_resilience_blog";
-const SUPERUSER = "postgres";
+// Superuser ROLE NAME only (never a secret): local instances use the "postgres"
+// convention; the CI postgres:16 service container's superuser is "geoplane_ci",
+// injected via GEO_PG_SUPERUSER. Passwords flow via connection string/PGPASSWORD.
+const SUPERUSER = process.env.GEO_PG_SUPERUSER?.trim() || "postgres";
 const HOOK_TIMEOUT = 180_000;
 
 // Desensitized fixtures (Real Customer Data = 0). Reserved test domains + explicit markers.

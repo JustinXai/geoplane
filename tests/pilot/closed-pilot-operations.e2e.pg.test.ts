@@ -126,7 +126,10 @@ const PDF_MARKER = "Hello PDF";
 const CHANNEL = "sample_closed_pilot_official_blog";
 const KEYWORD = "generative engine optimization";
 const OFFLINE_MODEL = "offline-deterministic";
-const SUPERUSER = "postgres";
+// Superuser ROLE NAME only (never a secret): local instances use the "postgres"
+// convention; the CI postgres:16 service container's superuser is "geoplane_ci",
+// injected via GEO_PG_SUPERUSER. Passwords flow via connection string/PGPASSWORD.
+const SUPERUSER = process.env.GEO_PG_SUPERUSER?.trim() || "postgres";
 const STEP_TIMEOUT = 240_000;
 
 // --- Desensitized fixtures (Real Customer Data = 0). Reserved test domains + explicit markers. ---
