@@ -1,152 +1,119 @@
 # DATA_CONTINUITY_AUDIT
 
-Phase: `PRODUCT_RUNTIME_CLOSURE_V1` — Supervisor baseline (read-only static audit).
-Product base: `21e36aa` (branch `audit/product-runtime-supervisor-v1`).
-Method: static — read + grep. No code was modified. Where a claim could not be
-established statically it is marked so explicitly.
+Phase: `PRODUCT_RUNTIME_CLOSURE_V1` — Supervisor **re-audit of the INTEGRATED runtime** (cycle 1 + 2).
+Product base: `12a727a` (prodint HEAD: data-continuity 0005/0006 + full command API + wired workspaces).
+Branch: `audit/product-runtime-supervisor-v1`. Method: static (read + grep). No source modified.
 
-Severity legend: **BLOCKER** (breaks a frozen invariant now) · **WARN** (real gap,
-scoped/tolerated) · **INFO** (observation, no action implied).
-Disposition: **REAL** violation vs **KNOWN-IN-PROGRESS** (a lane is actively
-replacing it this phase).
+Severity: **BLOCKER** (breaks a frozen invariant now) · **WARN** (real gap, scoped) ·
+**INFO**. Disposition: **PASS** · **IN_PROGRESS** · **GAP**.
+
+This supersedes the baseline (21e36aa) edition. Baseline items 1 / 2.1 / 2.2 are now closed.
 
 ---
 
-## 1. In-memory business adapter inventory
+## 1. In-memory business adapter inventory — FORMAL runtime now 0
 
-There are **three** distinct composition graphs in the tree. Only one of them
-(the per-lane runtimes) actually serves live HTTP; the two `src/composition/*`
-roots are E2E/offline harnesses (see §1.4, evidenced by their sole importers).
+### 1.1 `src/composition/pg-application-runtime.ts` — **0** in-memory business adapters (PASS)
 
-### 1.1 `src/composition/pg-application-runtime.ts` — 3 in-memory business adapters
+`createPgApplicationRuntime()` (`pg-application-runtime.ts:258-366`) now wires **only**
+real Postgres adapters. The three former `Mem*`/`AppendOnly` classes are gone; the
+`InMemory`/`Mem` tokens in this file survive only in comments. Replacements:
 
-The Postgres product runtime wires 15 real Pg GEO adapters + real tenancy/knowledge
-Pg repos, but still substitutes **3 append-only in-memory adapters** for the
-deliberately-unpersisted opaque-UUID GEO aggregates:
+| Former in-memory adapter | Now | Evidence |
+|---|---|---|
+| `MemKnowledgePackageRepository` | `KnowledgePackageBridge(db)` — read/write over canonical `knowledge_package` (0002); single source of truth | `pg-application-runtime.ts:306`; `persistence/runtime-continuity/knowledge-package-bridge.ts:133` |
+| `MemIndustryProfileRepository` | `PgIndustryProfileRepository(db)` — migration 0005 `industry_profile` | `pg-application-runtime.ts:307` |
+| `MemProviderArticleContentRepository` | `PgProviderArticleContentRepository(db)` — migration 0005 `provider_article_content` | `pg-application-runtime.ts:308` |
+| `InMemoryKnowledgeContentStore` | `PgKnowledgeContentStore(db)` — migration 0006 `knowledge_content` | `pg-application-runtime.ts:277` |
 
-| # | Adapter | Aggregate | Evidence | Disposition |
-|---|---|---|---|---|
-| 1 | `MemKnowledgePackageRepository` | geo-business `KnowledgePackage` | `pg-application-runtime.ts:186`, wired at `:330` | KNOWN-IN-PROGRESS |
-| 2 | `MemIndustryProfileRepository` | `IndustryProfile` | `pg-application-runtime.ts:208`, wired at `:331` | KNOWN-IN-PROGRESS |
-| 3 | `MemProviderArticleContentRepository` | `ProviderArticleContent` | `pg-application-runtime.ts:218`, wired at `:332` | KNOWN-IN-PROGRESS |
+Audited knowledge creation is now first-class: `knowledge.createPackage` emits a
+`knowledge_package.created` audit event (`pg-application-runtime.ts:284-297`).
 
-These are exactly the three aggregates the task flags as being replaced by
-migration 0005 + Agent B. **Confirmed in-progress, not stale:** the module header
-(`pg-application-runtime.ts:26-37`) documents them as intentionally out of scope
-for persistence today ("distinct from D-lane 0002's knowledge_package … there is
-therefore no Pg adapter to substitute for them"), and migration `0005` **does not
-yet exist** in this base — `migrations/` holds only `0001`–`0004`. So the
-replacement work has not landed on the product base yet; these three are the open
-items. Severity **WARN**, KNOWN-IN-PROGRESS.
+**Grep confirmation:** `InMemory|Mem[A-Z]|AppendOnlyMem|new Map<` inside the
+`createPgApplicationRuntime` body → none (file matches are comments only).
 
-Additionally this root uses `InMemoryKnowledgeContentStore` (`:317`) — see §2.1.
+### 1.2 `src/runtime/commands/geo-command-runtime.ts` — **0** in-memory adapters (PASS)
 
-### 1.2 `src/composition/application-composition-root.ts` — 2 in-memory adapters (offline by design)
+The write-side command runtime composes the identical Pg adapter set bound to a
+command transaction's `Queryable`: `KnowledgePackageBridge` (`:255`),
+`PgIndustryProfileRepository` (`:256`), `PgProviderArticleContentRepository` (`:257`),
++ the 15 Pg GEO repos (`:258-272`). No in-memory adapter; no provider/network port
+(header `:8-9`). `createPgApplicationRuntime` is consumed by the command runtime and
+`tests/e2e/core-runtime-e2e.pg.test.ts`.
 
-| # | Adapter | Evidence | Disposition |
-|---|---|---|---|
-| 4 | `InMemoryTenancyRepository` | `application-composition-root.ts:24,55` | INFO — offline harness |
-| 5 | `InMemoryGeoBusinessRepository` | `application-composition-root.ts:25,56` | INFO — offline harness |
+### 1.3 Offline root `application-composition-root.ts` — still Map-backed (INFO, unchanged)
 
-This root is **entirely** Map-backed and is explicitly the OFFLINE root: its own
-header (`:18-22`) states "This is still an OFFLINE composition root … no real
-database." It is not the product HTTP path (§1.4). Not a product-runtime violation;
-listed for completeness.
+`InMemoryTenancyRepository` + `InMemoryGeoBusinessRepository`
+(`application-composition-root.ts:55-56`) remain — the explicitly OFFLINE test
+harness (header `:16-22`), imported only by `tests/composition/*` and
+`tests/e2e/minimal-runtime-e2e.test.ts`. Not the product runtime; out of scope for
+the section-16 "formal in-memory adapter count."
 
-### 1.3 Live HTTP request path — Postgres only (1 in-memory adapter)
-
-The live Next.js app does **not** use either `src/composition` root. Each lane
-route builds its own Pg-backed runtime:
-
-- `getAuthRuntime()` → `createAuthRuntime` → `createRepositories(db)` — all Pg
-  (`src/runtime/auth/runtime-context.ts:276-287, 177-181`).
-- `getKnowledgeRuntime()` → Pg knowledge repos + `InMemoryKnowledgeContentStore`
-  (`src/runtime/knowledge/runtime-context.ts:129-143`).
-- `getGeoRuntime()` → Pg GEO read repos + Pg tenancy repos
-  (`src/runtime/geo/runtime-context.ts:117-119`).
-
-The **only** in-memory adapter in the live request path is
-`InMemoryKnowledgeContentStore` (raw knowledge source text — §2.1).
-
-### 1.4 Consumers (proof the composition roots are harnesses)
-
-- `createPgApplicationRuntime` imported only by `tests/e2e/core-runtime-e2e.pg.test.ts`.
-- `createApplicationCompositionRoot` / `ApplicationCompositionRootV1` imported only by
-  `tests/composition/application-composition-root.test.ts`,
-  `tests/e2e/minimal-runtime-e2e.test.ts` (and internal composition files).
-- No `src/app/**` route imports either root.
-
-**Headline count (product Postgres runtime):** **3** in-memory business-aggregate
-adapters (KnowledgePackage / IndustryProfile / ProviderArticleContent), all
-KNOWN-IN-PROGRESS. The offline root adds 2 more (test-only). Live HTTP path: 1
-in-memory content store only.
+**Headline — formal in-memory business adapter count: 0.**
 
 ---
 
 ## 2. Persistence gaps
 
-### 2.1 Raw knowledge source text is process-local (WARN, REAL-but-documented)
+### 2.1 Live knowledge ingestion still uses an in-memory content store (WARN, GAP — REAL)
 
-`InMemoryKnowledgeContentStore` (`src/runtime/knowledge/ingestion/content-store.ts:28-46`)
-is a `Map<string,string>`. It backs the **live** knowledge runtime
-(`runtime-context.ts:137`) as well as the pg E2E root (`pg-application-runtime.ts:317`).
-The append-only `knowledge_version` row persists `storage_path` + `content_hash`
-(durable metadata) but the extracted text itself lives behind this content-store
-seam (`content-store.ts` header; `migrations/0002_knowledge_runtime.sql:111-137`).
+The durable `PgKnowledgeContentStore` (0006) is wired into the **composition root**
+(§1.1) but **not** into the live knowledge lane runtime the HTTP ingestion routes
+use. `getKnowledgeRuntime()` calls `createKnowledgeRuntime(db)` with no `contentStore`
+option (`runtime/knowledge/runtime-context.ts:187`), which then defaults to
+`new InMemoryKnowledgeContentStore()` (`runtime/knowledge/runtime-context.ts:137`).
 
-- **Impact:** extracted knowledge text does **not** survive a process restart in
-  the live runtime; only the version metadata (path/hash) is durable.
-- **Disposition:** the header documents this as an intentional seam ("production
-  would be object storage / disk; tests use the in-memory impl"). No Pg/disk
-  content store exists yet (grep `ContentStore` → only the in-memory impl + wiring).
-  **WARN, REAL gap, documented** — a durable content store is unlanded.
+Live routes on that runtime — `POST /api/knowledge/packages/[id]/files` and `/urls`
+(both `getKnowledgeRuntime()`) — therefore write the extracted knowledge **text** to
+a process-local `Map`. The `knowledge_version` row (storage_path + content_hash) is
+durable, but the text itself is lost on restart in the live ingestion path.
 
-### 2.2 Three GEO aggregates unpersisted (WARN, KNOWN-IN-PROGRESS)
+- **Severity WARN / GAP (REAL).** Not a security/isolation BLOCKER (metadata + hash
+  persist; no cross-tenant exposure). It contradicts "durable content store fully
+  wired": the swap reached the composition root, not the lane runtime.
+- **Smallest fix:** have `getKnowledgeRuntime()` pass
+  `{ contentStore: new PgKnowledgeContentStore(db) }` — the adapter already exists
+  (`persistence/runtime-continuity/pg-knowledge-content-store.ts`).
 
-As §1.1: `KnowledgePackage` / `IndustryProfile` / `ProviderArticleContent` have no
-backing table (migration `0003_geo_runtime.sql` header, "Non-FK id references").
-Data written to them is lost on restart. Being replaced by 0005 + Agent B.
+### 2.2 No UPDATE/DELETE leakage on any append-only table (PASS)
 
-### 2.3 No UPDATE/DELETE leakage on append-only tables (INFO — good)
-
-Grep for `UPDATE|DELETE FROM` against the seven append-only tables in `src/` →
-**zero** matches. Mutable-table repos (`knowledge_package`, `session`,
-`invitation`, `agency_client_assignment`, `enterprise_profile`) do contain
-UPDATEs, confirming the negative result is real, not a broken query. See
-API/immutability findings in `PRODUCT_RUNTIME_STATUS_MATRIX.md`.
+Grep for `UPDATE|DELETE FROM` against every append-only table — including the new
+`provider_article_content` (0005) and `knowledge_content` (0006), plus
+`knowledge_version` — in `src/` → **zero** matches. Mutable-table repos
+(`knowledge_package`, `industry_profile` upsert, `session`, `invitation`) do carry
+UPDATEs, confirming the negative result is real.
 
 ---
 
-## 3. Single source of truth — enterprise knowledge
+## 3. Single source of truth — enterprise knowledge (PASS)
 
-**Status: OK (durable path exists).** The client-facing, durable enterprise
-knowledge record is the **D-lane `KnowledgePackage` / `EnterpriseProfile`**,
-persisted through the real Pg knowledge repositories (migration
-`0002_knowledge_runtime.sql`): `PgKnowledgePackageRepository`,
-`PgKnowledgeDocumentRepository`, `PgKnowledgeVersionRepository`,
-`PgEnterpriseProfileRepository` (`pg-application-runtime.ts:100-103, 313-316`;
-live at `runtime-context.ts:99-107`).
+`KnowledgePackageBridge` implements the geo `KnowledgePackageRepository` port **over
+the existing `knowledge_package` table** and explicitly does not create or read a
+second copy (`knowledge-package-bridge.ts:1-37`). Its `add` writes into the same table
+and refuses to fabricate provenance without a service-principal user id (`:139-148`);
+duplicate ids are rejected as append-only (`:174-181`). Derived fields (`version` via
+`ROW_NUMBER`, `sourceDescription`) are projections (`:98-114`, `STORAGE_MAP.md`). The
+two former `KnowledgePackage` concepts are now one canonical row — the baseline
+naming-collision risk is closed.
 
-The geo-business `KnowledgePackage` aggregate (the in-memory one, §1.1) is a
-**distinct** thing referenced only by opaque UUID from the persisted GEO tables
-(`pg-application-runtime.ts:26-37`). So there is no split-brain over the *durable*
-enterprise knowledge: it has a single Postgres home. The naming collision between
-the two `KnowledgePackage` concepts is a documentation/clarity risk (**INFO**),
-not a data-continuity split — but it is worth watching as 0005 lands, so the geo
-aggregate does not silently become a second source of truth for the same facts.
+Migration 0005 `industry_profile` is a deliberate **per-project upsert** (mutable
+current-state, `UNIQUE (client_organization_id, project_id)`, no forbid trigger by
+design — 0005 header `:43-50`, `:88`); `provider_article_content` is append-only
+(forbid update+delete triggers `0005:143-149`).
 
 ---
 
 ## 4. Summary
 
-| Finding | Severity | REAL / IN-PROGRESS |
+| Finding | Severity | Disposition |
 |---|---|---|
-| 3 in-memory GEO aggregate adapters in pg product runtime | WARN | KNOWN-IN-PROGRESS (0005 + Agent B; 0005 unlanded) |
-| Raw knowledge text stored in-memory (live runtime) | WARN | REAL, documented seam |
-| Offline composition root fully in-memory | INFO | by-design test harness |
-| Enterprise-knowledge durable single source (Pg) | — | PASS |
-| No UPDATE/DELETE against append-only tables | — | PASS |
-| Two distinct `KnowledgePackage` concepts share a name | INFO | watch as 0005 lands |
+| Formal Pg composition root: 0 in-memory business adapters | — | PASS (was IN_PROGRESS) |
+| Command runtime: 0 in-memory adapters | — | PASS |
+| Durable knowledge content store (0006) wired into composition | — | PASS |
+| Live knowledge lane runtime still defaults to in-memory content store | WARN | GAP (REAL) — `runtime-context.ts:137,187` |
+| Enterprise-knowledge single source of truth (bridge over knowledge_package) | — | PASS |
+| No UPDATE/DELETE against append-only tables (incl 0005/0006) | — | PASS |
+| Offline composition root still Map-backed | INFO | by-design test harness |
 
-**In-memory business adapter count (product Postgres runtime): 3.** (Offline
-test root: +2. Live HTTP path: 1 content store only.)
+**Formal in-memory business adapter count: 0.** One REAL residual continuity gap
+(live knowledge content store), WARN — not a BLOCKER.

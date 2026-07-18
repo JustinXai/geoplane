@@ -1,143 +1,137 @@
 # API_AUTHORIZATION_AUDIT
 
-Phase: `PRODUCT_RUNTIME_CLOSURE_V1` — Supervisor baseline (read-only static audit).
-Product base: `21e36aa`. Method: static (read + grep). No code modified.
+Phase: `PRODUCT_RUNTIME_CLOSURE_V1` — Supervisor **re-audit of the INTEGRATED runtime** (cycle 1 + 2).
+Product base: `12a727a`. Method: static (read + grep). No source modified.
 
-Scope: **every** route under `src/app/api/**` (18 handlers). For each: is tenant
-resolution **server-derived**? does the handler **trust any client-supplied id**
-for authorization? is the **audit actor** genuine/server-derived?
+Scope: all `src/app/api/**` route handlers (39 route files; **27 with a write
+handler**). For each write route: server-derived tenant? client-id trust? audit_event?
 
-Severity: **BLOCKER / WARN / INFO**. Disposition: **REAL** vs **KNOWN-IN-PROGRESS**.
-
----
-
-## 0. How authorization is derived (the shared spine)
-
-All three lane runtimes resolve the session identically: the cookie is trusted
-**only** to say *which user*; role / org / assignments are re-read from the
-database.
-
-- `resolveSession` decodes the cookie → `actorUserId`, then
-  `sessions.listActiveByUser(actorUserId)` (query filters revoked/expired), then
-  `organizations.findById(session.organizationId)`; role/orgType/assignments come
-  from those DB rows — never from the cookie body.
-  Evidence: `src/runtime/auth/runtime-context.ts:191-229`,
-  `src/runtime/geo/runtime-context.ts:121-147`,
-  `src/runtime/knowledge/runtime-context.ts:145-167`.
-- Authorization predicates are server-side and fail-closed:
-  `principalCanReadClientOrganization` (`geo/runtime-context.ts:72-81`),
-  `principalOwnsClient` (`knowledge/runtime-context.ts:77-83`),
-  `canAccessClientOrganization` (`auth/auth-service.ts:504`).
-- Route scope (`clientOrganizationId`) is taken from the **DB-loaded project /
-  package**, not from request input (`requireReadableProject`
-  `geo/http-guards.ts:40-57`; `requireOwnedPackage` `knowledge/http-guards.ts:37-56`).
-
-**Client-id-trust scan** (grep over `src/app/api` for `body.(organizationId|
-clientOrganizationId|actingOrganizationId|role|actorOrganizationId)` and
-`params.(organizationId|role)`): exactly **one** hit —
-`agency/context/route.ts:24` reads `body.clientOrganizationId`. That value is a
-*selection target*, re-validated server-side via
-`isAgencyAuthorizedForClient(session.organizationId, …)`
-(`auth-service.ts:419-435`) before use. **No route derives role/org for an
-authorization decision from client input.**
-
-### Documented scope caveat (WARN — applies to every route)
-
-The session cookie is **not cryptographically signed** — a plain base64url JSON
-blob, "trivially forgeable by anyone who can set a cookie"
-(`src/lib/session-cookie.ts:20-30`). Authentication *integrity* is explicitly a
-future checkpoint; a forged cookie naming a user who has an active session row
-could be accepted by `resolveSession`. This is a **documented KNOWN-IN-PROGRESS**
-limitation, not a silent authorization flaw: given an *authentic* principal, every
-authorization decision below is correctly server-derived. It is called out here
-because it caps the strength of every "server-derived: YES" cell.
+Severity: **BLOCKER / WARN / INFO**. Disposition: **PASS** · **IN_PROGRESS** · **GAP**.
 
 ---
 
-## 1. Per-route table
+## 0. Shared spine (unchanged, extended by the command lane)
 
-Legend — Tenant resolution: **SRV** = server-derived from session+DB · **N/A** =
-no tenant scope. Client-id trust: **NO** = none · **SEL** = client supplies a
-selection target that is re-validated server-side. Audit actor: **SES** = written
-from session identity · **DOM** = actor persisted on the domain row only (no
-separate `audit_event`) · **none** = no write.
+Session resolution still trusts the cookie **only** for `actorUserId`; role / org /
+assignments are re-read from the DB (`auth/runtime-context.ts:191-229`,
+`geo/runtime-context.ts:121-147`, `knowledge/runtime-context.ts:145-167`).
 
-| Route | Method | Tenant res. | Client-id trust | Audit actor | Notes / evidence |
-|---|---|---|---|---|---|
-| `/api/auth/login` | POST | N/A (pre-session) | NO (email only) | none | body.email identifies user; creds out of scope. No audit_event on login. `auth/login/route.ts`, `auth-service.ts:249-308` |
-| `/api/auth/logout` | POST | SRV | NO | none | revokes session by `session.sessionId`. `auth/logout/route.ts:18-21` |
-| `/api/account` | GET | SRV | NO | none | `getAccount(session)`. `account/route.ts:16-20` |
-| `/api/agency/clients` | GET | SRV | NO | none | agency-role-gated; returns ACTIVE-assigned only. `agency/clients/route.ts:16-20`, `auth-service.ts:364-393` |
-| `/api/agency/context` | POST | SRV | **SEL** | **SES** | body.clientOrganizationId re-checked `isAgencyAuthorizedForClient`; emits ALLOWED/DENIED audit. `agency/context/route.ts:22-34`, `auth-service.ts:401-484` |
-| `/api/invitations/[token]/accept` | POST | SRV | NO | none | uses `session.userId/email`; token from URL hashed server-side; email must match. `invitations/[token]/accept/route.ts:23-33` |
-| `/api/projects` | GET | SRV | NO¹ | none | CLIENT→own org; AGENCY→assigned ids; PLATFORM→`?clientOrganizationId` (admin only). `projects/route.ts:29-37` |
-| `/api/projects/[projectId]` | GET | SRV | NO | **SES** | `getProject` re-derives ctx from session; DENIED audit on cross-tenant. `projects/[projectId]/route.ts:26-34`, `auth-service.ts:492-542` |
-| `/api/projects/[projectId]/keyword-questions` | GET | SRV | NO | none | `requireReadableProject`; scope from project. `.../keyword-questions/route.ts:26-37` |
-| `/api/projects/[projectId]/opportunities` | GET | SRV | NO | none | `requireReadableProject`. `.../opportunities/route.ts:26-42` |
-| `/api/projects/[projectId]/review-queue` | GET | SRV | NO | none | `requireReadableProject`. `.../review-queue/route.ts:27-43` |
-| `/api/projects/[projectId]/deliveries` | GET | SRV | NO | none | `requireReadableProject`. `.../deliveries/route.ts:27-38` |
-| `/api/projects/[projectId]/knowledge/packages` | POST | SRV | NO | **DOM** | scope from DB project; `createdByUserId = principal.userId`; no audit_event. `.../knowledge/packages/route.ts:51-66` |
-| `/api/knowledge/packages/[id]` | GET | SRV | NO | none | `requireOwnedPackage`. `knowledge/packages/[id]/route.ts:24-39` |
-| `/api/knowledge/packages/[id]/confirm` | POST | SRV | NO | **DOM** | `confirm(pkg.id, principal.userId)`; no audit_event. `.../confirm/route.ts:29-33` |
-| `/api/knowledge/packages/[id]/files` | POST | SRV | NO | **DOM** | `requireOwnedPackage`; ingests under owned pkg; no audit_event. `.../files/route.ts:30-73` |
-| `/api/knowledge/packages/[id]/urls` | POST | SRV | NO | **DOM** | pre-fetched bytes only (no network); no audit_event. `.../urls/route.ts:31-72` |
-| `/api/knowledge/packages/[id]/issues` | GET | SRV | NO | none | `requireOwnedPackage`. `.../issues/route.ts:24-33` |
+The new **command lane** centralises write-side tenancy + audit in shared helpers, so
+a business write structurally cannot skip either:
 
-¹ For `PLATFORM_SUPER_ADMIN` only, `/api/projects` honours a `?clientOrganizationId`
-query param (`projects/route.ts:34-36`). The **role** that unlocks it is
-server-derived; a platform admin may read any org by design
-(`MULTI_TENANT_ACCOUNT_MODEL_V1`). CLIENT/AGENCY callers never reach that branch.
-Not a client-id-trust violation.
+- `requireSession` — cookie → server-resolved `AuthenticatedSession`, else 401
+  (`runtime/commands/geo-command-http.ts:29-38`).
+- `sessionCanAccessClientOrganization(session, clientOrgId)` — PLATFORM any / CLIENT
+  own / AGENCY assigned-only (`runtime/commands/geo-command-runtime.ts:388-400`).
+- `denyIfCrossTenant` — on failure persists a **DENIED** audit event (real actor) and
+  returns 403 (`geo-command-http.ts:45-64`).
+- `runWriteCommand` — runs the write in one transaction and appends exactly one
+  **ALLOWED** audit event via `appendAudit` (`runtime/commands/runtime-context.ts:169-204,
+  106-141`); `recordDeniedCommand` for admin/ops denials (`:211-221`). GEO domain
+  services additionally emit their own `AuditIntent`s through `PgCommandAuditPort.record`
+  (`geo-command-runtime.ts:141-169`).
+- `buildGeoAuthorizationContext(session)` — identity/grants come only from the session
+  (`geo-command-runtime.ts:365-379`).
+
+**Client-id-trust scan** over `commands/**`, `ops/**`, and the GEO write routes for
+`body.(organizationId|clientOrganizationId|actingOrganizationId|actorOrganizationId|role)`
+/ `params.(organizationId|role)` → **no hit trusted for authorization** (details §2.1).
+
+### Documented scope caveat (WARN — unchanged, applies to every route)
+The session cookie is still an unsigned base64url JSON blob, "trivially forgeable"
+(`src/lib/session-cookie.ts:11-18`). Authentication *integrity* remains a future
+checkpoint; every "server-derived" verdict below is correct **given an authentic
+principal**. IN_PROGRESS, documented — not a silent flaw.
+
+---
+
+## 1. Write routes (27) — server-derived tenant + audit_event
+
+All write handlers derive the tenant from the **session** or from a **DB-loaded
+resource**, authorize via `denyIfCrossTenant` (GEO chain) or an inline
+`role/assignment` check (admin/ops), and emit an audit_event on both the ALLOWED and
+DENIED paths. Representative evidence:
+
+| Route (POST) | Tenant derivation | Authz guard (file:line) | audit_event |
+|---|---|---|---|
+| `commands/agency/clients` | agency = `session.organizationId` | role check → 403 (`route.ts:46-54`) | DENIED `:47` + ALLOWED `runWriteCommand` |
+| `commands/projects` | CLIENT pinned to own; AGENCY body id validated vs `session.assignedClientOrganizationIds`; PLATFORM verified in-tx | assignment check → 403 (`route.ts:64-69`) | DENIED `:65` + ALLOWED |
+| `commands/projects/[projectId]/enterprise-profile` | DB project → `project.clientOrganizationId` (`route.ts:56-58`) | `denyIfCrossTenant` (`:60`) | DENIED + ALLOWED |
+| `commands/projects/[projectId]/keyword-maps` | DB project; KP + IndustryProfile re-checked same tenant | `denyIfCrossTenant` (`:76`) | DENIED + ALLOWED |
+| `commands/projects/[projectId]/knowledge-packages` | DB project (`:53-55`) | `denyIfCrossTenant` (`:57`) | ALLOWED + **domain** `knowledge_package.created` (`geo-command-runtime.ts:309`) |
+| `commands/projects/[projectId]/knowledge-packages/[id]/confirm` | DB project; package re-verified | `denyIfCrossTenant` (`:63`) | ALLOWED + **domain** `knowledge_package.confirmed` (`geo-command-runtime.ts:328`) |
+| `commands/projects/[projectId]/opportunities` | DB project; map/pkg/profile from referenced map | `denyIfCrossTenant` (`:56`) | DENIED + ALLOWED |
+| `ops/agencies` / `ops/clients` / `ops/assignments` | actor from session; ops targets validated in-tx | role `!== PLATFORM_SUPER_ADMIN` → 403 | DENIED + ALLOWED |
+| `article-briefs` | tenant from referenced OpportunityFamily (`:81-90`) | `denyIfCrossTenant` (`:91`) | DENIED + ALLOWED |
+| `article-drafts/compile` | tenant from referenced ArticleBrief (`:62-71`) | `denyIfCrossTenant` (`:72`) | DENIED + ALLOWED |
+| `article-drafts/[id]/reviews` | tenant from persisted ArticleDraft; approver = `actor.userId` | `denyIfCrossTenant` (`:65`) | DENIED + ALLOWED |
+| `opportunities/[id]/reviews` | tenant from persisted Opportunity; reviewer = `actor.userId` | `denyIfCrossTenant` (`:75`) | DENIED + ALLOWED |
+| `opportunity-families` | DB project by body `projectId` → `clientOrganizationId` (`:88-90`) | `denyIfCrossTenant` (`:92`) | DENIED + ALLOWED |
+| `publish-packages` | tenant from referenced ArticleApproval (`:84-93`) | `denyIfCrossTenant` (`:94`) | DENIED + ALLOWED |
+| `distribution-plans` | tenant from referenced ChannelNeutralContentPackage (`:69-78`) | `denyIfCrossTenant` (`:79`) | DENIED + ALLOWED |
+| `publication-receipts` | tenant from referenced DistributionPlan (`:63-72`) | `denyIfCrossTenant` (`:73`) | DENIED + ALLOWED |
+| `projects/[projectId]/invitations` | invited org = `project.clientOrganizationId` (`:69-73`) | `canInviteForClientOrg` (`:39-54,75`) | DENIED `:76` + ALLOWED |
+| `agency/context` | body clientOrgId re-checked `isAgencyAuthorizedForClient` | `auth-service.ts:419-435` | ALLOWED/DENIED intents |
+| knowledge lane writes (`knowledge/packages/[id]/{confirm,files,urls}`, `projects/[projectId]/knowledge/packages`) | `requireOwnedPackage` / DB project; actor = `principal.userId` | `principalOwnsClient` (`knowledge/http-guards.ts:48`) | see §2.3 |
+
+GET reads: the two cross-tenant ops reads are platform-admin gated —
+`ops/organizations` and `ops/audit` both `session.role !== "PLATFORM_SUPER_ADMIN"` → 403
+(`ops/organizations/route.ts:21-25`, `ops/audit/route.ts:28-32`).
 
 ---
 
 ## 2. Findings
 
-### 2.1 Tenant isolation — server-derived (PASS, with §0 caveat)
-Every data route resolves the principal server-side and scopes to a DB-loaded
-resource. No handler authorizes off a client-supplied org/role. **PASS.** Capped
-only by the unsigned-cookie authentication caveat (§0, WARN, KNOWN-IN-PROGRESS).
-Cross-tenant negative paths are covered by tests
-(`tests/runtime/geo/geo-read-api.route.pg.test.ts`,
-`tests/runtime/knowledge/knowledge-api.route.pg.test.ts`,
-`tests/runtime/auth/account-auth.route.pg.test.ts` — names indicate coverage;
-not re-run here).
+### 2.1 Command API client-id trust (PASS — was N/A at baseline)
+No write route trusts a client-supplied org id or role for authorization. Three read
+body ids, all correctly gated, none an authz input:
+- `commands/projects` reads `body.clientOrganizationId` but ignores it for CLIENT,
+  validates it against `session.assignedClientOrganizationIds` for AGENCY, and
+  existence/type-checks it in-tx for PLATFORM (`commands/projects/route.ts:55-99`).
+- `ops/assignments` reads `agencyOrganizationId`/`clientOrganizationId` as operation
+  *targets*; caller authority is the PLATFORM role check (`ops/assignments/route.ts:37`).
+- **INFO (provenance, not authz):** `distribution-plans` reads `selectedByActorId`
+  (`:49`) and `publication-receipts` reads `publishedByActorId` (`:52`) from the body
+  as domain "who selected/published" fields. These are **not** tenancy/role inputs and
+  are **not** the audit-event actor (which stays session-derived). `publishedByActorId`
+  is additionally CHECK-constrained against automatic/system sentinels
+  (`publication-receipts/route.ts` guard + `0004:487-490`). Worth flagging as data
+  provenance only.
 
-### 2.2 Command API client-id trust (PASS / N/A)
-The task notes command (write) routes are being added by Agent C. On this base the
-only writes are: `agency/context`, `auth/login|logout`,
-`invitations/accept`, and the four knowledge writes. **None** reads
-`organizationId/clientOrganizationId/actingOrganizationId/role` from body/params
-for an authorization decision (the one `agency/context` body id is a re-validated
-selection target). **No REAL violation.** Command routes proper: **N/A — not yet
-present.**
+### 2.2 Audit-event coverage on business writes (PASS — baseline GAP 9b CLOSED)
+Every command write emits an audit_event unconditionally (ALLOWED in `runWriteCommand`
+`runtime-context.ts:193`; DENIED in `denyIfCrossTenant`/`recordDeniedCommand`). The
+knowledge create/confirm audit gap flagged at baseline is closed: the command route
+`commands/projects/[projectId]/knowledge-packages` routes through
+`geo.createKnowledgePackage`, which emits `knowledge_package.created`
+(`geo-command-runtime.ts:302-320`), and the confirm command emits
+`knowledge_package.confirmed` (`:322-339`).
 
-### 2.3 Audit actor integrity (mixed — one REAL coverage gap)
-- **Genuine where written:** `agency/context` and `projects/[projectId]` persist
-  `AuditIntent`s via `persistAuditIntents` → `recordAuditEvent`
-  (`auth/runtime-context.ts:231-264`), with `actorUserId`/`actorOrganizationId`
-  built **only** from the session (`auth-service.ts:212-234, 472-483`). The actor
-  cannot be forged or omitted from client input, and the event carries a
-  tamper-evidence `eventHash`. **PASS.**
-- **GEO writes (pg root):** `PgAuditPort.record` persists actor from the
-  service-supplied `AuditIntent` (session actor), hashed via `recordAuditEvent`
-  (`pg-application-runtime.ts:131-158`). **PASS** (within the E2E root).
-- **Gap (WARN, REAL):** the **knowledge write routes** (`create` / `confirm` /
-  `files` / `urls`) and **`auth/login|logout`** persist the actor on the **domain
-  row** (`createdByUserId` / `confirmedBy` = `principal.userId`) but do **not**
-  emit a separate append-only `audit_event`. So not every business write produces
-  an audit-log entry. The actor that *is* recorded is genuine and server-derived
-  (no forgery risk), but audit **coverage** is incomplete versus the
-  "every business write audits" ideal (`RUNTIME_COMPOSITION_ROOT.md` lists
-  "KnowledgePackage Created" among the seven audited actions — realized only in the
-  offline `KnowledgeService`, not in the D3 HTTP route). Severity **WARN**; REAL
-  coverage gap, plausibly a later checkpoint's scope.
+### 2.3 Legacy knowledge lane writes still lack a dedicated audit_event (WARN — residual)
+The original D3 knowledge routes (`knowledge/packages/[id]/{confirm,files,urls}`,
+`projects/[projectId]/knowledge/packages`) run on `getKnowledgeRuntime()`, not the
+command lane. They persist the actor on the domain row (`createdByUserId` /
+`confirmedBy` = `principal.userId`) but emit no separate `audit_event`. The audited
+path now exists via the command route (§2.2), so these legacy routes are a
+duplicate/uncanonical surface. **WARN, GAP (REAL):** the audited creation exists, but
+two parallel knowledge-write surfaces do — one audited, one not; ingestion (files/urls)
+has no audited command equivalent at all.
 
-### 2.4 No forge/omit path for the actor (PASS)
-`recordAuditEvent` is always called with `actorUserId` sourced from the resolved
-session; there is no code path that lets a request body set the actor. Grep
-confirms `recordAuditEvent` call sites are `auth/runtime-context.ts` and
-`pg-application-runtime.ts` only.
+### 2.4 No forge/omit path for the audit actor (PASS)
+The audit actor (`actorUserId` / `actorOrganizationId`) is always the session
+principal — `CommandActor` is built from `session` at every route
+(`{ userId: session.userId, organizationId: session.organizationId }`) and passed to
+`recordAuditEvent`. No route lets request input set the actor.
+
+### 2.5 No auto-approve (PASS — both gates)
+- **Human review** (`opportunities/[id]/reviews`): the only path to an APPROVED
+  decision is an explicit `decision: "CONFIRMED"`; a missing/omitted decision is 422,
+  never a default; `CHANGES_REQUESTED`/`REJECTED` require a note; append-only
+  (`route.ts:85-103, 130-143` + header `:8-14`).
+- **Article approval** (`article-drafts/[id]/reviews`): approval requires a real
+  approver AND all three gates PASSED; any FAILED gate → 422 with reasons and **no**
+  approval written (`route.ts:120-135`). DB backstop: `ck_article_approval_no_silent_approve`
+  (`0004:338`).
 
 ---
 
@@ -145,11 +139,15 @@ confirms `recordAuditEvent` call sites are `auth/runtime-context.ts` and
 
 | Invariant | Verdict | Disposition |
 |---|---|---|
-| Tenant resolution server-derived on every route | PASS | (capped by unsigned-cookie caveat) |
-| No client-id trust for authorization | PASS | — |
-| Command routes read ids from session not body | N/A | command routes not yet present |
-| Audit actor genuine where written | PASS | — |
-| Audit coverage on all business writes | WARN | REAL gap (knowledge writes + login/logout unaudited) |
-| Unsigned session cookie (authentication) | WARN | KNOWN-IN-PROGRESS (documented) |
+| Server-derived tenant on ALL command routes | PASS | — |
+| No client-id trust for authorization (command lane) | PASS | (was N/A) |
+| audit_event emitted on business writes incl. knowledge | PASS | (baseline 9b closed) |
+| No auto-approve (human review + article approval) | PASS | + DB CHECK backstop |
+| Audit actor genuine & server-derived | PASS | — |
+| Agency assignment isolation on writes | PASS | `sessionCanAccessClientOrganization` |
+| Legacy knowledge lane writes lack dedicated audit_event | WARN | GAP (REAL) — duplicate uncanonical surface |
+| body-supplied `selectedByActorId`/`publishedByActorId` provenance | INFO | not authz, not the audit actor; CHECK-constrained |
+| Unsigned session cookie (authentication) | WARN | IN_PROGRESS (documented) |
 
-**No BLOCKER-level authorization violation found.**
+**No BLOCKER-level authorization violation.** One residual WARN (legacy knowledge
+writes on the non-command runtime are unaudited / duplicate the audited command).
