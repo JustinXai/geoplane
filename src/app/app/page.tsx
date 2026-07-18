@@ -1,40 +1,104 @@
+"use client";
+
 /**
- * Recovery classification: RECONSTRUCTED_FROM_FROZEN_SPEC
- * reconstruction_source: docs/architecture/SYSTEM_BLUEPRINT_V1.md ("client workspace" surface,
- *   business core items 1-4 + post-delivery performance validation)
- * reconstruction_reason: no original page code recoverable beyond the 7 files already in
- *   recovered/partial-source/
- * original_file_unavailable: true
- *
- * Checkpoint C2: real "总览" (project overview) content for the CLIENT workspace
- * landing page, extending the C1 placeholder. Fixture data only (src/app/app/_fixtures.ts) -
- * no real customer data, no database connection. Shows the active project's identity and
- * a stage-count summary, with entry points into the other C2 surfaces.
+ * CLIENT_WORKSPACE_RUNTIME_V1 (Agent D) — client workspace 总览 (dashboard), wired to real
+ * APIs (replaces the C2 fixtures). Loads the signed-in account (GET /api/account) and the
+ * caller's project list (GET /api/projects), lets the user pick the current project (first
+ * by default) and shows that project's overview. Both data sections render all five async
+ * states via the shared AsyncSection. Only human-facing fields are shown — the account /
+ * project UUIDs are stripped by the view-model mappers.
  */
+import { useState } from "react";
 import Link from "next/link";
-import { ACTIVE_PROJECT } from "./_fixtures";
+import { useAsyncData } from "../../components/runtime/index.js";
+import { AsyncSection } from "../../components/client-runtime/AsyncSection.js";
+import { loadAccount, loadProjects } from "../../components/client-runtime/endpoints.js";
+import {
+  isEmptyArray,
+  selectActiveProject,
+  toAccountSummary,
+  toProjectOptions,
+  toProjectSummary,
+} from "../../components/client-runtime/view-models.js";
 
 export default function ClientWorkspaceHomePage() {
+  const account = useAsyncData(loadAccount);
+  const projects = useAsyncData(loadProjects, { isEmpty: isEmptyArray });
+  const [activeIndex, setActiveIndex] = useState(0);
+
   return (
     <>
       <header className="cp-page-header">
         <div>
-          <p className="eyebrow">客户工作台 · {ACTIVE_PROJECT.clientOrgName}</p>
-          <h1>总览</h1>
-          <span>
-            {ACTIVE_PROJECT.name}（参考编号 {ACTIVE_PROJECT.referenceCode}） ·{" "}
-            {ACTIVE_PROJECT.updatedLabel}
-          </span>
+          <AsyncSection state={account.state} onRetry={account.reload}>
+            {(data) => {
+              const summary = toAccountSummary(data);
+              return (
+                <>
+                  <p className="eyebrow">
+                    {summary.surfaceLabel} · {summary.organizationName}
+                  </p>
+                  <h1>总览</h1>
+                  <span>
+                    {summary.greetingName} · {summary.roleLabel} · {summary.organizationTypeLabel}
+                  </span>
+                </>
+              );
+            }}
+          </AsyncSection>
         </div>
       </header>
-      <section aria-label="项目阶段概况" className="cp-card-grid">
-        {ACTIVE_PROJECT.stageSummary.map((stage) => (
-          <div className="cp-card" key={stage.label}>
-            <p className="cp-card-value">{stage.count}</p>
-            <p className="cp-card-label">{stage.label}</p>
-          </div>
-        ))}
+
+      <section aria-label="当前项目概况">
+        <AsyncSection
+          state={projects.state}
+          onRetry={projects.reload}
+          empty={<p className="cp-list-row cp-list-empty">暂无项目 - 项目就绪后将在此显示。</p>}
+        >
+          {(list) => {
+            const active = selectActiveProject(list, activeIndex);
+            const options = toProjectOptions(list);
+            if (active === null) {
+              return <p className="cp-list-row cp-list-empty">暂无项目。</p>;
+            }
+            const summary = toProjectSummary(active);
+            return (
+              <>
+                {options.length > 1 ? (
+                  <label className="cp-field">
+                    当前项目：
+                    <select
+                      value={activeIndex < options.length ? activeIndex : 0}
+                      onChange={(event) => setActiveIndex(Number(event.target.value))}
+                    >
+                      {options.map((option) => (
+                        <option key={option.index} value={option.index}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                <div className="cp-card-grid">
+                  <div className="cp-card">
+                    <p className="cp-card-value">{summary.name}</p>
+                    <p className="cp-card-label">项目</p>
+                  </div>
+                  <div className="cp-card">
+                    <p className="cp-card-value">{summary.clientOrganizationName}</p>
+                    <p className="cp-card-label">所属企业</p>
+                  </div>
+                  <div className="cp-card">
+                    <p className="cp-card-value">{summary.createdAtLabel}</p>
+                    <p className="cp-card-label">创建于</p>
+                  </div>
+                </div>
+              </>
+            );
+          }}
+        </AsyncSection>
       </section>
+
       <section aria-label="快捷入口">
         <ul>
           <li>
@@ -54,7 +118,6 @@ export default function ClientWorkspaceHomePage() {
           </li>
         </ul>
       </section>
-      <p className="cp-placeholder-note">占位数据 - 无真实客户数据、无数据库连接。</p>
     </>
   );
 }

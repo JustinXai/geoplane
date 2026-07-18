@@ -1,47 +1,54 @@
+"use client";
+
 /**
- * Recovery classification: RECONSTRUCTED_FROM_FROZEN_SPEC
- * reconstruction_source: docs/architecture/SYSTEM_BLUEPRINT_V1.md (business core item 2,
- *   "Keyword and user-question mapping")
- * reconstruction_reason: no original page code recoverable beyond the 7 files already in
- *   recovered/partial-source/
- * original_file_unavailable: true
+ * CLIENT_WORKSPACE_RUNTIME_V1 (Agent D) — 关键词与用户问题, wired to real APIs (replaces the
+ * C2 fixtures). Resolves the caller's active project, then loads its keyword <-> user-question
+ * mappings (GET /api/projects/[projectId]/keyword-questions). Renders all five async states
+ * via the shared AsyncSection.
  *
- * Checkpoint C2: keyword & user-question mapping view for the CLIENT workspace. Fixture
- * data only (src/app/app/_fixtures.ts) - no real customer data, no database connection.
- *
- * Checkpoint C5: each row now renders a `ClientConfirmationControl` (../_confirmation-control)
- * offering the keyword-confirmation three-state decision (确认 / 需要修改 / 待定, see
- * ../_confirmation.ts) - client-side state only, no submit handler.
+ * The C5 per-row ClientConfirmationControl (client-side, presentation-only three-state
+ * decision) is preserved as scaffolding on each real row.
  */
-import { KEYWORD_QUESTION_ITEMS } from "../_fixtures";
+import { useAsyncData } from "../../../components/runtime/index.js";
+import { AsyncSection } from "../../../components/client-runtime/AsyncSection.js";
+import { loadActiveProjectKeywords } from "../../../components/client-runtime/endpoints.js";
+import { isEmptyArray, toKeywordRows } from "../../../components/client-runtime/view-models.js";
 import { ClientConfirmationControl } from "../_confirmation-control";
 
 export default function KeywordQuestionPage() {
+  const { state, reload } = useAsyncData(loadActiveProjectKeywords, { isEmpty: isEmptyArray });
+
   return (
     <>
       <header className="cp-page-header">
         <div>
           <p className="eyebrow">客户工作台</p>
           <h1>关键词与用户问题</h1>
-          <span>占位数据 - 无真实客户数据、无数据库连接。</span>
+          <span>关键词与其对应的用户问题映射，按优先级排列。</span>
         </div>
       </header>
-      <ul className="cp-list">
-        {KEYWORD_QUESTION_ITEMS.map((item) => (
-          <li className="cp-list-row" key={item.referenceCode}>
-            <span className="cp-list-title">{item.keyword}</span>
-            <span className="cp-list-meta">
-              参考编号 {item.referenceCode} · 意图：{item.intentLabel} · 优先级：{item.priorityLabel}
-            </span>
-            <ul>
-              {item.relatedQuestions.map((question) => (
-                <li key={question}>{question}</li>
-              ))}
-            </ul>
-            <ClientConfirmationControl subjectLabel="关键词" />
-          </li>
-        ))}
-      </ul>
+      <AsyncSection
+        state={state}
+        onRetry={reload}
+        empty={<p className="cp-list-row cp-list-empty">暂无关键词与用户问题。</p>}
+      >
+        {(rows) => (
+          <ul className="cp-list">
+            {toKeywordRows(rows).map((row) => (
+              <li className="cp-list-row" key={row.priority}>
+                <span className="cp-list-title">{row.keyword}</span>
+                <span className="cp-list-meta">优先级：{row.priority}</span>
+                <ul>
+                  {row.userQuestions.map((question) => (
+                    <li key={question}>{question}</li>
+                  ))}
+                </ul>
+                <ClientConfirmationControl subjectLabel="关键词" />
+              </li>
+            ))}
+          </ul>
+        )}
+      </AsyncSection>
     </>
   );
 }

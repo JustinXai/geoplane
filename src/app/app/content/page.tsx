@@ -1,50 +1,56 @@
+"use client";
+
 /**
- * Recovery classification: RECONSTRUCTED_FROM_FROZEN_SPEC
- * reconstruction_source: docs/architecture/SYSTEM_BLUEPRINT_V1.md (business core item 3,
- *   "Content and source grounding")
- * reconstruction_reason: no original page code recoverable beyond the 7 files already in
- *   recovered/partial-source/
- * original_file_unavailable: true
+ * CLIENT_WORKSPACE_RUNTIME_V1 (Agent D) — 内容与信源 (content & source grounding), wired to
+ * real APIs (replaces the C2 fixtures). Resolves the caller's active project, then loads its
+ * knowledge-grounded content opportunities (GET /api/projects/[projectId]/opportunities) —
+ * the read-side content items the endpoints currently support. Renders all five async states
+ * via the shared AsyncSection.
  *
- * Checkpoint C2: content & sourcing view for the CLIENT workspace. Fixture data only
- * (src/app/app/_fixtures.ts) - no real customer data, no database connection. Stage
- * labels use plain client-facing language only (see _fixtures.ts header note) - no
- * internal production-pipeline vocabulary.
- *
- * Checkpoint C5: each row renders two separate `ClientConfirmationControl`s
- * (../_confirmation-control) - one for content-direction confirmation, one for
- * source-type confirmation - each with its own independent three-state decision
- * (确认 / 需要修改 / 待定, see ../_confirmation.ts). Client-side state only, no submit
- * handler.
+ * The C5 per-row ClientConfirmationControls (content-direction + source-type, client-side
+ * presentation-only three-state decisions) are preserved as scaffolding on each real row.
  */
-import { CONTENT_SOURCING_ITEMS } from "../_fixtures";
+import { useAsyncData } from "../../../components/runtime/index.js";
+import { AsyncSection } from "../../../components/client-runtime/AsyncSection.js";
+import { loadActiveProjectOpportunities } from "../../../components/client-runtime/endpoints.js";
+import { isEmptyArray, toOpportunityRows } from "../../../components/client-runtime/view-models.js";
 import { ClientConfirmationControl } from "../_confirmation-control";
 
 export default function ContentSourcingPage() {
+  const { state, reload } = useAsyncData(loadActiveProjectOpportunities, {
+    isEmpty: isEmptyArray,
+  });
+
   return (
     <>
       <header className="cp-page-header">
         <div>
           <p className="eyebrow">客户工作台</p>
           <h1>内容与信源</h1>
-          <span>占位数据 - 无真实客户数据、无数据库连接。</span>
+          <span>基于知识库的内容方向及其确认状态。</span>
         </div>
       </header>
-      <ul className="cp-list">
-        {CONTENT_SOURCING_ITEMS.map((item) => (
-          <li className="cp-list-row" key={item.referenceCode}>
-            <span className="cp-list-title">{item.title}</span>
-            <span className="cp-list-meta">
-              参考编号 {item.referenceCode} · 状态：{item.stageLabel}
-            </span>
-            <span className="cp-list-summary">{item.sourceSummary}</span>
-            <div className="cp-confirm-group">
-              <ClientConfirmationControl subjectLabel="内容方向" />
-              <ClientConfirmationControl subjectLabel="信源类型" />
-            </div>
-          </li>
-        ))}
-      </ul>
+      <AsyncSection
+        state={state}
+        onRetry={reload}
+        empty={<p className="cp-list-row cp-list-empty">暂无内容方向。</p>}
+      >
+        {(rows) => (
+          <ul className="cp-list">
+            {toOpportunityRows(rows).map((row, index) => (
+              <li className="cp-list-row" key={`${row.title}-${index}`}>
+                <span className="cp-list-title">{row.title}</span>
+                <span className="cp-list-meta">状态：{row.statusLabel}</span>
+                <span className="cp-list-summary">{row.summary}</span>
+                <div className="cp-confirm-group">
+                  <ClientConfirmationControl subjectLabel="内容方向" />
+                  <ClientConfirmationControl subjectLabel="信源类型" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </AsyncSection>
     </>
   );
 }
