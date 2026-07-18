@@ -45,6 +45,9 @@ import { recordAuditEvent } from "../contracts/tenancy/audit.js";
 import type { DatabasePort } from "../persistence/database-port.js";
 import { PgAuditEventRepository } from "../persistence/pg/audit-event-repository.js";
 import { createRepositories, type Repositories } from "../persistence/repository-factory.js";
+import { KnowledgePackageBridge } from "../persistence/runtime-continuity/knowledge-package-bridge.js";
+import { PgIndustryProfileRepository } from "../persistence/runtime-continuity/industry-profile-repository.js";
+import { PgProviderArticleContentRepository } from "../persistence/runtime-continuity/provider-article-content-repository.js";
 
 import type {
   IndustryProfile,
@@ -159,75 +162,24 @@ export class PgAuditPort implements AuditPort {
 }
 
 // ---------------------------------------------------------------------------
-// Append-only in-memory adapters for the three deliberately-unpersisted GEO
-// aggregates (see the module header). Each mirrors the append-only invariant
-// of the frozen ports: `add` rejects a duplicate id.
+// The three formerly-unpersisted GEO aggregates now use REAL persistence
+// (RUNTIME_DATA_CONTINUITY_V1, migration 0005): KnowledgePackage via the
+// canonical bridge over the knowledge_package table (single source of truth,
+// shared with the knowledge runtime), IndustryProfile + ProviderArticleContent
+// via dedicated 0005 tables. No in-memory business adapter remains in the
+// formal runtime — see src/persistence/runtime-continuity/.
 // ---------------------------------------------------------------------------
-
-class AppendOnlyMemStore<T extends { id: string }> {
-  private readonly byId = new Map<string, T>();
-  add(entity: T): Promise<T> {
-    if (this.byId.has(entity.id)) {
-      return Promise.reject(
-        new Error(`append-only: refusing to overwrite existing id "${entity.id}".`),
-      );
-    }
-    this.byId.set(entity.id, entity);
-    return Promise.resolve(entity);
-  }
-  getById(id: string): Promise<T | undefined> {
-    return Promise.resolve(this.byId.get(id));
-  }
-  filter(pred: (item: T) => boolean): T[] {
-    return [...this.byId.values()].filter(pred);
-  }
-}
-
-class MemKnowledgePackageRepository implements KnowledgePackageRepository {
-  private readonly store = new AppendOnlyMemStore<KnowledgePackage>();
-  add(kp: KnowledgePackage): Promise<KnowledgePackage> {
-    return this.store.add(kp);
-  }
-  getById(id: string): Promise<KnowledgePackage | undefined> {
-    return this.store.getById(id);
-  }
-  listByScope(scope: {
-    clientOrganizationId: string;
-    projectId: string;
-  }): Promise<KnowledgePackage[]> {
-    return Promise.resolve(
-      this.store.filter(
-        (x) =>
-          x.clientOrganizationId === scope.clientOrganizationId &&
-          x.projectId === scope.projectId,
-      ),
-    );
-  }
-}
-
-class MemIndustryProfileRepository implements IndustryProfileRepository {
-  private readonly store = new AppendOnlyMemStore<IndustryProfile>();
-  add(profile: IndustryProfile): Promise<IndustryProfile> {
-    return this.store.add(profile);
-  }
-  getById(id: string): Promise<IndustryProfile | undefined> {
-    return this.store.getById(id);
-  }
-}
-
-class MemProviderArticleContentRepository implements ProviderArticleContentRepository {
-  private readonly store = new AppendOnlyMemStore<ProviderArticleContent>();
-  add(content: ProviderArticleContent): Promise<ProviderArticleContent> {
-    return this.store.add(content);
-  }
-  listByArticleBrief(articleBriefId: string): Promise<ProviderArticleContent[]> {
-    return Promise.resolve(this.store.filter((c) => c.articleBriefId === articleBriefId));
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Public shape of the wired runtime
 // ---------------------------------------------------------------------------
+
+export interface CreateKnowledgePackageInput {
+  readonly clientOrganizationId: string;
+  readonly projectId: string;
+  readonly title: string;
+  readonly createdByUserId: string;
+}
 
 export interface KnowledgeRuntime {
   readonly packages: PgKnowledgePackageRepository;
@@ -236,6 +188,14 @@ export interface KnowledgeRuntime {
   readonly enterpriseProfiles: PgEnterpriseProfileRepository;
   readonly contentStore: KnowledgeContentStore;
   readonly ingestion: KnowledgeIngestionService;
+  /**
+   * Creates a knowledge package AND emits a `knowledge_package.created` audit
+   * event with the real creating actor — the single audited creation path for
+   * enterprise knowledge (all business writes carry an audit event).
+   */
+  createPackage(
+    input: CreateKnowledgePackageInput,
+  ): Promise<Awaited<ReturnType<PgKnowledgePackageRepository["create"]>>>;
 }
 
 export interface GeoServices {
@@ -321,15 +281,31 @@ export function createPgApplicationRuntime(db: DatabasePort): PgApplicationRunti
       versions,
       contentStore,
     );
-    return { packages, documents, versions, enterpriseProfiles, contentStore, ingestion };
+    const createPackage: KnowledgeRuntime["createPackage"] = async (input) => {
+      const pkg = await packages.create(input);
+      await infra.audit.record({
+        actorUserId: input.createdByUserId,
+        actorOrganizationId: input.clientOrganizationId,
+        clientOrganizationId: input.clientOrganizationId,
+        projectId: input.projectId,
+        action: "knowledge_package.created",
+        targetType: "knowledge_package",
+        targetId: pkg.id,
+        occurredAt: new Date().toISOString(),
+      });
+      return pkg;
+    };
+    return { packages, documents, versions, enterpriseProfiles, contentStore, ingestion, createPackage };
   })();
 
-  // GEO repositories: 15 real Pg adapters + 3 append-only in-memory adapters
-  // for the deliberately-unpersisted, opaque-UUID-referenced aggregates.
+  // GEO repositories: all real Pg adapters. The KnowledgePackage port is the
+  // read-only canonical bridge over knowledge_package (enterprise knowledge is
+  // created through the knowledge runtime — one source of truth); IndustryProfile
+  // and ProviderArticleContent persist via migration 0005.
   const geoRepositories: GeoRepositories = {
-    knowledgePackages: new MemKnowledgePackageRepository(),
-    industryProfiles: new MemIndustryProfileRepository(),
-    providerArticleContents: new MemProviderArticleContentRepository(),
+    knowledgePackages: new KnowledgePackageBridge(db),
+    industryProfiles: new PgIndustryProfileRepository(db),
+    providerArticleContents: new PgProviderArticleContentRepository(db),
     keywordQuestionMaps: new PgKeywordQuestionMapRepository(db),
     opportunities: new PgOpportunityRepository(db),
     opportunityValidations: new PgOpportunityValidationRepository(db),

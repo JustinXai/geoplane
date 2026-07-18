@@ -250,7 +250,7 @@ describe.skipIf(testConfig === null)(
       // Ingest an enterprise knowledge file (TXT) -> KnowledgePackage + Version
       // persisted; then an EnterpriseProfile persisted.
       // ----------------------------------------------------------------------
-      const knowledgePackage = await runtime.knowledge.packages.create({
+      const knowledgePackage = await runtime.knowledge.createPackage({
         clientOrganizationId: clientOrg.id,
         projectId: project.id,
         title: "Enterprise Knowledge Base",
@@ -293,21 +293,18 @@ describe.skipIf(testConfig === null)(
       expect(reloadedProfile?.id).toBe(enterpriseProfile.id);
 
       // ----------------------------------------------------------------------
-      // GEO chain. The geo KnowledgePackage / IndustryProfile aggregates are
-      // referenced only by opaque UUID from the persisted tables (see the
-      // composition-root header); they are driven through their append-only
-      // in-memory ports, while everything downstream is persisted for real.
+      // GEO chain — SINGLE SOURCE OF TRUTH: the geo KnowledgePackage is the SAME
+      // persisted knowledge_package row, read through the canonical bridge, not a
+      // duplicate aggregate. Everything downstream persists for real (0003-0005).
       // ----------------------------------------------------------------------
-      const geoKnowledgePackage = await runtime.geo.keywordQuestion.createKnowledgePackage(
-        clientActor,
-        {
-          clientOrganizationId: clientOrg.id,
-          projectId: project.id,
-          version: 1,
-          title: "GEO Knowledge Package",
-          sourceDescription: "Derived from the ingested enterprise knowledge base.",
-        },
+      const geoKnowledgePackage = await runtime.geoRepositories.knowledgePackages.getById(
+        knowledgePackage.id,
       );
+      if (!geoKnowledgePackage) {
+        throw new Error("geo KnowledgePackage bridge did not resolve the persisted knowledge_package");
+      }
+      // The geo aggregate and the knowledge-runtime package are one and the same row.
+      expect(geoKnowledgePackage.id).toBe(knowledgePackage.id);
 
       const industryProfile = await runtime.geo.keywordQuestion.createIndustryProfile(clientActor, {
         clientOrganizationId: clientOrg.id,
