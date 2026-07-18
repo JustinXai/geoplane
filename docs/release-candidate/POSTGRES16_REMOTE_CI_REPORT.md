@@ -4,7 +4,7 @@
 - Branch: `ops/release-evidence-v1` (baseline `c7c2ab4`, docs only)
 - Workflow under evidence: `.github/workflows/closed-pilot-postgres16.yml` — authored in the
   parallel lane on branch `ci/postgres16-release-gate-v1` (Agent A). At the time this report was
-  written the workflow has **NOT been executed**.
+  written the workflow had **NOT been executed**. (Since executed: observed run 29654550660 — results below are filled exclusively from that run. Supervisor transcription fixes applied 2026-07-19.)
 - Date: 2026-07-19
 
 ## Reporting rules (binding)
@@ -56,7 +56,7 @@ If any of the three observed values deviates from its required value, the run is
 | Gate | Result |
 | --- | --- |
 | Typecheck (`npm run typecheck`) | PASS (run 29654550660) |
-| Full test suite (`npm test`; canary skip-gated by design) | PASS (run 29654550660) |
+| Full test suite (`npm test`; canary skip-gated by design) | NOT_RUN in CI — static-gates deliberately runs typecheck/scan/preflight/build only. Local full suite at the same tree: 876 passed / 1 gated skip (recorded as LOCAL evidence, not a CI result). The CI-side test coverage is the 14 targeted PG16 database gates in Job 2. |
 | Production build (`npm run build:web`) | PASS (run 29654550660) |
 | Security scan (`npm run security-scan`) | PASS (run 29654550660) |
 | Repo safety preflight (`npm run repo:safety:preflight`) | PASS (run 29654550660) |
