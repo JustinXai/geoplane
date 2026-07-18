@@ -8,37 +8,38 @@
  * agency's ACTIVE-assigned clients. Client search only narrows that authorized set (never widens
  * it), so an unauthorized client can never appear or be selected here.
  *
- * Acting context + no impersonation: selecting a client POSTs /api/agency/context; on success a
- * persistent "acting for <client>" banner (AgencyActingBanner) shows the agency as the real actor
- * and the client as the subject. An unauthorized selection returns FORBIDDEN and yields no banner.
- * This is a read-only preview surface — no client-facing write actions are wired.
+ * Acting context + no impersonation: selecting a client POSTs /api/agency/context; on success the
+ * returned AgencyActingContextV1 is written into the shared acting-context store, so the
+ * persistent banner rendered ONCE by the agency layout (AgencyActingBannerMount) shows the agency
+ * as the real actor and the client as the subject across every agency page. An unauthorized
+ * selection returns FORBIDDEN and sets no context (no banner). This is a read-only preview surface
+ * — no client-facing write actions are wired.
  */
 import { useState } from "react";
 import { useAsyncData } from "@/components/runtime";
 import {
-  AgencyActingBanner,
   AgencyAsyncView,
-  type AgencyActingContextV1,
   filterAuthorizedClients,
   getAgencyClients,
   isPortfolioEmpty,
   resolveClientSelection,
-  selectActingBanner,
   setAgencyContext,
+  useActingContext,
 } from "@/components/agency-runtime";
 import type { AgencyClientPortfolioViewV1 } from "@/runtime/api-contracts";
-import type { Result } from "@/lib/api-client";
+import type { ApiErrorCodeV1 } from "@/runtime/api-contracts";
 
 export default function AgencyClientsPage() {
   const { state } = useAsyncData<AgencyClientPortfolioViewV1>(() => getAgencyClients(), {
     isEmpty: isPortfolioEmpty,
   });
+  const { setActingContext } = useActingContext();
 
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState(false);
-  const [actingResult, setActingResult] = useState<Result<AgencyActingContextV1> | undefined>(
-    undefined,
-  );
+  const [actingError, setActingError] = useState<
+    { readonly code: ApiErrorCodeV1; readonly message: string } | undefined
+  >(undefined);
 
   async function selectClient(
     portfolio: AgencyClientPortfolioViewV1,
@@ -48,25 +49,28 @@ export default function AgencyClientsPage() {
     // server independently returns FORBIDDEN via POST /api/agency/context.
     const selection = resolveClientSelection(portfolio, clientOrganizationId);
     if (!selection.authorized) {
-      setActingResult({
-        ok: false,
+      setActingContext(null);
+      setActingError({
         code: "FORBIDDEN",
         message: "该客户不在当前有效分配范围内，无法切换。",
       });
       return;
     }
     setPending(true);
-    setActingResult(undefined);
+    setActingError(undefined);
     const result = await setAgencyContext(clientOrganizationId);
-    setActingResult(result);
+    if (result.ok) {
+      // Drives the persistent banner mounted once in the agency layout.
+      setActingContext(result.data);
+    } else {
+      setActingContext(null);
+      setActingError({ code: result.code, message: result.message });
+    }
     setPending(false);
   }
 
-  const banner = selectActingBanner(actingResult);
-
   return (
     <>
-      {banner.visible ? <AgencyActingBanner banner={banner.banner} /> : null}
       <header className="cp-page-header">
         <div>
           <p className="eyebrow">代理商工作台</p>
@@ -75,9 +79,9 @@ export default function AgencyClientsPage() {
         </div>
       </header>
 
-      {actingResult !== undefined && !actingResult.ok ? (
+      {actingError !== undefined ? (
         <p className="cp-callout" role="alert">
-          切换客户失败：{actingResult.message}
+          切换客户失败：{actingError.message}
         </p>
       ) : null}
       {pending ? (

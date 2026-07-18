@@ -35,5 +35,9 @@ export type { AgencyProjectReadGroup, PerProjectReader } from "./project-reads.j
 export { AgencyActingBanner } from "./AgencyActingBanner.js";
 export type { AgencyActingBannerProps } from "./AgencyActingBanner.js";
 
+export { AgencyActingBannerMount } from "./AgencyActingBannerMount.js";
+export { ActingContextProvider, useActingContext } from "./acting-context-store.js";
+export type { ActingContextValue } from "./acting-context-store.js";
+
 export { AgencyAsyncView } from "./AgencyAsyncView.js";
 export type { AgencyAsyncViewProps } from "./AgencyAsyncView.js";
