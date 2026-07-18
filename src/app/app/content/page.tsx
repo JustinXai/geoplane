@@ -7,13 +7,16 @@
  * the read-side content items the endpoints currently support. Renders all five async states
  * via the shared AsyncSection.
  *
- * The C5 per-row ClientConfirmationControls (content-direction + source-type, client-side
- * presentation-only three-state decisions) are preserved as scaffolding on each real row.
+ * batch 2 wires the per-row 内容方向 confirmation to the real client review command (POST
+ * /api/opportunities/[id]/reviews) via OpportunityReviewControl — reviewer server-derived, list
+ * refreshes on success. The 信源类型 decision has no modeled command, so it keeps the C5
+ * presentation-only ClientConfirmationControl (the task-sanctioned clean state).
  */
 import { useAsyncData } from "../../../components/runtime/index.js";
 import { AsyncSection } from "../../../components/client-runtime/AsyncSection.js";
 import { loadActiveProjectOpportunities } from "../../../components/client-runtime/endpoints.js";
-import { isEmptyArray, toOpportunityRows } from "../../../components/client-runtime/view-models.js";
+import { isEmptyArray, toOpportunityRow } from "../../../components/client-runtime/view-models.js";
+import { OpportunityReviewControl } from "../../../components/client-runtime/OpportunityReviewControl.js";
 import { ClientConfirmationControl } from "../_confirmation-control";
 
 export default function ContentSourcingPage() {
@@ -37,17 +40,31 @@ export default function ContentSourcingPage() {
       >
         {(rows) => (
           <ul className="cp-list">
-            {toOpportunityRows(rows).map((row, index) => (
-              <li className="cp-list-row" key={`${row.title}-${index}`}>
-                <span className="cp-list-title">{row.title}</span>
-                <span className="cp-list-meta">状态：{row.statusLabel}</span>
-                <span className="cp-list-summary">{row.summary}</span>
-                <div className="cp-confirm-group">
-                  <ClientConfirmationControl subjectLabel="内容方向" />
-                  <ClientConfirmationControl subjectLabel="信源类型" />
-                </div>
-              </li>
-            ))}
+            {rows.map((opportunity, index) => {
+              const row = toOpportunityRow(opportunity);
+              return (
+                <li className="cp-list-row" key={`${row.title}-${index}`}>
+                  <span className="cp-list-title">{row.title}</span>
+                  <span className="cp-list-meta">状态：{row.statusLabel}</span>
+                  <span className="cp-list-summary">{row.summary}</span>
+                  <div className="cp-confirm-group">
+                    {/*
+                      内容方向 confirmation is the real client review command (POST
+                      /api/opportunities/[id]/reviews). The opportunity id is an opaque action
+                      handle (never rendered). The validation reference the command keys on is not
+                      exposed by the client read surface, so the control is disabled until one is —
+                      no fabricated id. 信源类型 has no modeled command and stays presentation-only.
+                    */}
+                    <OpportunityReviewControl
+                      opportunityId={opportunity.id}
+                      opportunityValidationId={null}
+                      onReviewed={reload}
+                    />
+                    <ClientConfirmationControl subjectLabel="信源类型" />
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </AsyncSection>
