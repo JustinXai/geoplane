@@ -282,7 +282,6 @@ describe.skipIf(testConfig === null)(
       // any isolated test db is fine. ---
       expect(testConfig).not.toBeNull();
       expect(testConfig!.connectionString).not.toMatch(/\/geoplane_runtime(\?|$)/);
-      expect(testConfig!.connectionString).toMatch(/geoplane_pc_e2e/);
 
       // ====================================================================
       // 0. Bootstrap the FIRST platform admin (user + PLATFORM org + membership), then log in via
