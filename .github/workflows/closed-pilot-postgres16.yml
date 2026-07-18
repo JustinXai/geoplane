@@ -135,6 +135,16 @@ jobs:
       - name: Run database gates
         run: node scripts/ci/run-database-gates.mjs
 
+      # Job 3 runs on a fresh runner: hand it this job's machine-readable gate
+      # results so generate-ci-evidence can merge them (NOT_RUN would otherwise
+      # fail the evidence step by design).
+      - name: Upload database-gates evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-gates-evidence
+          path: artifacts/ci/database-gates.json
+          if-no-files-found: error
+
   backup-restore-gates:
     name: backup-restore-gates
     runs-on: ubuntu-latest
@@ -203,8 +213,32 @@ jobs:
       - name: Create isolated CI databases
         run: node scripts/ci/create-isolated-databases.mjs
 
+      # The fresh CI databases have no schema yet; the backup/restore gate seeds
+      # data but does not migrate, and generate-ci-evidence verifies the
+      # no-real-provider-calls invariant against ALL THREE databases (a missing
+      # provider_execution table is treated as unverifiable, i.e. failure).
+      # Apply 0001-0008 to runtime, test, and canary as the non-superuser app
+      # role (owner of the CI databases) so ACLs match the backup path.
+      - name: Apply migrations to the CI databases (app role)
+        env:
+          GEO_DATABASE_URL: postgresql://geoplane_ci_app:ci_only_not_secret@localhost:5432/geoplane_ci_runtime
+          GEO_TEST_DATABASE_URL: postgresql://geoplane_ci_app:ci_only_not_secret@localhost:5432/geoplane_ci_test
+          GEO_CANARY_DATABASE_URL: postgresql://geoplane_ci_app:ci_only_not_secret@localhost:5432/geoplane_ci_canary
+        run: |
+          node scripts/db/migrate.mjs
+          node scripts/db/migrate.mjs --test
+          node scripts/db/migrate.mjs --canary
+
       - name: Run backup/restore gate
         run: node scripts/ci/run-backup-restore-gate.mjs
+
+      # Merge in job 2's database-gates results (same workflow run) so the
+      # combined evidence file reflects what actually ran, gate by gate.
+      - name: Download database-gates evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: database-gates-evidence
+          path: artifacts/ci
 
       - name: Generate CI evidence
         run: node scripts/ci/generate-ci-evidence.mjs
