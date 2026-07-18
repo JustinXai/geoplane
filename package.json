@@ -4,9 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "next dev",
+    "build:web": "next build",
+    "start": "next start",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "build": "tsc -p tsconfig.build.json",
+    "build:contracts": "tsc -p tsconfig.build.json",
     "security-scan": "node scripts/security-scan.mjs",
     "repo:safety:preflight": "node scripts/repo-safety-preflight.mjs"
   },
