@@ -71,7 +71,7 @@ import type {
 } from "./entities.js";
 import { canAccessClientOrganization, isPlatformAdmin } from "./authorization.js";
 import { issueInvitation, revokeInvitation, type IssueInvitationInput, type RevokeInvitationArgs } from "./invitations.js";
-import { recordAuditEvent } from "./audit.js";
+import { recordAuditEvent, type RecordAuditEventInput } from "./audit.js";
 
 /**
  * Thrown by createMembership when a second ACTIVE membership into a
@@ -367,5 +367,30 @@ export class InMemoryTenancyRepository {
     return this.auditEvents
       .filter((event) => event.organizationId === organizationId)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  /**
+   * Acceptance-phase addition (REBUILD_INTEGRATION_ACCEPTANCE_V1, section 5
+   * "跨 Lane 运行时接线"): a generic, public append point for AuditEvent
+   * records, so callers OUTSIDE this repository's own invitation flows -
+   * specifically, the GEO business-pipeline services in
+   * src/composition/application-composition-root.ts - can record an audit
+   * trail for their own actions (KnowledgePackage created, Opportunity
+   * created, Human Review confirmed/changes-requested, Article approved,
+   * PublishPackage created, PublicationReceipt recorded) through this same
+   * repository's audit log, rather than maintaining a second, separate
+   * audit store. Wraps audit.ts's `recordAuditEvent` exactly like
+   * `issueAndRecordInvitation`/`revokeAndRecordInvitation` already do -
+   * this method does not duplicate that logic, it is the missing public
+   * entry point to it. Append-only: there is no update/delete method on
+   * this class, matching migrations/0001_tenancy_foundation.sql's
+   * `artifact_index`-style discipline (this repository has no
+   * "un-record an audit event" method at all, so there is nothing to
+   * accidentally call).
+   */
+  recordAudit(input: RecordAuditEventInput): AuditEvent {
+    const auditEvent = recordAuditEvent(input);
+    this.auditEvents.push(auditEvent);
+    return auditEvent;
   }
 }
