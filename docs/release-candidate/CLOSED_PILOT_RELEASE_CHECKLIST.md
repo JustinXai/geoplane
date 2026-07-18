@@ -22,7 +22,7 @@
 | A3 | Production build (`npm run build:web`, next build --webpack) | PASS | `docs/release-candidate/OVERNIGHT_CLOSED_PILOT_RC_REPORT.md` (Gates) |
 | A4 | Security scan clean + repo safety preflight + no secrets in the committed tree | PASS | `docs/release-candidate/OVERNIGHT_CLOSED_PILOT_RC_REPORT.md` (Gates); `docs/release-candidate/ENVIRONMENT_CONFIGURATION_AUDIT.md` (Item 10, PASS) |
 | A5 | Migrations 0001–0008 fresh-apply + manifest + constraints + append-only + idempotency + restart read-back — **PG18-labelled local evidence** (6/6; explicitly NOT a PG16 result) | PASS | `docs/release-candidate/OVERNIGHT_CLOSED_PILOT_RC_REPORT.md` (PG18 Equivalent Verify); `docs/pilot/BACKUP_RESTORE_NOTES.md` (PG18_EQUIVALENT = PASS) |
-| A6 | CI PG16 gates — canonical PostgreSQL 16 verification of the full gate set (all three jobs) in GitHub Actions | PENDING_REMOTE_CI | `docs/release-candidate/POSTGRES16_REMOTE_CI_REPORT.md` (all fields PENDING_REMOTE_CI; workflow not yet run) |
+| A6 | CI PG16 gates — canonical PostgreSQL 16 verification of the full gate set (all three jobs) in GitHub Actions | PASS | Observed run 29654550660 (conclusion success, all 3 jobs green); `docs/release-candidate/POSTGRES16_REMOTE_CI_REPORT.md` (results filled from that run) |
 
 ## 2. 人工 Gate (Human)
 
@@ -37,7 +37,7 @@
 
 | # | Item | Status | Evidence |
 | --- | --- | --- | --- |
-| E1 | PG16 CI green: the observed workflow run concludes success with VERIFIED PostgreSQL Version from `SELECT version()` (never the image name) | PENDING_REMOTE_CI | `docs/release-candidate/POSTGRES16_REMOTE_CI_REPORT.md` (Run identity table) |
+| E1 | PG16 CI green: the observed workflow run concludes success with VERIFIED PostgreSQL Version from `SELECT version()` (never the image name) | PASS | Run 29654550660: SELECT version() = PostgreSQL 16.14 (Debian 16.14-1.pgdg13+1); `docs/release-candidate/POSTGRES16_REMOTE_CI_REPORT.md` (Run identity table) |
 | E2 | DB role separation: runtime / test / canary roles distinct; canary refuses runtime/test targets; preflight 3/3 PASS with closed 6-code taxonomy | PASS | `docs/pilot/DATABASE_ENVIRONMENT_ROLES.md`; `docs/release-candidate/ENVIRONMENT_CONFIGURATION_AUDIT.md` (Item 3, PASS_WITH_CHANGES — defense-in-depth follow-up only); `docs/release-candidate/OVERNIGHT_CLOSED_PILOT_RC_REPORT.md` (Databases) |
 | E3 | Session keys provisioned for the pilot deploy environment (`SESSION_SIGNING_KEY_CURRENT` set; `SESSION_SIGNING_KEY_PREVIOUS` empty at start; `REVIEW_REFERENCE_KEY_CURRENT` decided) — operator action in the target environment; rotation mechanics already proven E2E | HUMAN_PENDING | Mechanics: `docs/release-candidate/CLOSED_PILOT_OPERATIONS_REPORT.md` (drill c); procedure: `docs/pilot/PILOT_OPERATOR_RUNBOOK.md` (§0, §8); names: `docs/release-candidate/DEPLOYMENT_INPUTS_TEMPLATE.md` |
 | E4 | Provider flag OFF: `PROVIDER_RUNTIME_ENABLED` resolves false (default-OFF semantics; no committed file enables it; no real call path reachable) | PASS | `docs/release-candidate/OVERNIGHT_CLOSED_PILOT_RC_REPORT.md` (Provider); `docs/release-candidate/ENVIRONMENT_CONFIGURATION_AUDIT.md` (Item 4, PASS); `docs/pilot/PROVIDER_BOUNDARY_AUDIT.md` |
