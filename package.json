@@ -30,7 +30,8 @@
     "pdf-parse": "^1.1.4",
     "pg": "^8.22.0",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dom": "^19.2.7",
+    "unpdf": "^1.6.2"
   },
   "overrides": {
     "postcss": "^8.5.10"
