@@ -3,6 +3,8 @@ node_modules/
 dist/
 build/
 coverage/
+# CI gate evidence output (scripts/ci/*) — generated JSON, never committed
+artifacts/
 .pnpm-store/
 .turbo/
 *.tsbuildinfo
