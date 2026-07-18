@@ -8,17 +8,22 @@
  *   checkpoint was explicitly presentation-only with no auth wiring)
  * original_file_unavailable: n/a (net-new acceptance-phase file)
  *
- * IMPORTANT SCOPE LIMITATION, stated plainly: this is NOT a real authentication system.
- * The cookie below is a plain base64url-encoded JSON blob - NOT cryptographically signed,
- * NOT encrypted, trivially forgeable by anyone who can set a cookie. It exists solely so
- * this acceptance phase's HTTP route smoke test (section 8) and E2E scenario (section 9)
- * have something real for middleware.ts to check role/tenant boundaries against, proving
- * the *routing/isolation logic* works end-to-end over real HTTP - it does NOT prove a real
- * login flow exists, and must never be treated as production-ready session security. A real
- * session mechanism (signed/encrypted cookies or server-side session store, wired to B4's
- * real Session/sessionVersion staleness logic) remains a future checkpoint's work.
+ * SIGNED_SESSION_COOKIE_V1: the cookie is now HMAC-SHA256 signed with an absolute expiry
+ * (session-signing.ts). `encodeSessionCookie` emits a signed token; `decodeSessionCookie` verifies
+ * the signature + expiry with the current key and returns null for any missing/tampered/expired/
+ * wrong-key/malformed value. This closes the previous "unsigned, trivially forgeable base64 blob"
+ * weakness: a hand-forged raw base64 cookie no longer verifies. The PUBLIC API (SESSION_COOKIE_NAME,
+ * encodeSessionCookie, decodeSessionCookie, allowedSurfaceForRole, AcceptanceSessionCookiePayload)
+ * and the payload shape are unchanged, so every existing caller/test keeps working — an encoded
+ * cookie still round-trips through decode; only forged/expired/tampered cookies are now rejected.
+ *
+ * Authorization is still re-derived server-side from the persisted Session + Organization; the
+ * cookie only asserts *which user* (SYSTEM_INVARIANTS_V1). Signing hardens that assertion against
+ * forgery; it is not a substitute for the server-side session/staleness checks the runtime already
+ * performs.
  */
 import type { OrganizationType, PlatformRole } from "@/contracts/tenancy/entities";
+import { signSessionCookieValue, verifySessionCookieValue } from "./session-signing.js";
 
 export const SESSION_COOKIE_NAME = "geo_acceptance_session";
 
@@ -31,15 +36,23 @@ export interface AcceptanceSessionCookiePayload {
   activeClientOrganizationId: string | null;
 }
 
+/** Signs the payload into an HMAC-signed, expiring session cookie value (see session-signing.ts). */
 export function encodeSessionCookie(payload: AcceptanceSessionCookiePayload): string {
-  return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  const payloadB64Url = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  return signSessionCookieValue(payloadB64Url);
 }
 
-/** Returns null (never throws) for a missing/malformed cookie value - callers must treat that as "no session". */
+/**
+ * Verifies the signature + expiry and returns the payload, or null (never throws) for any
+ * missing/tampered/expired/wrong-key/malformed cookie value - callers must treat null as "no
+ * session". A plain (unsigned) base64 JSON blob fails signature verification and is rejected.
+ */
 export function decodeSessionCookie(cookieValue: string | undefined | null): AcceptanceSessionCookiePayload | null {
   if (!cookieValue) return null;
+  const payloadB64Url = verifySessionCookieValue(cookieValue);
+  if (payloadB64Url === null) return null;
   try {
-    const json = Buffer.from(cookieValue, "base64url").toString("utf8");
+    const json = Buffer.from(payloadB64Url, "base64url").toString("utf8");
     const parsed = JSON.parse(json) as Partial<AcceptanceSessionCookiePayload>;
     if (
       typeof parsed.actorUserId !== "string" ||
