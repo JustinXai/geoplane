@@ -26,7 +26,8 @@ import { createPgDatabase } from "../../persistence/pg/pg-database.js";
 import { PgOrganizationRepository } from "../../persistence/pg/organization-repository.js";
 import { PgProjectRepository } from "../../persistence/pg/project-repository.js";
 import { PgSessionRepository } from "../../persistence/pg/session-repository.js";
-import { InMemoryKnowledgeContentStore, type KnowledgeContentStore } from "./ingestion/content-store.js";
+import { type KnowledgeContentStore } from "./ingestion/content-store.js";
+import { PgKnowledgeContentStore } from "../../persistence/runtime-continuity/pg-knowledge-content-store.js";
 import { KnowledgeIngestionService } from "./ingestion/ingestion-service.js";
 import { DefaultKnowledgeParser } from "./ingestion/parsers.js";
 import { PgKnowledgeDocumentRepository } from "./pg/document-repository.js";
@@ -134,7 +135,9 @@ export function createKnowledgeRuntime(
   const projects = new PgProjectRepository(db);
   const sessions = new PgSessionRepository(db);
   const organizations = new PgOrganizationRepository(db);
-  const contentStore = options.contentStore ?? new InMemoryKnowledgeContentStore();
+  // Durable by default (data continuity): uploaded document text survives a restart.
+  // Tests may still inject an in-memory store via options.contentStore.
+  const contentStore = options.contentStore ?? new PgKnowledgeContentStore(db);
   const ingestion = new KnowledgeIngestionService(
     new DefaultKnowledgeParser(),
     knowledge.documents,
