@@ -24,20 +24,55 @@
  * generation, section 7) is meant to exercise.
  */
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE_NAME, allowedSurfaceForRole, decodeSessionCookie } from "@/lib/session-cookie";
+import { SESSION_COOKIE_NAME, allowedSurfaceForRole, decodeSessionCookie } from "./src/lib/session-cookie.js";
+import { allowedOriginsFromEnv, isSameOriginRequest, isStateChangingMethod } from "./src/lib/request-origin.js";
 
 const PROTECTED_SURFACES = ["app", "agency", "ops"] as const;
 type ProtectedSurface = (typeof PROTECTED_SURFACES)[number];
 
 function surfaceForPath(pathname: string): ProtectedSurface | null {
   const segment = pathname.split("/")[1];
+  if (segment === undefined) return null;
   return (PROTECTED_SURFACES as readonly string[]).includes(segment) ? (segment as ProtectedSurface) : null;
 }
 
+/**
+ * COMMAND_CSRF_GUARD_V1 (Agent B3): refuse any state-changing (POST/PUT/PATCH/DELETE) request
+ * whose Origin/Referer does not match this host (or an APP_ALLOWED_ORIGINS entry) BEFORE the route
+ * handler runs. The signed SameSite=Lax session cookie mitigates but does not fully eliminate CSRF,
+ * so this is the central, handler-independent second line of defence. GET/HEAD/OPTIONS are exempt,
+ * leaving read/health routes and the role-surface redirects below entirely untouched. Returns a
+ * 403 (with a clear JSON body) to block, or null to let the request continue.
+ */
+function csrfOriginGuard(request: NextRequest): NextResponse | null {
+  if (!isStateChangingMethod(request.method)) {
+    return null;
+  }
+  if (isSameOriginRequest(request, { allowedOrigins: allowedOriginsFromEnv() })) {
+    return null;
+  }
+  return new NextResponse(
+    JSON.stringify({
+      error: "CSRF_ORIGIN_REJECTED",
+      message:
+        "This state-changing request was blocked: its Origin/Referer does not match an allowed origin.",
+    }),
+    { status: 403, headers: { "content-type": "application/json; charset=utf-8" } },
+  );
+}
+
 export function middleware(request: NextRequest) {
+  // CSRF/Origin guard runs first, for EVERY matched request (/api/* and the protected surfaces),
+  // so a cross-origin or origin-less mutating request is refused before any handler or role check.
+  const csrfBlock = csrfOriginGuard(request);
+  if (csrfBlock !== null) {
+    return csrfBlock;
+  }
+
   const surface = surfaceForPath(request.nextUrl.pathname);
   if (surface === null) {
-    // Not a protected surface (/, /login, static assets, etc.) - no session required.
+    // Not a protected surface (/api read routes, /, /login, static assets, etc.) - no session
+    // required. (Mutating /api requests already passed the CSRF guard above.)
     return NextResponse.next();
   }
 
@@ -64,5 +99,13 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/app/:path*", "/agency/:path*", "/ops/:path*"],
+  // Adds /api/* so the CSRF/Origin guard covers every state-changing API route (in addition to the
+  // existing role-surface enforcement on /app,/agency,/ops). GET/read requests to these paths pass
+  // straight through, so health/read routes are unaffected.
+  //
+  // NOTE: with a `src/` directory, Next.js loads middleware from `src/middleware.ts`, NOT this
+  // root file. `src/middleware.ts` re-exports the `middleware` function below and MUST declare an
+  // identical `matcher` inline (Next's static analysis does not follow a re-exported `config`).
+  // Keep this list and `src/middleware.ts`'s matcher in sync.
+  matcher: ["/app/:path*", "/agency/:path*", "/ops/:path*", "/api/:path*"],
 };
