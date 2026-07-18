@@ -142,6 +142,22 @@ export interface KeywordQuestionViewV1 {
 
 export type OpportunityStatusV1 = "PROPOSED" | "VALIDATED" | "CONFIRMED" | "REJECTED";
 
+/** Review lifecycle status shown to the client (PENDING plus the three decision outcomes). */
+export type ReviewStatusV1 = "PENDING" | ClientReviewDecisionValue;
+
+/**
+ * Client-safe handle for submitting a review decision on an opportunity. `reviewReferenceCode`
+ * is an OPAQUE code the client passes back to the review command — it is NEVER an internal UUID
+ * (the server maps it to the real validation/decision id). Client surfaces show none of the
+ * internal ids behind it.
+ */
+export interface OpportunityReviewRefV1 {
+  readonly reviewReferenceCode: string;
+  readonly reviewVersion: number;
+  readonly reviewStatus: ReviewStatusV1;
+  readonly allowedDecisions: readonly ClientReviewDecisionValue[];
+}
+
 export interface OpportunityViewV1 {
   readonly id: string;
   readonly projectId: string;
@@ -149,6 +165,8 @@ export interface OpportunityViewV1 {
   readonly summary: string;
   readonly status: OpportunityStatusV1;
   readonly createdAt: string;
+  /** Present when the opportunity is reviewable by the client; enables the confirm/changes/defer action. */
+  readonly review?: OpportunityReviewRefV1;
 }
 
 export interface ClientReviewDecisionViewV1 {
