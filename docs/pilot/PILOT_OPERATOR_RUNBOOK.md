@@ -18,8 +18,9 @@ in the child environment (see `scripts/backup/pg-lib.mjs`).
 
 | Variable | Purpose |
 | --- | --- |
-| `GEO_DATABASE_URL` | Runtime database connection (e.g. `geoplane_runtime`). |
-| `GEO_TEST_DATABASE_URL` | Throwaway test/pilot database (e.g. `geoplane_pl_f`). |
+| `GEO_DATABASE_URL` | **runtime role** — local/staging runtime database (e.g. `geoplane_runtime`). Never TRUNCATEd by tests, never touched by the canary. |
+| `GEO_TEST_DATABASE_URL` | **test role** — automated-test database (name must contain `test`, e.g. `geoplane_runtime_test`); DB-backed tests TRUNCATE it freely. |
+| `GEO_CANARY_DATABASE_URL` | **canary role** — isolated database dedicated to provider canary runs (name must contain `canary`, e.g. `geoplane_canary`). Must NEVER point at the runtime or test databases; the canary runner reads ONLY this variable. See `docs/pilot/DATABASE_ENVIRONMENT_ROLES.md`. |
 | `SESSION_SIGNING_KEY_CURRENT` | Active HMAC key for signing session cookies. **Required in production.** |
 | `SESSION_SIGNING_KEY_PREVIOUS` | Previous key honoured during a rotation window; empty when no rotation is open. |
 | `PROVIDER_RUNTIME_ENABLED` | `false` keeps the controlled-provider runtime OFF (pilot default). Only `true`/`1` turns it on. |
@@ -185,9 +186,12 @@ old cookie rejected after PREVIOUS is dropped) is verified end-to-end by drill (
 
 ## 9. Operator-gated procedures
 
-- **Real Provider micro-canary** — set `PROVIDER_API_KEY` and `PROVIDER_RUNTIME_ENABLED=true`, then
-  run a single budget-capped generation and confirm exactly one `provider_execution` ledger row (no
-  secret/content persisted). **Not part of the default pilot run** (Provider real calls = 0).
+- **Real Provider micro-canary** — requires `DEEPSEEK_API_KEY`, `GEO_CANARY_DATABASE_URL` (the
+  isolated canary database; the runner refuses to start without it and NEVER falls back to
+  `GEO_TEST_DATABASE_URL`/`GEO_DATABASE_URL`), and `PROVIDER_RUNTIME_ENABLED=true` for the single
+  canary process only. Run `scripts/provider/micro-canary.mjs` for a single budget-capped generation
+  and confirm exactly one `provider_execution` ledger row (no secret/content persisted).
+  **Not part of the default pilot run** (Provider real calls = 0).
 - **Canonical PostgreSQL 16 verify** — `node scripts/backup/pg-verify.mjs --test` against a real
   PostgreSQL 16 instance. This host runs PostgreSQL 18.3; provision a PG16 instance first. See
   `docs/pilot/BACKUP_RESTORE_NOTES.md`.

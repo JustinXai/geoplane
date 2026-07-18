@@ -4,8 +4,10 @@
  * SKIPPED unless RUN_PROVIDER_CANARY==="true" (set only by scripts/provider/micro-canary.mjs), so
  * `npm test` never makes a real network call. When triggered it makes AT MOST ONE real HTTP request
  * (a fetch guard rejects a 2nd without touching the network), through the real
- * OpenAICompatibleProviderAdapter + PgProviderLedger, against a throwaway TEST database, using a
- * fully desensitized org/project and NO customer data. It creates no approval/publish/receipt.
+ * OpenAICompatibleProviderAdapter + PgProviderLedger, against the ISOLATED CANARY database
+ * (GEO_CANARY_DATABASE_URL ONLY — never the runtime or automated-test database, no fallback;
+ * ENVIRONMENT_CONFIGURATION_RECONCILIATION_V1), using a fully desensitized org/project and NO
+ * customer data. It creates no approval/publish/receipt.
  * A sanitized summary (no key / no prompt / no response) is written for the report.
  */
 import { randomUUID } from "node:crypto";
@@ -14,7 +16,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { loadDatabaseConfig } from "../../src/persistence/config.js";
+import { loadDatabaseConfig, loadDatabaseConfigForRole } from "../../src/persistence/config.js";
 import type { DatabasePort } from "../../src/persistence/database-port.js";
 import { createPgDatabase } from "../../src/persistence/pg/pg-database.js";
 import { applyMigrations } from "../../src/persistence/pg/migrator.js";
@@ -26,7 +28,9 @@ const RUN = process.env.RUN_PROVIDER_CANARY === "true";
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "migrations");
 export const CANARY_SUMMARY_PATH = join(tmpdir(), "geo-provider-micro-canary-summary.json");
 
-const testConfig = loadDatabaseConfig({ test: true });
+// The canary reads ONLY the dedicated canary database role — never GEO_TEST_DATABASE_URL or
+// GEO_DATABASE_URL (no fallback, no override).
+const canaryConfig = loadDatabaseConfigForRole("canary");
 let db: DatabasePort;
 
 async function seedProject(): Promise<{ projectId: string; clientOrgId: string }> {
@@ -52,15 +56,36 @@ async function ledgerCount(): Promise<number> {
   return Number(r.rows[0]?.n ?? "0");
 }
 
-describe.skipIf(!RUN || testConfig === null)("SANITIZED_PROVIDER_MICRO_CANARY_V1", () => {
+describe.skipIf(!RUN || canaryConfig === null)("SANITIZED_PROVIDER_MICRO_CANARY_V1", () => {
   beforeAll(async () => {
-    const conn = testConfig!.connectionString;
-    // Hard safety: must be a throwaway TEST/PILOT/CANARY database, never the production runtime db.
+    const conn = canaryConfig!.connectionString;
+    // Hard safety: only the dedicated, clearly-labelled canary database — never the runtime
+    // database, and never the automated-test database (compared by host+port+dbname).
     if (/\/geoplane_runtime(\?|$)/.test(conn)) {
       throw new Error("micro-canary refuses to run against the production runtime database");
     }
-    if (!/test|pilot|canary/i.test(conn)) {
-      throw new Error("micro-canary requires a database whose name is clearly test/pilot/canary");
+    const dbNameOf = (raw: string): string => {
+      try {
+        return new URL(raw).pathname.replace(/^\//, "");
+      } catch {
+        return "";
+      }
+    };
+    if (!/canary/i.test(dbNameOf(conn))) {
+      throw new Error("micro-canary requires GEO_CANARY_DATABASE_URL to name a clearly-labelled canary database");
+    }
+    const targetOf = (raw: string): string | null => {
+      try {
+        const u = new URL(raw);
+        return `${u.hostname}:${u.port || "5432"}${u.pathname}`;
+      } catch {
+        return null;
+      }
+    };
+    for (const other of [loadDatabaseConfig(), loadDatabaseConfig({ test: true })]) {
+      if (other && targetOf(other.connectionString) === targetOf(conn)) {
+        throw new Error("micro-canary refuses a canary database that coincides with the runtime/test database");
+      }
     }
     db = createPgDatabase({ connectionString: conn, max: 2 });
     await applyMigrations(db, migrationsDir);

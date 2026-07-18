@@ -15,8 +15,33 @@ export interface DatabaseConfig {
   readonly connectionString: string;
 }
 
-const RUNTIME_ENV_VAR = "GEO_DATABASE_URL";
-const TEST_ENV_VAR = "GEO_TEST_DATABASE_URL";
+/**
+ * ENVIRONMENT_CONFIGURATION_RECONCILIATION_V1 — the three database environment roles.
+ *
+ *  - "runtime": GEO_DATABASE_URL        — the local/staging runtime database (real application data;
+ *                                          never TRUNCATEd by tests, never touched by the canary).
+ *  - "test":    GEO_TEST_DATABASE_URL   — the automated-test database; DB-backed tests TRUNCATE it
+ *                                          freely, so it must never point at real data.
+ *  - "canary":  GEO_CANARY_DATABASE_URL — an isolated database dedicated to provider canary runs.
+ *                                          It must NEVER point at the runtime or test database
+ *                                          (compared by host+port+dbname), and the canary runner
+ *                                          reads ONLY this variable (no fallback to the other two).
+ */
+export type DatabaseEnvironmentRole = "runtime" | "test" | "canary";
+
+const ENV_VAR_BY_ROLE: Readonly<Record<DatabaseEnvironmentRole, string>> = {
+  runtime: "GEO_DATABASE_URL",
+  test: "GEO_TEST_DATABASE_URL",
+  canary: "GEO_CANARY_DATABASE_URL",
+};
+
+/** The env var carrying the connection string for a database environment role. */
+export function databaseEnvVarName(role: DatabaseEnvironmentRole): string {
+  return ENV_VAR_BY_ROLE[role];
+}
+
+const RUNTIME_ENV_VAR = ENV_VAR_BY_ROLE.runtime;
+const TEST_ENV_VAR = ENV_VAR_BY_ROLE.test;
 
 /** Repo root = two levels up from src/persistence. */
 function repoRoot(): string {
@@ -59,5 +84,15 @@ function resolveVar(name: string): string | null {
  */
 export function loadDatabaseConfig(opts: { test?: boolean } = {}): DatabaseConfig | null {
   const url = resolveVar(opts.test ? TEST_ENV_VAR : RUNTIME_ENV_VAR);
+  return url ? { connectionString: url } : null;
+}
+
+/**
+ * Resolves the connection string for one of the three database environment roles
+ * (see DatabaseEnvironmentRole). Same precedence as loadDatabaseConfig: explicit
+ * process.env first, then the gitignored .env.local. Returns null when unset.
+ */
+export function loadDatabaseConfigForRole(role: DatabaseEnvironmentRole): DatabaseConfig | null {
+  const url = resolveVar(ENV_VAR_BY_ROLE[role]);
   return url ? { connectionString: url } : null;
 }

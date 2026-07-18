@@ -13,7 +13,9 @@
     "security-scan": "node scripts/security-scan.mjs",
     "repo:safety:preflight": "node scripts/repo-safety-preflight.mjs",
     "db:migrate": "node scripts/db/migrate.mjs",
-    "db:migrate:test": "node scripts/db/migrate.mjs --test"
+    "db:migrate:test": "node scripts/db/migrate.mjs --test",
+    "db:migrate:canary": "node scripts/db/migrate.mjs --canary",
+    "preflight:db-env": "node scripts/preflight/database-environment.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
