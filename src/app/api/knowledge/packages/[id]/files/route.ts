@@ -63,12 +63,17 @@ export async function POST(
     );
   }
 
-  const result = await ingestIntoPackage(rt, pkg, {
-    title,
-    filename,
-    contentType,
-    bytes,
-    sourceKind: "FILE",
-  });
+  const result = await ingestIntoPackage(
+    rt,
+    pkg,
+    {
+      title,
+      filename,
+      contentType,
+      bytes,
+      sourceKind: "FILE",
+    },
+    { principal, action: "knowledge.document.ingested" },
+  );
   return toHttpResponse(result);
 }
