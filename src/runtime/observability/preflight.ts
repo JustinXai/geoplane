@@ -21,6 +21,11 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadDatabaseConfig } from "../../persistence/config.js";
 import type { Queryable } from "../../persistence/database-port.js";
+import {
+  evaluateMigrationReadiness,
+  highestRequiredMigrationVersion,
+  requiredMigrationVersions,
+} from "../../persistence/migration-manifest.js";
 
 // ---------------------------------------------------------------------------
 // Result model
@@ -119,29 +124,20 @@ export function isProductionRun(nodeEnv: string | undefined = process.env.NODE_E
 }
 
 // ---------------------------------------------------------------------------
-// Expected migrations — DERIVED at runtime from the migrations/ directory (the
-// ledger stores FILENAMES; we compare 4-digit versions). Deriving them means a
-// newly-added migration (0007, 0008, …) never requires editing this file, so the
-// readiness check can never go stale against the actual migration set.
+// Expected migrations — read from the SINGLE SOURCE OF TRUTH migrations/manifest.json
+// (MIGRATION_REGISTRY_SINGLE_SOURCE_V1). This module, scripts/preflight/preflight.mjs and
+// scripts/backup/pg-verify.mjs all consume the same manifest, so the readiness check can
+// never drift from the real migration set. Readiness uses FLOOR semantics (see
+// evaluateMigrationReadiness): a DB ahead of the build is still ready.
 // ---------------------------------------------------------------------------
 
-function migrationsDirectory(): string {
-  return join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "migrations");
-}
-
-/** The 4-digit versions of every migrations/NNNN_*.sql present, sorted ascending. */
+/** @deprecated retained for back-compat; prefer requiredMigrationVersions() from migration-manifest. */
 export function readExpectedMigrationVersions(): readonly string[] {
-  return readdirSync(migrationsDirectory())
-    .filter((f) => /^\d{4}_.*\.sql$/.test(f))
-    .map((f) => f.slice(0, 4))
-    .sort();
+  return requiredMigrationVersions();
 }
 
-export const EXPECTED_MIGRATION_VERSIONS: readonly string[] = readExpectedMigrationVersions();
-
-/** The highest expected version — /ready reports migrations "current" when this is applied. */
-export const CURRENT_MIGRATION_VERSION: string =
-  EXPECTED_MIGRATION_VERSIONS[EXPECTED_MIGRATION_VERSIONS.length - 1] ?? "0000";
+export const EXPECTED_MIGRATION_VERSIONS: readonly string[] = requiredMigrationVersions();
+export const CURRENT_MIGRATION_VERSION: string = highestRequiredMigrationVersion();
 
 // ---------------------------------------------------------------------------
 // Insecure signing-key placeholders (defence-in-depth; never a real key value)
@@ -314,29 +310,26 @@ export async function checkMigrations(db: Queryable | null): Promise<PreflightCh
         .map((r) => versionPrefix(r.filename))
         .filter((v): v is string => v !== null),
     );
-    const missing = EXPECTED_MIGRATION_VERSIONS.filter((v) => !appliedVersions.has(v));
-    if (missing.length > 0) {
+    // Floor semantics: FAIL only when a REQUIRED migration is missing; a database that is
+    // AHEAD of the build's floor is still ready (rolling-deploy safe — a DB migrated ahead of
+    // the running app instance does not flip that instance to 503).
+    const readiness = evaluateMigrationReadiness(appliedVersions);
+    if (readiness.status === "FAIL") {
       return {
         name: "migrations",
         status: "FAIL",
         blocker: true,
-        detail: `missing migration version(s): ${missing.join(", ")} (need ${EXPECTED_MIGRATION_VERSIONS[0] ?? "0001"}-${CURRENT_MIGRATION_VERSION})`,
+        detail: `missing required migration version(s): ${readiness.missing.join(", ")} (required floor ${readiness.highestRequired})`,
       };
     }
-    const highest = [...appliedVersions].sort().at(-1) ?? "none";
-    if (highest !== CURRENT_MIGRATION_VERSION) {
-      return {
-        name: "migrations",
-        status: "FAIL",
-        blocker: true,
-        detail: `schema version is ${highest}, expected current ${CURRENT_MIGRATION_VERSION}`,
-      };
-    }
+    const aheadNote = readiness.databaseAheadOfBuild
+      ? ` — DATABASE_AHEAD_OF_BUILD (applied ahead: ${readiness.ahead.join(", ")}; tolerated)`
+      : "";
     return {
       name: "migrations",
       status: "PASS",
       blocker: true,
-      detail: `all ${EXPECTED_MIGRATION_VERSIONS.length} migrations applied (current ${CURRENT_MIGRATION_VERSION})`,
+      detail: `all ${requiredMigrationVersions().length} required migrations applied (current ${readiness.highestRequired})${aheadNote}`,
     };
   } catch (err) {
     return {

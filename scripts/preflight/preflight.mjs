@@ -15,20 +15,21 @@
  * Reads config from process.env, then a gitignored .env.local at repo root. Never prints a secret
  * value (no DB URL, no signing-key material). Exits non-zero if any BLOCKER check FAILs.
  */
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
+import {
+  evaluateMigrationReadiness,
+  requiredMigrationVersions,
+} from "../migration-manifest.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, "..", "..");
+const migrationsDir = join(repoRoot, "migrations");
 
-// Derived from migrations/ at runtime so a new migration never requires editing this file
-// (kept behaviourally identical to src/runtime/observability/preflight.ts).
-const EXPECTED_MIGRATION_VERSIONS = readdirSync(join(repoRoot, "migrations"))
-  .filter((f) => /^\d{4}_.*\.sql$/.test(f))
-  .map((f) => f.slice(0, 4))
-  .sort();
+// Single source of truth: migrations/manifest.json (MIGRATION_REGISTRY_SINGLE_SOURCE_V1).
+const EXPECTED_MIGRATION_VERSIONS = requiredMigrationVersions(migrationsDir);
 const CURRENT_MIGRATION_VERSION =
   EXPECTED_MIGRATION_VERSIONS[EXPECTED_MIGRATION_VERSIONS.length - 1] ?? "0000";
 const MIN_PROD_SIGNING_KEY_LENGTH = 16;
@@ -118,11 +119,10 @@ async function checkMigrations(pool) {
   try {
     const { rows } = await pool.query("SELECT filename FROM schema_migrations");
     const applied = new Set(rows.map((r) => versionPrefix(r.filename)).filter((v) => v !== null));
-    const missing = EXPECTED_MIGRATION_VERSIONS.filter((v) => !applied.has(v));
-    if (missing.length > 0) return { name: "migrations", status: "FAIL", blocker: true, detail: `missing migration version(s): ${missing.join(", ")} (need 0001-0006)` };
-    const highest = [...applied].sort().at(-1) ?? "none";
-    if (highest !== CURRENT_MIGRATION_VERSION) return { name: "migrations", status: "FAIL", blocker: true, detail: `schema version is ${highest}, expected current ${CURRENT_MIGRATION_VERSION}` };
-    return { name: "migrations", status: "PASS", blocker: true, detail: `all ${EXPECTED_MIGRATION_VERSIONS.length} migrations applied (current ${CURRENT_MIGRATION_VERSION})` };
+    const readiness = evaluateMigrationReadiness(applied, migrationsDir);
+    if (readiness.status === "FAIL") return { name: "migrations", status: "FAIL", blocker: true, detail: `missing required migration version(s): ${readiness.missing.join(", ")} (required floor ${readiness.highestRequired})` };
+    const aheadNote = readiness.databaseAheadOfBuild ? ` — DATABASE_AHEAD_OF_BUILD (ahead: ${readiness.ahead.join(", ")}; tolerated)` : "";
+    return { name: "migrations", status: "PASS", blocker: true, detail: `all ${EXPECTED_MIGRATION_VERSIONS.length} required migrations applied (current ${readiness.highestRequired})${aheadNote}` };
   } catch (err) {
     return { name: "migrations", status: "FAIL", blocker: true, detail: `could not read schema_migrations: ${err instanceof Error ? err.message : String(err)}` };
   }

@@ -32,8 +32,11 @@ import {
   resolveConnection,
   withDatabase,
 } from "./pg-lib.mjs";
+import { requiredMigrationVersions } from "../migration-manifest.mjs";
 
-const EXPECTED_VERSIONS = ["0001", "0002", "0003", "0004", "0005", "0006"];
+// Single source of truth: migrations/manifest.json (MIGRATION_REGISTRY_SINGLE_SOURCE_V1).
+const EXPECTED_VERSIONS = requiredMigrationVersions(migrationsDir);
+const HIGHEST_VERSION = EXPECTED_VERSIONS[EXPECTED_VERSIONS.length - 1] ?? "0000";
 
 // --- PG16 detection (bounded; one attempt) --------------------------------------------------
 
@@ -150,14 +153,14 @@ async function runVerification(workParts, label, log) {
   const CONTENT_TEXT = "canonical-verify text · 世界 · line2";
 
   try {
-    // 1. Migrations apply cleanly and reach 0006.
+    // 1. Migrations apply cleanly and reach the manifest's highest required version.
     const first = await applyMigrationsInline(pool);
     const ledger = await pool.query("SELECT filename FROM schema_migrations");
     const present = new Set(
       ledger.rows.map((r) => (/^(\d{4})/.exec(r.filename) || [])[1]).filter(Boolean),
     );
     const missing = EXPECTED_VERSIONS.filter((v) => !present.has(v));
-    record("migrations-apply", missing.length === 0, `applied ${first.applied}/${first.total}, reached 0006`);
+    record("migrations-apply", missing.length === 0, `applied ${first.applied}/${first.total}, reached ${HIGHEST_VERSION} (${EXPECTED_VERSIONS.length} required)`);
 
     // 2. Constraint spot-check: a blank email and a bad organization type are rejected.
     const blankEmailRejected = await expectThrow(() =>
@@ -210,6 +213,29 @@ async function runVerification(workParts, label, log) {
     );
     const survived = readBack.rows[0] && readBack.rows[0].content_text === CONTENT_TEXT;
     record("restart-read-back", Boolean(survived), "durable knowledge_content text survived a fresh connection");
+
+    // 6. Provider ledger (migration 0007): append-only provider_execution table exists, carries
+    //    NO secret/raw-content columns (token COUNTS are allowed), and forbids UPDATE/DELETE.
+    const cols = await pool.query(
+      `SELECT column_name FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'provider_execution'`,
+    );
+    const colNames = cols.rows.map((r) => String(r.column_name).toLowerCase());
+    const FORBIDDEN_LEDGER_COLS = new Set([
+      "api_key", "apikey", "secret", "token", "access_token",
+      "prompt", "response", "content", "prompt_text", "response_text", "raw_content", "content_text",
+    ]);
+    const forbiddenPresent = colNames.filter((c) => FORBIDDEN_LEDGER_COLS.has(c));
+    const trg = await pool.query(
+      `SELECT 1 FROM information_schema.triggers
+       WHERE event_object_table = 'provider_execution' AND event_manipulation IN ('UPDATE', 'DELETE')`,
+    );
+    const ledgerOk = colNames.length > 0 && forbiddenPresent.length === 0 && trg.rows.length > 0;
+    record(
+      "provider-ledger",
+      ledgerOk,
+      `provider_execution present (${colNames.length} cols), no secret/raw-content columns, append-only trigger present`,
+    );
   } finally {
     await pool.end().catch(() => {});
   }

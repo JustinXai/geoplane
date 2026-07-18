@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "migrations": [
+    { "version": "0001", "filename": "0001_tenancy_foundation.sql" },
+    { "version": "0002", "filename": "0002_knowledge_runtime.sql" },
+    { "version": "0003", "filename": "0003_geo_runtime.sql" },
+    { "version": "0004", "filename": "0004_geo_article_delivery.sql" },
+    { "version": "0005", "filename": "0005_runtime_continuity.sql" },
+    { "version": "0006", "filename": "0006_knowledge_content.sql" },
+    { "version": "0007", "filename": "0007_provider_ledger.sql" }
+  ]
+}
