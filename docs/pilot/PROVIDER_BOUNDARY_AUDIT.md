@@ -64,8 +64,8 @@ boundary emits infrastructure facts only (records.ts), not business verdicts —
 ## 4. Can the API key leak into a record / log / error / ledger row? — **NO**
 
 - The key is read lazily into a **transient per-call local**, used **only** to build the
-  `Authorization: Bearer …` header, and is never assigned to an instance field, a record, a
-  log line, or an error — `src/runtime/provider/openai-compatible-adapter.ts:11-37`,
+  outbound HTTP authorization request header, and is never assigned to an instance field, a
+  record, a log line, or an error — `src/runtime/provider/openai-compatible-adapter.ts:11-37`,
   `293-296`, `415-424`. The adapter performs no logging.
 - The observability record shapes have **no field** for a key/token/credential or for raw
   prompt/response text — `src/runtime/provider/records.ts:9-20` (whole file). `promptTokens`
