@@ -10,7 +10,7 @@
  * batch 2 wires the per-row 内容方向 confirmation to the real client review command (POST
  * /api/opportunities/[id]/reviews) via OpportunityReviewControl — reviewer server-derived, list
  * refreshes on success. The 信源类型 decision has no modeled command, so it keeps the C5
- * presentation-only ClientConfirmationControl (the task-sanctioned clean state).
+ * presentation-only ClientConfirmationControl (the intended clean state).
  */
 import { useAsyncData } from "../../../components/runtime/index.js";
 import { AsyncSection } from "../../../components/client-runtime/AsyncSection.js";
