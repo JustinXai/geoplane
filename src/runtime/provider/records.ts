@@ -9,16 +9,19 @@
  * NO SECRETS, EVER. Per docs/governance/SYSTEM_INVARIANTS_V1.md ("No customer
  * data, no secrets"): there is deliberately NO field on any record below for an
  * api key, bearer token, authorization header, or raw credential of any kind.
- * These records store only non-secret operational facts — model, token counts,
- * latency, the correlation/idempotency identifiers, and (on failure) a taxonomy
- * code. A record value can be logged or persisted wholesale without ever
- * leaking a secret, because there is nowhere in the shape to put one.
+ * These records store only non-secret operational facts — model, the canonical
+ * provider identity (closed gateway/model-vendor/protocol enums, identity.ts —
+ * never a base URL, endpoint host, or workspace id), token counts, latency, the
+ * correlation/idempotency identifiers, and (on failure) a taxonomy code. A
+ * record value can be logged or persisted wholesale without ever leaking a
+ * secret, because there is nowhere in the shape to put one.
  *
  * Also governance-free: no gate status, approval status, evidence hash, or
  * publication status appears here — a provider execution record is an
  * infrastructure fact, not a business verdict.
  */
 import type { ProviderErrorCode } from "./errors.js";
+import type { ProviderIdentity } from "./identity.js";
 
 /**
  * Token/latency usage for one successful provider call. No secret fields; no
@@ -45,6 +48,12 @@ export interface ProviderExecutionRecord {
   readonly projectId: string;
   readonly articleBriefId: string;
   readonly model: string;
+  /**
+   * Canonical Provider Identity (identity.ts): which gateway terminated the
+   * request, whose model answered, over which wire protocol. DECLARED adapter
+   * configuration — never derived from (and never carrying) the base URL.
+   */
+  readonly identity: ProviderIdentity;
   readonly outcome: "OK" | "ERROR";
   readonly latencyMs: number;
   /** Present on success, null on failure. */
@@ -73,6 +82,8 @@ export interface ProviderCallMetadata {
   readonly projectId: string;
   readonly articleBriefId: string;
   readonly model: string;
+  /** Canonical Provider Identity — closed-enum config, no URL/host/key/workspace. */
+  readonly identity: ProviderIdentity;
   readonly latencyMs: number;
 }
 
@@ -103,6 +114,7 @@ export function buildProviderSuccessRecord(
     projectId: meta.projectId,
     articleBriefId: meta.articleBriefId,
     model: meta.model,
+    identity: meta.identity,
     outcome: "OK",
     latencyMs: meta.latencyMs,
     usage,
@@ -121,6 +133,7 @@ export function buildProviderFailureRecord(
     projectId: meta.projectId,
     articleBriefId: meta.articleBriefId,
     model: meta.model,
+    identity: meta.identity,
     outcome: "ERROR",
     latencyMs: meta.latencyMs,
     usage: null,

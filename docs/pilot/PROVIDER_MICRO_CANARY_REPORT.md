@@ -12,7 +12,10 @@ read, echoed, logged, committed, or persisted by this run.
 |---|---|
 | Time (ledger created_at) | 2026-07-18 22:12:46 +08:00 |
 | Model | `deepseek-v4-flash` |
-| Provider base URL host | `ws-…maas.aliyuncs.com` (operator-configured OpenAI-compatible gateway) |
+| Gateway vendor (canonical identity) | `ALIYUN_MAAS` — the call went through the Aliyun MaaS OpenAI-compatible gateway, NOT the DeepSeek-direct API |
+| Model vendor (canonical identity) | `DEEPSEEK` |
+| Protocol (canonical identity) | `OPENAI_COMPATIBLE` |
+| Provider base URL host | `ws-…maas.aliyuncs.com` (operator-configured; elided — the full host is never persisted) |
 | Real Network Calls | **1** (fetch-guarded; a 2nd request is refused without network I/O) |
 | Provider Result | **PASS** |
 | Provider Error Code | none |
@@ -47,6 +50,13 @@ read, echoed, logged, committed, or persisted by this run.
 - Database: a throwaway `geoplane_canary` database (migrations 0001–0007 applied).
 - The real adapter (`OpenAICompatibleProviderAdapter`) + real ledger (`PgProviderLedger`) were used
   unchanged; the key lives only transiently in the outbound request header, never in a record/log.
+- Canonical Provider Identity (`src/runtime/provider/identity.ts`, added by
+  `PROVIDER_IDENTITY_LEDGER_V1`): this call was a `DEEPSEEK` model through the `ALIYUN_MAAS`
+  gateway over the `OPENAI_COMPATIBLE` protocol. Earlier prose describing it as a "DeepSeek direct
+  API" call was inaccurate and has been corrected. The ledger row above predates migration
+  `0008_provider_identity.sql`, so after the DDL backfill it reads `gateway_vendor =
+  'UNKNOWN_LEGACY'` (backfill-only marker; the row itself is never mutated by hand) — any FUTURE
+  canary row carries `ALIYUN_MAAS` / `DEEPSEEK` / `OPENAI_COMPATIBLE` declared as adapter config.
 
 ## Verdict
 

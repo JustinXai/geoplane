@@ -85,6 +85,14 @@ describe.skipIf(!RUN || testConfig === null)("SANITIZED_PROVIDER_MICRO_CANARY_V1
 
     const adapter = new OpenAICompatibleProviderAdapter({
       env: process.env,
+      // Canonical Provider Identity (identity.ts): a DeepSeek model through the
+      // Aliyun MaaS gateway over the OpenAI-compatible protocol. Declared
+      // configuration — never derived from PROVIDER_BASE_URL.
+      identity: {
+        gatewayVendor: "ALIYUN_MAAS",
+        modelVendor: "DEEPSEEK",
+        protocol: "OPENAI_COMPATIBLE",
+      },
       allowedModels: ["deepseek-v4-flash"],
       maxTokensCeiling: 1200,
       timeoutMsCeiling: 60000,
@@ -117,7 +125,7 @@ describe.skipIf(!RUN || testConfig === null)("SANITIZED_PROVIDER_MICRO_CANARY_V1
     );
     const colNames = cols.rows.map((r) => r.column_name.toLowerCase());
     const forbidden = colNames.filter((c) =>
-      ["api_key", "apikey", "secret", "token", "access_token", "prompt", "response", "content", "prompt_text", "response_text", "raw_content", "content_text"].includes(c),
+      ["api_key", "apikey", "secret", "token", "access_token", "prompt", "response", "content", "prompt_text", "response_text", "raw_content", "content_text", "base_url", "endpoint", "endpoint_host", "host", "url", "workspace_id", "workspace"].includes(c),
     );
     expect(forbidden).toEqual([]);
 
@@ -126,6 +134,9 @@ describe.skipIf(!RUN || testConfig === null)("SANITIZED_PROVIDER_MICRO_CANARY_V1
       request_id: string;
       idempotency_key: string;
       model: string;
+      gateway_vendor: string;
+      model_vendor: string;
+      protocol: string;
       status: string;
       error_code: string | null;
       prompt_tokens: number | null;
@@ -136,6 +147,10 @@ describe.skipIf(!RUN || testConfig === null)("SANITIZED_PROVIDER_MICRO_CANARY_V1
     expect(row.rows).toHaveLength(1);
     const r = row.rows[0]!;
     expect(r.model).toBe("deepseek-v4-flash");
+    // The persisted canonical identity is the declared adapter config, verbatim.
+    expect(r.gateway_vendor).toBe("ALIYUN_MAAS");
+    expect(r.model_vendor).toBe("DEEPSEEK");
+    expect(r.protocol).toBe("OPENAI_COMPATIBLE");
     expect(r.request_id).toBe(request.requestId);
     expect(r.latency_ms).not.toBeNull();
 
@@ -179,6 +194,9 @@ describe.skipIf(!RUN || testConfig === null)("SANITIZED_PROVIDER_MICRO_CANARY_V1
       JSON.stringify(
         {
           model: r.model,
+          gatewayVendor: r.gateway_vendor,
+          modelVendor: r.model_vendor,
+          protocol: r.protocol,
           providerResult: result.ok ? "PASS" : "FAIL",
           providerErrorCode: r.error_code,
           contractValidation,

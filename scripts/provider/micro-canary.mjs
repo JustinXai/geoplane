@@ -10,6 +10,12 @@
  * resolves the TypeScript adapter/ledger — with RUN_PROVIDER_CANARY=true, and prints the sanitized
  * summary the test writes (model / result / tokens / latency / ledger row — no key, prompt, or response).
  * It makes AT MOST ONE real network request (the test's fetch guard enforces this).
+ *
+ * CANONICAL PROVIDER IDENTITY (src/runtime/provider/identity.ts): any run of this canary calls a
+ * DEEPSEEK model through the ALIYUN_MAAS gateway over the OPENAI_COMPATIBLE protocol. The canary
+ * test declares exactly that identity on the adapter, and the ledger row it writes carries it as
+ * gateway_vendor / model_vendor / protocol. The identity is declared configuration — never derived
+ * from PROVIDER_BASE_URL, and no endpoint host / workspace id is ever persisted.
  */
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, rmSync } from "node:fs";
@@ -49,6 +55,7 @@ const summaryPath = join(process.env.TMPDIR || process.env.TEMP || process.env.T
 try { rmSync(summaryPath, { force: true }); } catch { /* ignore */ }
 
 console.log("micro-canary: environment validated (key present, flag ON for this process, test db, model deepseek-v4-flash).");
+console.log("micro-canary: canonical identity = gateway ALIYUN_MAAS / model vendor DEEPSEEK / protocol OPENAI_COMPATIBLE (declared config, never derived from the URL).");
 console.log(`micro-canary: base url host = ${(() => { try { return new URL(process.env.PROVIDER_BASE_URL ?? "").host; } catch { return "(unset)"; } })()}`);
 console.log("micro-canary: running the single canary via vitest (RUN_PROVIDER_CANARY=true) …");
 
