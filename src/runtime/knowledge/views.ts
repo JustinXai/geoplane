@@ -12,10 +12,12 @@ import type {
   KnowledgePackageViewV1,
 } from "../api-contracts/index.js";
 import type {
+  KnowledgeClassification,
   KnowledgeDocument,
   KnowledgeIssue,
   KnowledgePackage,
   KnowledgePackageWithCounts,
+  KnowledgeSnapshot,
   KnowledgeVersion,
 } from "./entities.js";
 import type { KnowledgeParseFormat } from "./ingestion/parsers.js";
@@ -59,6 +61,35 @@ export function toIssueView(issue: KnowledgeIssue): KnowledgeIssueViewV1 {
     severity: issue.severity,
     message: issue.message,
     resolved: issue.resolved,
+  };
+}
+
+/**
+ * Human-facing snapshot facts. Leak-free: the sealed contentHash and the client-org id are
+ * storage/tenant internals and are deliberately NOT surfaced (mirrors the ingest-result view,
+ * which likewise hides the content hash).
+ */
+export interface KnowledgeSnapshotViewV1 {
+  readonly id: string;
+  readonly packageId: string;
+  readonly snapshotNumber: number;
+  readonly documentCount: number;
+  readonly classification: KnowledgeClassification;
+  /** null = current/active snapshot; set once a newer snapshot supersedes it. */
+  readonly supersededAt: string | null;
+  readonly createdAt: string;
+}
+
+/** Map a sealed snapshot to its leak-free view. */
+export function toSnapshotView(snapshot: KnowledgeSnapshot): KnowledgeSnapshotViewV1 {
+  return {
+    id: snapshot.id,
+    packageId: snapshot.packageId,
+    snapshotNumber: snapshot.snapshotNumber,
+    documentCount: snapshot.documentCount,
+    classification: snapshot.classification,
+    supersededAt: snapshot.supersededAt,
+    createdAt: snapshot.createdAt,
   };
 }
 

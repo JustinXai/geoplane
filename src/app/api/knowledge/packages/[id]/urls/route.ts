@@ -62,12 +62,17 @@ export async function POST(
   const title =
     typeof body.title === "string" && body.title.trim() !== "" ? body.title.trim() : url;
 
-  const result = await ingestIntoPackage(rt, pkg, {
-    title,
-    filename: url,
-    contentType,
-    bytes,
-    sourceKind: "URL",
-  });
+  const result = await ingestIntoPackage(
+    rt,
+    pkg,
+    {
+      title,
+      filename: url,
+      contentType,
+      bytes,
+      sourceKind: "URL",
+    },
+    { principal, action: "knowledge.url.ingested" },
+  );
   return toHttpResponse(result);
 }

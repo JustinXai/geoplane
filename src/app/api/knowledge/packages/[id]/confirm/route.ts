@@ -5,10 +5,12 @@
  */
 import { apiErr, apiOk } from "../../../../../../runtime/api-contracts/index.js";
 import { toHttpResponse } from "../../../../../../runtime/auth/http.js";
+import { recordKnowledgeAudit } from "../../../../../../runtime/knowledge/audit.js";
 import {
   requireOwnedPackage,
   requirePrincipal,
 } from "../../../../../../runtime/knowledge/http-guards.js";
+import { PgKnowledgePackageRepository } from "../../../../../../runtime/knowledge/pg/package-repository.js";
 import { getKnowledgeRuntime } from "../../../../../../runtime/knowledge/runtime-context.js";
 import { toPackageView } from "../../../../../../runtime/knowledge/views.js";
 
@@ -30,7 +32,18 @@ export async function POST(
   if ("response" in pkgGuard) return pkgGuard.response;
   const pkg = pkgGuard.value;
 
-  await rt.knowledge.packages.confirm(pkg.id, principal.userId);
+  // Confirm the package AND record its audit event in ONE transaction, so a failed audit rolls
+  // the confirmation back — a confirmed package always has its AuditEvent, and vice versa.
+  await rt.db.transaction(async (tx) => {
+    await new PgKnowledgePackageRepository(tx).confirm(pkg.id, principal.userId);
+    await recordKnowledgeAudit(tx, principal, {
+      action: "knowledge_package.confirmed",
+      clientOrganizationId: pkg.clientOrganizationId,
+      projectId: pkg.projectId,
+      targetType: "knowledge_package",
+      targetId: pkg.id,
+    });
+  });
 
   const withCounts = await rt.knowledge.packages.getWithCounts(
     pkg.id,

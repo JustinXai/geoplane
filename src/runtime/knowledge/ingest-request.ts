@@ -6,9 +6,10 @@
  */
 import type { ApiResponseV1 } from "../api-contracts/index.js";
 import { apiErr, apiOk } from "../api-contracts/index.js";
+import { recordKnowledgeAudit } from "./audit.js";
 import type { KnowledgePackage } from "./entities.js";
 import type { KnowledgeDocumentSourceKind } from "./entities.js";
-import type { KnowledgeRuntime } from "./runtime-context.js";
+import type { KnowledgePrincipal, KnowledgeRuntime } from "./runtime-context.js";
 import {
   toDocumentView,
   toPackageView,
@@ -24,15 +25,28 @@ export interface IngestRequestInput {
   readonly sourceKind: KnowledgeDocumentSourceKind;
 }
 
+/** How to attribute + name the AuditEvent an ingest emits (KNOWLEDGE_AUDIT_CLOSURE_V1). */
+export interface IngestAudit {
+  /** Server-derived actor (the resolved session), never request input. */
+  readonly principal: KnowledgePrincipal;
+  /** e.g. "knowledge.document.ingested" (file) or "knowledge.url.ingested" (url). */
+  readonly action: string;
+}
+
 /**
  * Ingest `input` into `pkg` and produce the response envelope. An out-of-scope input is not fatal:
  * the ingestion service returns a SKIPPED result which we surface (still 200) with its warnings,
  * so a single bad upload never blocks the caller.
+ *
+ * On a real INGESTED result — and only then — exactly one AuditEvent is appended for the appended
+ * document/version, attributed to `audit.principal` and scoped to the package's tenant. A SKIPPED
+ * result persists no version, so it emits no audit.
  */
 export async function ingestIntoPackage(
   rt: KnowledgeRuntime,
   pkg: KnowledgePackage,
   input: IngestRequestInput,
+  audit: IngestAudit,
 ): Promise<ApiResponseV1<KnowledgeIngestResultViewV1>> {
   const result = await rt.ingestion.ingest({
     clientOrganizationId: pkg.clientOrganizationId,
@@ -69,6 +83,21 @@ export async function ingestIntoPackage(
       package: packageView,
     });
   }
+
+  // Persist exactly one AuditEvent for the appended document/version (same request as the write).
+  await recordKnowledgeAudit(rt.db, audit.principal, {
+    action: audit.action,
+    clientOrganizationId: pkg.clientOrganizationId,
+    projectId: pkg.projectId,
+    targetType: "knowledge_document",
+    targetId: result.document.id,
+    metadata: {
+      sourceKind: input.sourceKind,
+      format: result.format,
+      documentId: result.document.id,
+      versionNumber: result.version.versionNumber,
+    },
+  });
 
   return apiOk<KnowledgeIngestResultViewV1>({
     outcome: "INGESTED",
