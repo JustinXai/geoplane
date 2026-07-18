@@ -1,0 +1,217 @@
+# ---------------------------------------------------------------------------
+# POSTGRESQL16_REMOTE_CI_GATE_V1 — closed-pilot PostgreSQL 16 release gate
+#
+# Safety invariants (release-blocking; auditors can grep this file):
+#   * NO repository secrets are read anywhere in this workflow (the GitHub
+#     secrets context is never used) and no provider API key of any kind is
+#     present, referenced, or required.
+#   * The ONLY credentials below are one-off, throwaway CI values for the
+#     job-scoped postgres:16 service container that is destroyed when each
+#     job ends (user geoplane_ci / password ci_only_not_secret). They are
+#     intentionally public, throwaway values — not secret material.
+#   * PROVIDER_RUNTIME_ENABLED is "false" in every job: zero real provider /
+#     network model calls can occur in CI. The provider-canary opt-in env
+#     flag is intentionally NOT set anywhere in this file, so the flag-gated
+#     canary test remains skipped.
+#   * SESSION_SIGNING_KEY_CURRENT is a clearly-fake, CI-only constant.
+#   * No .env files are created and no credential values are echoed.
+#   * Gate logic lives in scripts/ci/*.mjs (frozen CLI contract with the
+#     repeatability workstream, branch ci/repeatability-v1); this YAML stays
+#     thin and every step fails loudly (no soft-fail options, no error
+#     suppression).
+# ---------------------------------------------------------------------------
+name: closed-pilot-postgres16
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - integration/closed-pilot-rc-ci-v1
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+env:
+  # Hard safety default for every job; re-asserted per job below.
+  PROVIDER_RUNTIME_ENABLED: "false"
+  # Clearly-fake CI-only signing key (NOT a secret) so any code path that
+  # fails closed on a missing session key can run in CI.
+  SESSION_SIGNING_KEY_CURRENT: ci-only-session-signing-key-not-secret-0001
+
+jobs:
+  static-gates:
+    name: static-gates
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      PROVIDER_RUNTIME_ENABLED: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Security scan
+        run: npm run security-scan
+
+      - name: Repo safety preflight
+        run: npm run repo:safety:preflight
+
+      - name: Build web
+        run: npm run build:web
+
+  postgres16-gates:
+    name: postgres16-gates
+    runs-on: ubuntu-latest
+    needs: static-gates
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: geoplane_ci
+          POSTGRES_PASSWORD: ci_only_not_secret
+          POSTGRES_DB: geoplane_ci_runtime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U geoplane_ci -d geoplane_ci_runtime"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PROVIDER_RUNTIME_ENABLED: "false"
+      SESSION_SIGNING_KEY_CURRENT: ci-only-session-signing-key-not-secret-0001
+      # Admin connection for database creation (geoplane_ci is the service
+      # container superuser). CI-only throwaway credential — not a secret.
+      GEO_CI_ADMIN_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/geoplane_ci_runtime
+      # Three isolated CI databases (runtime / test / canary roles).
+      GEO_DATABASE_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/geoplane_ci_runtime
+      GEO_TEST_DATABASE_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/geoplane_ci_test
+      GEO_CANARY_DATABASE_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/geoplane_ci_canary
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Wait for PostgreSQL service
+        run: |
+          for i in $(seq 1 30); do
+            if pg_isready -h localhost -p 5432 -U geoplane_ci; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "PostgreSQL service did not become ready in time" >&2
+          exit 1
+
+      - name: Create isolated CI databases
+        run: node scripts/ci/create-isolated-databases.mjs
+
+      - name: Verify server is PostgreSQL 16.x
+        run: node scripts/ci/postgres16-verify.mjs
+
+      - name: Run database gates
+        run: node scripts/ci/run-database-gates.mjs
+
+  backup-restore-gates:
+    name: backup-restore-gates
+    runs-on: ubuntu-latest
+    needs: postgres16-gates
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: geoplane_ci
+          POSTGRES_PASSWORD: ci_only_not_secret
+          POSTGRES_DB: geoplane_ci_runtime
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U geoplane_ci -d geoplane_ci_runtime"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PROVIDER_RUNTIME_ENABLED: "false"
+      SESSION_SIGNING_KEY_CURRENT: ci-only-session-signing-key-not-secret-0001
+      GEO_CI_ADMIN_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/geoplane_ci_runtime
+      GEO_DATABASE_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/geoplane_ci_runtime
+      GEO_TEST_DATABASE_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/geoplane_ci_test
+      GEO_CANARY_DATABASE_URL: postgresql://geoplane_ci:ci_only_not_secret@localhost:5432/geoplane_ci_canary
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install PostgreSQL 16 client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client-16
+          echo "/usr/lib/postgresql/16/bin" >> "$GITHUB_PATH"
+
+      - name: Verify pg_dump / pg_restore major version is 16
+        run: |
+          pg_dump --version
+          pg_restore --version
+          pg_dump --version | grep -E 'pg_dump \(PostgreSQL\) 16\.'
+          pg_restore --version | grep -E 'pg_restore \(PostgreSQL\) 16\.'
+
+      - name: Wait for PostgreSQL service
+        run: |
+          for i in $(seq 1 30); do
+            if pg_isready -h localhost -p 5432 -U geoplane_ci; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "PostgreSQL service did not become ready in time" >&2
+          exit 1
+
+      # Fresh runner + fresh service container: recreate the isolated CI
+      # databases before the backup/restore gate runs against them.
+      - name: Create isolated CI databases
+        run: node scripts/ci/create-isolated-databases.mjs
+
+      - name: Run backup/restore gate
+        run: node scripts/ci/run-backup-restore-gate.mjs
+
+      - name: Generate CI evidence
+        run: node scripts/ci/generate-ci-evidence.mjs
+
+      - name: Upload evidence artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: postgres16-gate-evidence
+          path: artifacts/ci/postgres16-gate.json
+          if-no-files-found: error
