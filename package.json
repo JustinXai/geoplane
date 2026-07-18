@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.20.1",
+    "@types/pdf-parse": "^1.1.5",
     "@types/pg": "^8.20.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
@@ -24,7 +25,9 @@
     "vitest": "^4.1.10"
   },
   "dependencies": {
+    "mammoth": "^1.12.0",
     "next": "^16.2.10",
+    "pdf-parse": "^1.1.4",
     "pg": "^8.22.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
