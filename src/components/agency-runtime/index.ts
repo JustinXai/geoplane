@@ -5,6 +5,7 @@
  */
 export {
   getAgencyClients,
+  getAgencyPortfolio,
   setAgencyContext,
   listAgencyProjects,
   listClientDeliveries,
@@ -44,3 +45,4 @@ export type { AgencyAsyncViewProps } from "./AgencyAsyncView.js";
 export { AgencyWorkspaceNav } from "./AgencyWorkspaceNav.js";
 export { AgencyUnavailable } from "./AgencyUnavailable.js";
 export type { AgencyUnavailableProps } from "./AgencyUnavailable.js";
+export { opportunityStatusLabel, deliveryStatusLabel, dateLabel } from "./display.js";

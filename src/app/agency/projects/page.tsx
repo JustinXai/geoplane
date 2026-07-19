@@ -64,15 +64,14 @@ export default function AgencyClientProjectsPage() {
           groupByClient(projects).map((group) => (
             <section className="cp-section" key={group.clientOrganizationId}>
               <h2>
-                {group.clientOrganizationName}{" "}
-                <span className="cp-list-meta">（{group.clientOrganizationId}）</span>
+                {group.clientOrganizationName}
               </h2>
               <ul className="cp-list">
                 {group.projects.map((project) => (
                   <li className="cp-list-row" key={project.id}>
                     <span className="cp-list-title">{project.name}</span>
                     <span className="cp-list-meta">
-                      项目编号 {project.id} · 创建于 {project.createdAt}
+                      创建于 {new Date(project.createdAt).toLocaleDateString("zh-CN")}
                     </span>
                   </li>
                 ))}

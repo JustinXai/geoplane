@@ -16,6 +16,8 @@ import {
   isAggregateEmpty,
   listClientDeliveries,
   loadAgencyProjectReads,
+  deliveryStatusLabel,
+  dateLabel,
 } from "@/components/agency-runtime";
 import type { ArticleDeliveryViewV1 } from "@/runtime/api-contracts";
 
@@ -32,7 +34,7 @@ export default function AgencyDeliveryPackagesPage() {
       <header className="cp-page-header">
         <div>
           <p className="eyebrow">代理商工作台</p>
-          <h1>交付包</h1>
+          <h1>交付管理</h1>
           <span>授权客户项目的交付内容只读预览；不触发任何自动发布。</span>
         </div>
       </header>
@@ -55,8 +57,8 @@ export default function AgencyDeliveryPackagesPage() {
                   <li className="cp-list-row" key={delivery.id}>
                     <span className="cp-list-title">{delivery.title}</span>
                     <span className="cp-list-meta">
-                      状态：{delivery.status} · 交付时间：{delivery.deliveredAt ?? "未交付"} ·
-                      发布登记：{delivery.publicationRegisteredAt ?? "未登记"}
+                      状态：{deliveryStatusLabel(delivery.status)} · 交付时间：{dateLabel(delivery.deliveredAt)} ·
+                      发布回执：{delivery.publicationRegisteredAt === null ? "未登记" : dateLabel(delivery.publicationRegisteredAt)}
                     </span>
                   </li>
                 ))}

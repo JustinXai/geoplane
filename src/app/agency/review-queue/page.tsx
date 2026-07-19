@@ -16,6 +16,7 @@ import {
   isAggregateEmpty,
   listClientReviewQueue,
   loadAgencyProjectReads,
+  opportunityStatusLabel,
 } from "@/components/agency-runtime";
 import type { OpportunityViewV1 } from "@/runtime/api-contracts";
 
@@ -55,7 +56,7 @@ export default function AgencyReviewQueuePage() {
                   <li className="cp-list-row" key={opportunity.id}>
                     <span className="cp-list-title">{opportunity.title}</span>
                     <span className="cp-list-meta">
-                      状态：{opportunity.status} · 创建于 {opportunity.createdAt}
+                      状态：{opportunityStatusLabel(opportunity.status)} · 创建于 {new Date(opportunity.createdAt).toLocaleString("zh-CN")}
                     </span>
                     <span className="cp-list-summary">{opportunity.summary}</span>
                   </li>

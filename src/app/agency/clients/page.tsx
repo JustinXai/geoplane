@@ -33,9 +33,10 @@ export default function AgencyClientsPage() {
   const { state } = useAsyncData<AgencyClientPortfolioViewV1>(() => getAgencyClients(), {
     isEmpty: isPortfolioEmpty,
   });
-  const { setActingContext } = useActingContext();
+  const { context, setActingContext } = useActingContext();
 
   const [query, setQuery] = useState("");
+  const [reviewFilter, setReviewFilter] = useState<"ALL" | "OPEN" | "CLEAR">("ALL");
   const [pending, setPending] = useState(false);
   const [actingError, setActingError] = useState<
     { readonly code: ApiErrorCodeV1; readonly message: string } | undefined
@@ -74,8 +75,8 @@ export default function AgencyClientsPage() {
       <header className="cp-page-header">
         <div>
           <p className="eyebrow">代理商工作台</p>
-          <h1>客户</h1>
-          <span>仅显示当前有效分配（ACTIVE）中的客户；选择客户后可代其查看内容。</span>
+          <h1>授权客户</h1>
+          <span>仅显示当前有效授权中的客户；选择后进入代客户查看模式。</span>
         </div>
       </header>
 
@@ -95,7 +96,10 @@ export default function AgencyClientsPage() {
         empty={<p className="cp-list-row cp-list-empty">尚无授权客户 - 暂无任何有效分配。</p>}
       >
         {(portfolio) => {
-          const clients = filterAuthorizedClients(portfolio, query);
+          const searched = filterAuthorizedClients(portfolio, query);
+          const clients = searched.filter((client) =>
+            reviewFilter === "ALL" ? true : reviewFilter === "OPEN" ? client.openReviewCount > 0 : client.openReviewCount === 0,
+          );
           return (
             <section className="cp-section">
               <label className="cp-field">
@@ -104,18 +108,23 @@ export default function AgencyClientsPage() {
                   className="cp-input"
                   type="search"
                   value={query}
-                  placeholder="按客户名称或编号搜索"
+                  placeholder="按客户名称搜索"
                   onChange={(e) => setQuery(e.target.value)}
                   aria-label="搜索客户"
                 />
+              </label>
+              <label className="cp-field">
+                <span className="cp-field-label">审核状态</span>
+                <select className="cp-input" value={reviewFilter} onChange={(event) => setReviewFilter(event.target.value as "ALL" | "OPEN" | "CLEAR")}>
+                  <option value="ALL">全部客户</option><option value="OPEN">有待审核事项</option><option value="CLEAR">暂无待审核事项</option>
+                </select>
               </label>
               <ul className="cp-list">
                 {clients.map((client) => (
                   <li className="cp-list-row" key={client.clientOrganizationId}>
                     <span className="cp-list-title">{client.clientOrganizationName}</span>
                     <span className="cp-list-meta">
-                      编号 {client.clientOrganizationId} · 项目 {client.projectCount} 个 · 待审核{" "}
-                      {client.openReviewCount} 项
+                      项目 {client.projectCount} 个 · 待审核 {client.openReviewCount} 项
                     </span>
                     <button
                       type="button"
@@ -123,8 +132,12 @@ export default function AgencyClientsPage() {
                       disabled={pending}
                       onClick={() => selectClient(portfolio, client.clientOrganizationId)}
                     >
-                      代此客户查看
+                      进入代操作视图
                     </button>
+                    <button type="button" className="cp-button" disabled={pending} onClick={() => setActingContext(null)}>
+                      进入只读视图
+                    </button>
+                    {context?.actingClientOrganizationId === client.clientOrganizationId ? <span className="cp-list-meta">当前操作客户</span> : null}
                   </li>
                 ))}
                 {clients.length === 0 ? (

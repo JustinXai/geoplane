@@ -26,6 +26,7 @@ import type {
 // It lives in the auth runtime, not the frozen contracts barrel; a type-only import is fully
 // erased at build time, so no server module is pulled into the client bundle.
 import type { AgencyActingContextV1 } from "../../runtime/auth/auth-service.js";
+import type { AgencyPortfolioSummary } from "../../runtime/agency-delivery/contracts.js";
 import { type ApiClient, defaultApiClient, type Result } from "../../lib/api-client/index.js";
 
 export type { AgencyActingContextV1 };
@@ -46,6 +47,16 @@ export function getAgencyClients(
   client: ApiClient = defaultApiClient,
 ): Promise<Result<AgencyClientPortfolioViewV1>> {
   return client.request<AgencyClientPortfolioViewV1>("/api/agency/clients");
+}
+
+export async function getAgencyPortfolio(
+  client: ApiClient = defaultApiClient,
+): Promise<Result<AgencyPortfolioSummary>> {
+  const authorized = await getAgencyClients(client);
+  if (!authorized.ok) return authorized;
+  return client.request<AgencyPortfolioSummary>(
+    `/api/agency-delivery/portfolio?agencyOrganizationId=${enc(authorized.data.agencyOrganizationId)}`,
+  );
 }
 
 // --- Acting-for-client context ---------------------------------------------
