@@ -17,3 +17,27 @@
 - Current blockers: persistent gitignored `.env.local` not yet configured; Supervisor first pass BLOCKED on credentialless login, request-body actor spoofing, generic restore target, and local-only safety messaging; real DB functional/restart/rotation/restore E2E not yet rerun on the new topology.
 - Next step: integrate B2, C2, and D2 in order, add package shortcuts, persist secret-safe local configuration, then execute real local gates and final Supervisor review.
 - `REMOTE_WRITE_ATTEMPTS = 0`
+
+## Checkpoint 2 — 2026-07-19T10:36:00+08:00
+
+- Integration SHA before this progress commit: `3b98d766befee58d210339c25011c49c8de54e21`.
+- Agent B: B2 merged — Provider ON is blocking, destructive test targets require exact loopback `geoplane_local_test`, local configuration is atomic/secret-safe, repo safety is remote-independent.
+- Agent C: C2 merged — scrypt credential verification, non-enumerating 401, session-derived distribution/publication actors, migration `0009`, and idempotent sanitized runtime seed.
+- Agent D: D2 merged — exact runtime backup, SHA-256 manifest, allowlisted fresh restore, hashed business readback, and force/URL/runtime-target refusal.
+- Agent E / Agent A: local npm shortcuts, backup auto-discovery, operator docs, and contained loopback HTTP cookie posture completed.
+- Database: runtime/test/canary are exact, loopback, separate, non-superuser, and migration manifest 9/9. Restore verification database exists with business summary hash equal to the runtime backup manifest.
+- Sanitized runtime seed: PASS twice with stable counts — users 3, organizations 3, active memberships 3, active assignments 1, projects 1.
+- Three-role real network login: Platform 200, Agency 200, Client 200; each authenticated `/api/account` read returned 200.
+- Functional pilot: PASS over real route handlers/PostgreSQL/signed sessions/authorization; knowledge, review, article, delivery, audit and offline content evidence present; real customer rows 0; automatic publications 0; Provider executions 0.
+- Restart/session rotation/backup-restore suite: 3/3 PASS.
+- Local recovery drill focused suite: PASS after cross-branch credential fixture reconciliation.
+- Full tests: PASS — 96 files passed, 1 intentionally skipped Provider micro-canary file; 951 tests passed, 1 intentionally skipped Provider micro-canary test.
+- Typecheck: PASS.
+- Build: PASS.
+- Security scan: PASS.
+- Repo safety: PASS (local-only, no upstream, no remote inspection).
+- Health: live 200; ready 200; managed app currently running only on `127.0.0.1:3000` pending the final required stop.
+- Debug Loop Breaker: the earlier `.next` parallel build race entered Fresh Reviewer ROOT_CAUSE_MODE and was eliminated by sequential build/typecheck. Manual login diagnosis entered Fresh Reviewer ROOT_CAUSE_MODE after two harness failures; root cause was production Secure cookie over loopback HTTP, closed by an exact four-flag loopback-only exception while preserving HttpOnly/SameSite/CSRF and normal production/staging Secure behavior.
+- Open blocker pending final classification: Supervisor must review the contained loopback HTTP cookie exception and final integration state.
+- Next step: final Supervisor audit, final gates, safe stop, final report, and Git bundle.
+- `REMOTE_WRITE_ATTEMPTS = 0`
