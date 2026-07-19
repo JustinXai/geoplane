@@ -37,3 +37,4 @@ export { loadPlatformDirectory, organizationCount, activeProjectCount, recentBus
 export type { PlatformDirectoryReadModel } from "./platform-read-model.js";
 export { OpsOrganizationDirectoryPage, OpsProjectsPageView } from "./OpsDirectoryPage.js";
 export { CapabilityGapScreen } from "./CapabilityGapScreen.js";
+export { OpsKeywordWorkspace } from "./OpsKeywordWorkspace.js";
