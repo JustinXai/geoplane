@@ -46,3 +46,4 @@ export { AgencyWorkspaceNav } from "./AgencyWorkspaceNav.js";
 export { AgencyUnavailable } from "./AgencyUnavailable.js";
 export type { AgencyUnavailableProps } from "./AgencyUnavailable.js";
 export { opportunityStatusLabel, deliveryStatusLabel, dateLabel } from "./display.js";
+export { AuthorizedProjectWorkspace } from "./AuthorizedProjectWorkspace.js";
