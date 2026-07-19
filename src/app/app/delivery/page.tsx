@@ -26,8 +26,8 @@ export default function DeliveryCenterPage() {
       <header className="cp-page-header">
         <div>
           <p className="eyebrow">客户工作台</p>
-          <h1>交付中心</h1>
-          <span>每一篇内容的交付状态。</span>
+          <h1>交付与报告</h1>
+          <span>查看每一篇内容的真实交付状态与发布登记。</span>
         </div>
       </header>
       <p className="cp-callout" role="note">

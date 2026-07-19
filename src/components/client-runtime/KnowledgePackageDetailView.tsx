@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useAsyncData } from "../runtime/index.js";
 import { AsyncSection } from "./AsyncSection.js";
 import { KnowledgePackageConfirm } from "./KnowledgePackageConfirm.js";
+import { KnowledgeFileUpload } from "./KnowledgeFileUpload.js";
 import { loadKnowledgeIssues, loadKnowledgePackage } from "./endpoints.js";
 import {
   isEmptyArray,
@@ -65,6 +66,7 @@ export function KnowledgePackageDetailView({ packageId }: { packageId: string })
           </AsyncSection>
         </div>
       </header>
+      <KnowledgeFileUpload packageId={packageId} onUploaded={handleConfirmed} />
       <section aria-label="质量问题">
         <h2>质量问题</h2>
         <AsyncSection

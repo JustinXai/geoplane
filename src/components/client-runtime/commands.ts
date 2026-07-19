@@ -87,3 +87,34 @@ export function confirmKnowledgePackage(
     { method: "POST" },
   );
 }
+
+export interface KnowledgeFileUploadInput {
+  readonly packageId: string;
+  readonly file: File;
+  readonly title?: string;
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (let offset = 0; offset < bytes.length; offset += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(offset, offset + 8192));
+  }
+  return btoa(binary);
+}
+
+/** Uploads a user-selected file to an already authorized knowledge package. */
+export async function uploadKnowledgeFile(
+  input: KnowledgeFileUploadInput,
+  client: ApiClient = defaultApiClient,
+): Promise<Result<unknown>> {
+  const contentBase64 = bytesToBase64(new Uint8Array(await input.file.arrayBuffer()));
+  return client.request<unknown>(`/api/knowledge/packages/${enc(input.packageId)}/files`, {
+    method: "POST",
+    body: {
+      filename: input.file.name,
+      contentType: input.file.type || "application/octet-stream",
+      contentBase64,
+      ...(input.title?.trim() ? { title: input.title.trim() } : {}),
+    },
+  });
+}

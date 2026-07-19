@@ -41,13 +41,13 @@ export function AsyncSection<T>(props: AsyncSectionProps<T>): ReactNode {
     case "forbidden":
       return (
         <p className="cp-callout" role="alert">
-          无访问权限：{state.message}
+          {state.code === "UNAUTHENTICATED" ? "登录状态已失效，请重新登录。" : "无权访问当前客户或项目的数据。"}
         </p>
       );
     case "error":
       return (
         <p className="cp-callout" role="alert">
-          加载失败：{state.message}
+          加载失败：{state.code === "NOT_FOUND" ? "未找到对应业务数据。" : state.code === "CONFLICT" ? "数据已发生变化，请刷新后重试。" : state.code === "VALIDATION_FAILED" ? "请求内容不符合要求。" : "系统暂时无法完成请求。"}
           {props.onRetry ? (
             <button type="button" className="cp-confirm-button" onClick={props.onRetry}>
               重试

@@ -101,13 +101,13 @@ export function WriteActionFeedback({ state, successLabel }: WriteActionFeedback
     case "forbidden":
       return (
         <p className="cp-callout" role="alert">
-          无操作权限：{state.message}
+          {state.code === "UNAUTHENTICATED" ? "登录状态已失效，请重新登录。" : "无权对当前客户或项目执行此操作。"}
         </p>
       );
     case "error":
       return (
         <p className="cp-callout" role="alert">
-          提交失败：{state.message}
+          提交失败：{state.code === "CONFLICT" ? "数据已发生变化，请刷新后重试。" : state.code === "VALIDATION_FAILED" ? "提交内容不符合要求，请检查后重试。" : "系统暂时无法完成请求。"}
         </p>
       );
   }
