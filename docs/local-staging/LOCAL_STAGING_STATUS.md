@@ -1,89 +1,60 @@
-# LOCAL CLOSED-PILOT STAGING STATUS — FIRST SUPERVISOR REVIEW
+# LOCAL CLOSED-PILOT STAGING STATUS — FINAL SUPERVISOR REVIEW
 
-Status snapshot: 2026-07-19 (Asia/Shanghai)
+Reviewed integration SHA: `ccc2f89f436b46a2bc7f09b82f4e6de7aba04c34`
 
-Supervisor decision: **BLOCKED**
+Supervisor decision: **PASS_WITH_CHANGES**
 
 `REMOTE_WRITE_ATTEMPTS = 0`
 
-## Local branch snapshot
+## Final gate status
 
-| Branch | Reviewed SHA | First-round status |
-| --- | --- | --- |
-| `main` | `cfb230f1565600ae95c2fd1b78ee92086b498095` | Baseline only |
-| `local/environment-runtime-v1` | `cfb230f1565600ae95c2fd1b78ee92086b498095` | BLOCKED — no committed delta |
-| `local/functional-pilot-v1` | `fb1423e541d55dd0e8d1da77f70960d69ae27b4c` | PASS_WITH_CHANGES at static design level; dynamic result NOT_VERIFIED |
-| `local/operator-tooling-v1` | `fd4a49a81c271ec8fc0c33b1cf97da8b2d4abde8` | Documentation present; operational claims remain NOT_VERIFIED |
-| `local/recovery-drill-v1` | `cfb230f1565600ae95c2fd1b78ee92086b498095` | BLOCKED — no committed delta |
-| `local/closed-pilot-staging-v1` | `cfb230f1565600ae95c2fd1b78ee92086b498095` | BLOCKED — no integrated delta at snapshot |
-
-The local release tag `closed-pilot-rc-ci-v1-2026-07-19` already exists and was not recreated or changed.
-
-## Gate status
-
-| Gate | Result |
+| Gate | Status |
 | --- | --- |
-| `npm run local:preflight` | BLOCKED — command not committed at snapshot |
-| `npm run local:start` | BLOCKED — command not committed at snapshot |
-| `npm run local:status` | BLOCKED — command not committed at snapshot |
-| `npm run local:stop` | BLOCKED — command not committed at snapshot |
-| Health live | NOT_VERIFIED |
-| Health ready | NOT_VERIFIED |
-| Platform login | BLOCKED — email-only impersonation |
-| Agency login | BLOCKED — email-only impersonation |
-| Client login | BLOCKED — email-only impersonation |
-| Three-role business chain | STATIC_PRESENT; execution NOT_VERIFIED |
-| Tenant isolation | STATIC_PRESENT; execution NOT_VERIFIED |
-| Agency assignment isolation | STATIC_PRESENT; execution NOT_VERIFIED |
-| Audit actor integrity | BLOCKED — request-controlled plan/receipt actors |
-| Automatic human review | STATIC_OFF; execution NOT_VERIFIED |
-| Automatic article approval | STATIC_OFF; execution NOT_VERIFIED |
-| Automatic publication | BLOCKED — actor binding is insufficient |
-| Default selected channel count | STATIC_ZERO; execution NOT_VERIFIED |
-| Restart E2E | BLOCKED — recovery implementation not committed |
-| Session rotation E2E | BLOCKED — recovery implementation not committed |
-| Backup/restore E2E | BLOCKED — required local drill not committed |
-| Typecheck | NOT_VERIFIED for reviewed integration |
-| Full tests | NOT_VERIFIED |
-| Build | NOT_VERIFIED; build-race attempts are invalid evidence |
-| Security scan | NOT_VERIFIED |
-| Repo safety | BLOCKED — existing script conflicts with local-only posture |
-| Provider real calls this stage | NOT_VERIFIED from local static evidence; Supervisor calls = 0 |
-| Historical Provider call count | Declared as 1 by stage instruction; not independently re-executed |
+| Exact loopback runtime/test/canary | PASS |
+| Database role separation | PASS — supplied evidence, non-superuser |
+| Migrations | PASS — 9/9 |
+| Local preflight | PASS |
+| Health live / ready | PASS — 200 / 200 while managed app running |
+| Platform / Agency / Client network login | PASS — 200 each |
+| Authenticated account reads | PASS — 200 each |
+| Sanitized seed | PASS; idempotent stable counts |
+| Functional pilot | PASS |
+| Provider executions | PASS — 0 |
+| Real customer rows | PASS — 0 |
+| Automatic publication | PASS — 0 |
+| Tenant isolation | PASS |
+| Agency assignment isolation | PASS |
+| Audit actor integrity | PASS |
+| Restart / rotation / backup-restore | PASS — 3/3 |
+| Restore verification data present | PASS — supplied evidence |
+| Full tests | PASS — 951; only forbidden real Provider micro-canary skipped |
+| Typecheck | PASS |
+| Build | PASS |
+| Security scan | PASS |
+| Repo safety | PASS — remote-independent, no upstream |
+| Final safe stop | NOT_YET_VERIFIED |
+| Post-stop port release/data persistence/Provider OFF | NOT_YET_VERIFIED |
 
-## Blocking issues
+## Security disposition
 
-1. Environment runtime branch has no committed preflight/start/status/stop/reset implementation.
-2. Recovery branch has no committed restart/session-rotation/backup/restore verification implementation.
-3. Login accepts email without credential verification.
-4. Distribution and publication actor fields can be forged independently of the session actor.
-5. General DB test configuration does not fail closed on exact local test database identity.
-6. Generic restore can target `geoplane_local_runtime` with `--force`.
-7. Existing provider preflight treats Provider ON as a warning rather than a blocker.
-8. Existing repo safety preflight requires/prints origin and recommends push.
-9. No live environment or dynamic local gate has been verified by the Supervisor.
+The critical first-round blockers are closed: credential login is scrypt-backed and
+non-enumerating; distribution/publication actors bind to the session; destructive test database
+selection is exact and loopback-only; restore is fresh-target allowlisted and cannot clear runtime;
+Provider runtime is explicitly OFF; repo safety performs no remote inspection; and the production
+cookie exception is limited to the exact four-flag managed loopback posture while preserving
+HttpOnly, SameSite, CSRF, and normal production/staging Secure behavior.
 
-## Build-race handling
+## Residual operating constraint
 
-Two failures were reported from the same scheduling/re-entrancy issue: a parallel build/typecheck caused `.next/types` instability, then an immediate second build encountered the first build still running. This is now `ROOT_CAUSE_MODE`.
+The four-flag insecure-cookie exception is accepted only through the managed launcher bound to
+`127.0.0.1`; do not reuse it with a direct or non-loopback start. The previously identified repo
+safety and Provider child-environment defense gaps are closed at this reviewed SHA.
 
-Read-only review later found no Next build process and no `.next` lock in the integration worktree. No process or lock was removed. The safe next execution sequence is strictly serial:
+## Exact next single action
 
-1. Preserve and classify the first build's final result/log.
-2. Confirm no Next build process and no lock.
-3. Run exactly one `build:web` to completion.
-4. Only after it exits, run `typecheck`.
+Run the managed safe stop, then verify process exit, port release, runtime-data persistence, and
+Provider runtime still OFF. If those checks pass, update the final staging report and create the
+final local bundle. Do not merge to `main`, push, contact GitHub, call a real Provider, or deploy.
 
-Neither prior failed attempt may be reported as PASS.
-
-## Exact next integration actions
-
-1. Integrate only committed local branch SHAs and record them.
-2. Close the credentialless-login and actor-spoofing blockers with focused negative HTTP tests.
-3. Add exact loopback database guards to all destructive local test/restore entry points.
-4. Complete local lifecycle and recovery workstreams.
-5. Replace the remote-oriented repo safety behavior for this stage.
-6. Run all gates sequentially and record failures as FAIL/BLOCKED, never inferred PASS.
-7. Request final Supervisor review against one fixed integration SHA.
-
-No merge to `main`, remote write, Provider call, deployment, or real customer access is authorized.
+Current decision remains `PASS_WITH_CHANGES` solely because the required final stop and post-stop
+checks had not occurred at audit time. No unknown item is represented as PASS.

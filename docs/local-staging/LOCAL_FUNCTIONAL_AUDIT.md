@@ -1,84 +1,52 @@
-# LOCAL FUNCTIONAL AUDIT — FIRST READ-ONLY REVIEW
+# LOCAL FUNCTIONAL AUDIT — FINAL FIXED-SHA REVIEW
 
-Audit scope: static review of the three-role pilot and existing authorization/publication behavior.
+Reviewed integration SHA: `ccc2f89f436b46a2bc7f09b82f4e6de7aba04c34`
 
-Decision: **BLOCKED**
+Decision: **PASS_WITH_CHANGES**
 
 `REMOTE_WRITE_ATTEMPTS = 0`
 
-## Reviewed functional delta
+## Final capability matrix
 
-`local/functional-pilot-v1` was reviewed at `fb1423e541d55dd0e8d1da77f70960d69ae27b4c`.
-
-Changed files:
-
-- `scripts/local/functional-pilot.mjs`
-- `tests/local-staging/functional-pilot-runner.test.ts`
-
-The runner wraps the existing `tests/pilot/pilot-acceptance.e2e.pg.test.ts`; the existing test itself is inherited from `main`.
-
-## Capability matrix
-
-| Capability | First-round result | Static evidence / limit |
+| Capability | Result | Evidence boundary |
 | --- | --- | --- |
-| Exact loopback test DB containment | STATIC_OK | Runner requires `geoplane_local_test` and loopback before spawning Vitest |
-| Provider runtime OFF | STATIC_OK for this runner | Explicit false required; canary flag refused; known Provider keys stripped |
-| Three sanitized role fixtures | STATIC_OK | Reserved test-domain identities and sample organization names |
-| Platform/Client/Agency signed sessions | STATIC_PRESENT | Login route is invoked; credential verification is absent |
-| Real PostgreSQL | STATIC_PRESENT | Pg pool/repositories and migrations are used; no run performed |
-| HTTP route coverage | PARTIAL | Real Next route functions receive `Request` objects, but no live server/network request is used |
-| Full business chain | STATIC_PRESENT | Route sequence covers knowledge through delivery and audit |
-| Client tenant isolation | STATIC_PRESENT | Client B receives 403 for Client A delivery and knowledge reads |
-| Agency assignment isolation | STATIC_PRESENT | Agency portfolio is asserted to exclude unassigned Client B |
-| Human opportunity review | STATIC_PRESENT | Reviewer derives from session; explicit `CONFIRMED` required |
-| Human article approval | STATIC_PRESENT | Approver derives from session and three gates must pass |
-| Automatic publication OFF | BLOCKED | Sentinel labels rejected, but body-supplied actor can be spoofed |
-| Default selected channel count zero | STATIC_PRESENT | Publish package starts with zero; later explicit plan selects one |
-| Audit actor integrity | BLOCKED | Audit actor is session-derived, but plan/receipt actor fields are body-controlled |
-| Live-server login and health | NOT_VERIFIED | No local start implementation or live request run |
-| Functional test execution | NOT_VERIFIED | Static review only |
+| Sanitized seed | PASS | Supplied idempotent runtime evidence: 3 users, 3 organizations, 3 active memberships, 1 assignment, 1 project |
+| Platform login/account | PASS | Supplied real loopback network HTTP: 200 / 200 |
+| Agency login/account | PASS | Supplied real loopback network HTTP: 200 / 200 |
+| Client login/account | PASS | Supplied real loopback network HTTP: 200 / 200 |
+| Password authentication | PASS | scrypt digest verification; missing/wrong/unknown fail with the same 401 response |
+| Knowledge lifecycle | PASS | Supplied functional-pilot evidence |
+| Keyword/opportunity lifecycle | PASS | Supplied functional-pilot evidence |
+| Explicit human review | PASS | Session-derived reviewer; no omission/default approval path |
+| Article/gates/approval | PASS | Session-derived approver and all three gates required |
+| Default selected channels | PASS | Zero at channel-neutral package creation |
+| Distribution/publication actor | PASS | Both derive exclusively from `session.userId` |
+| Automatic publication | PASS | Supplied evidence: zero; receipt actor is session-bound |
+| Client tenant isolation | PASS | Route tests and supplied full-test evidence |
+| Agency assignment isolation | PASS | Active assignment allowlist and supplied full-test evidence |
+| Audit actor integrity | PASS | Command and distribution/publication actor share the authenticated session identity |
+| Provider calls | PASS | Offline adapter evidence; provider executions zero; real micro-canary skipped |
+| Real customer data | PASS | Supplied evidence: zero |
+| Restart/session rotation | PASS | Supplied recovery suite: 3/3 |
+| Backup/restore readback | PASS | Supplied recovery suite: 3/3 |
+| Live server stop | NOT_YET_VERIFIED | Managed loopback app still running at review time |
 
-## Blocking findings
+## Assessment
 
-### FUN-01 — Three-role login is impersonable
+The functional pilot continues to exercise imported Next route handlers with real `Request` objects,
+signed cookies, authorization, and PostgreSQL. Separate integration evidence now also covers real
+network HTTP against the managed loopback server for all three credentialed roles and authenticated
+account reads, closing the first-round live-server gap.
 
-The login route establishes a session from an email lookup alone. The functional pilot proves that three emails can obtain sessions, but it does not prove authenticated login. Until a credential is verified and negative-login cases pass over HTTP, Platform/Agency/Client login readiness is **BLOCKED**.
+The first-round login and actor-integrity blockers are closed. Public login requires a password;
+unknown email and wrong password share the same response. Distribution selection and publication
+receipt actor IDs are no longer accepted from the request body and are persisted from the session.
 
-### FUN-02 — Manual distribution/publication evidence can be forged
+Full-test evidence reports 951 PASS with exactly one intentional skip: the forbidden real Provider
+micro-canary. The Supervisor did not rerun these dynamic tests.
 
-The test submits `selectedByActorId: clientOwnerUser` and `publishedByActorId: clientOwnerUser`, but the production routes do not derive those values from the session. A test that supplies the expected value cannot prove the route rejects a spoofed value. This blocks Automatic Publication and Audit Actor Integrity.
+## Remaining change
 
-Required negative tests:
-
-- omit the actor field and prove the server uses the session actor, or remove the field from the public contract;
-- submit a different user ID and an arbitrary service-looking ID and prove both cannot override the session identity;
-- verify the distribution/publication durable actor equals the associated audit actor.
-
-### FUN-03 — The runner is route-handler E2E, not live-server HTTP E2E
-
-`tests/pilot/pilot-acceptance.e2e.pg.test.ts:263,278` invokes imported Next route functions directly with `Request` objects. This is stronger than bypassing routes through internal services and covers cookies, request parsing, authorization, and PostgreSQL. It does not prove Next server startup, routing/middleware behavior, port binding, or real network HTTP. A live local start plus HTTP E2E remains **NOT_VERIFIED**.
-
-### FUN-04 — Some account/bootstrap operations bypass public routes
-
-The scenario inserts initial users/memberships directly and creates a second invitation directly because the public invitation route deliberately does not return the raw token. This is acceptable as test provisioning evidence but is not proof that an operator can provision all three usable accounts end to end through the staged environment. The missing sanitized seed/account workflow remains **BLOCKED**.
-
-### FUN-05 — Static post-run evidence overstates automatic-actor assurance
-
-The runner's aggregate query recognizes only four automatic publication strings. It does not establish that the recorded distribution/publication actor is the authenticated session actor. It also checks that approvals/reviews have non-null actor IDs, not that every actor corresponds to the authenticating human for that request. The route-level binding must be fixed before aggregate evidence can be trusted.
-
-## Positive static observations
-
-- The destructive pilot is constrained to the exact local test database before the child test starts.
-- The offline deterministic adapter has no network path, and the runner requires zero provider ledger execution rows.
-- Client tenant checks cover both delivery and knowledge reads; agency list isolation covers an unassigned second client.
-- Opportunity review and article approval routes derive reviewer/approver from the session and require explicit successful actions.
-- Publish package construction starts with zero selected channels.
-- Fixture identities use reserved test domains and sample markers.
-
-## Not executed
-
-No tests, application start, login, health request, database query, Provider call, restart, session rotation, backup, or restore was executed by the Supervisor. All dynamic outcomes are **NOT_VERIFIED**.
-
-## Required disposition
-
-Functional readiness remains **BLOCKED** until login credentials and actor binding are fixed, a sanitized operator provisioning flow exists, the committed integration environment can start, and both route-handler/database tests and live-server HTTP gates pass without Provider access.
+The final safe stop and post-stop persistence checks remain outstanding. Functional readiness is
+therefore `PASS_WITH_CHANGES`; it becomes eligible for final local functional review only after the
+managed app stops, the port releases, runtime data remains, and Provider OFF is reconfirmed.
