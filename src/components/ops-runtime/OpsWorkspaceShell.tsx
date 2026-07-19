@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { WorkspaceShell } from "@/components/layout/WorkspaceShell";
-import { OPS_WORKSPACE_NAV_LINKS } from "@/lib/workspace-nav";
+import { WorkspaceShell } from "../layout/WorkspaceShell.js";
+import { OPS_WORKSPACE_NAV_LINKS } from "../../lib/workspace-nav.js";
 import styles from "./OpsWorkspaceShell.module.css";
 
 export function OpsWorkspaceShell({ children }: { readonly children: ReactNode }) {

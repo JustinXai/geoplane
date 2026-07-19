@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
-import type { AccountViewV1 } from "@/runtime/api-contracts";
-import { defaultApiClient } from "@/lib/api-client";
+import type { AccountViewV1 } from "../../runtime/api-contracts/index.js";
+import { defaultApiClient } from "../../lib/api-client/index.js";
 
 export interface WorkspaceNavItem { readonly href: string; readonly label: string; readonly group?: string; }
 
