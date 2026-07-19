@@ -3,6 +3,7 @@ import type { AuthorizationContext } from "../../contracts/tenancy/entities.js";
 import type { OptionalKeywordSeed } from "./contracts.js";
 import type {
   KnowledgeGroundingPort,
+  OptionalKeywordEnhancementPort,
   KnowledgeOpportunityGeneratorPort,
   KnowledgeOpportunityUseCase,
 } from "./ports.js";
@@ -11,6 +12,7 @@ export class KnowledgeFirstOpportunityService implements KnowledgeOpportunityUse
   constructor(
     private readonly grounding: KnowledgeGroundingPort,
     private readonly generator: KnowledgeOpportunityGeneratorPort,
+    private readonly keywordEnhancement?: OptionalKeywordEnhancementPort,
   ) {}
 
   async generateForProject(
@@ -32,9 +34,15 @@ export class KnowledgeFirstOpportunityService implements KnowledgeOpportunityUse
     ) {
       throw new Error("knowledge grounding port returned a cross-tenant package");
     }
+    const serverSeeds = this.keywordEnhancement
+      ? await this.keywordEnhancement.load({
+          clientOrganizationId: input.clientOrganizationId,
+          projectId: input.projectId,
+        })
+      : input.optionalKeywordSeeds ?? [];
     return this.generator.generate({
       ...snapshot,
-      optionalKeywordSeeds: input.optionalKeywordSeeds ?? [],
+      optionalKeywordSeeds: serverSeeds,
     });
   }
 }

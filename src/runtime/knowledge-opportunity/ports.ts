@@ -3,6 +3,7 @@ import type {
   GenerateKnowledgeOpportunityInput,
   KnowledgeGroundingSnapshot,
   KnowledgeOpportunityBatch,
+  OptionalKeywordSeed,
 } from "./contracts.js";
 
 export interface KnowledgeGroundingPort {
@@ -15,6 +16,14 @@ export interface KnowledgeGroundingPort {
 
 export interface KnowledgeOpportunityGeneratorPort {
   generate(input: GenerateKnowledgeOpportunityInput): KnowledgeOpportunityBatch;
+}
+
+/** Server-owned, tenant-scoped enhancement input. Browser payloads never implement this port. */
+export interface OptionalKeywordEnhancementPort {
+  load(scope: {
+    readonly clientOrganizationId: string;
+    readonly projectId: string;
+  }): Promise<readonly OptionalKeywordSeed[]>;
 }
 
 export interface KnowledgeOpportunityUseCase {

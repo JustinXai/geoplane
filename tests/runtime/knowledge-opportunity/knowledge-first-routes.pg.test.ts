@@ -125,6 +125,8 @@ describe.skipIf(testConfig === null)("knowledge-first 用户可用路由", () =>
   beforeEach(async () => {
     await db.query(
       `TRUNCATE audit_event,opportunity,keyword_question_map,industry_profile,
+        demand_evidence,keyword_decision_v2,keyword_review_package_item_v2,keyword_review_package_v2,
+        keyword_record,keyword_import_batch,keyword_dataset,
         knowledge_content,knowledge_version,knowledge_document,knowledge_package,enterprise_profile,
         agency_client_assignment,session,membership,project,organization,"user"
        RESTART IDENTITY CASCADE`,
@@ -195,6 +197,115 @@ describe.skipIf(testConfig === null)("knowledge-first 用户可用路由", () =>
     }), { params: Promise.resolve({ projectId: project.id }) });
     expect(deniedConfirm.status).toBe(403);
     expect((await db.query(`SELECT 1 FROM opportunity WHERE project_id=$1`, [project.id])).rowCount).toBe(0);
+  });
+
+  it("人工关键词仅增强问题且不产生需求指标，确认由服务端重建并持久化", async () => {
+    const client = await clientIdentity("manual-seed@example.test", "manual-seed-client");
+    const { project, pkg } = await seedKnowledge(client);
+    const cookie = await login(client.email);
+    const datasetId = randomUUID();
+    const recordId = randomUUID();
+    await db.query(
+      `INSERT INTO keyword_dataset
+        (id,client_organization_id,project_id,name,source_kind,status,created_by_user_id,created_at)
+       VALUES($1,$2,$3,'人工补充词','MANUAL','ACTIVE',$4,now())`,
+      [datasetId, client.organizationId, project.id, client.userId],
+    );
+    await db.query(
+      `INSERT INTO keyword_record
+        (id,client_organization_id,project_id,dataset_id,keyword,normalized_keyword,source_kind,created_by_user_id,created_at)
+       VALUES($1,$2,$3,$4,'工厂设备故障预警','工厂设备故障预警','MANUAL',$5,now())`,
+      [recordId, client.organizationId, project.id, datasetId, client.userId],
+    );
+
+    const preview = await previewRoute(new Request("http://test/preview", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({
+        optionalKeywordSeeds: [{
+          text: "伪造需求词",
+          origin: "DATASET",
+          evidence: [{ field: "fake", value: 999, sourceLabel: "浏览器", verified: true }],
+        }],
+      }),
+    }), { params: Promise.resolve({ projectId: project.id }) });
+    expect(preview.status).toBe(200);
+    const batch = (await preview.json()).data;
+    const candidate = batch.candidates.find((item: { seed?: { text: string } }) =>
+      item.seed?.text === "工厂设备故障预警");
+    expect(candidate.seed.origin).toBe("MANUAL");
+    expect(candidate.seed.verifiedEvidence).toEqual([]);
+    expect(JSON.stringify(batch)).not.toContain("伪造需求词");
+    expect(JSON.stringify(batch)).not.toContain("CONFIRMED_DEMAND");
+
+    const request = () => new Request("http://test/confirm", {
+      method: "POST",
+      headers: {
+        cookie,
+        "content-type": "application/json",
+        "Idempotency-Key": `manual-enhancement-${candidate.id}`,
+      },
+      body: JSON.stringify({
+        candidateId: candidate.id,
+        knowledgePackageId: pkg.id,
+        optionalKeywordSeeds: [{ text: "伪造替换词", origin: "MANUAL" }],
+      }),
+    });
+    expect((await confirmRoute(request(), { params: Promise.resolve({ projectId: project.id }) })).status).toBe(201);
+    expect((await confirmRoute(request(), { params: Promise.resolve({ projectId: project.id }) })).status).toBe(201);
+    const stored = await db.query<{ keyword: string }>(`SELECT keyword FROM opportunity WHERE project_id=$1`, [project.id]);
+    expect(stored.rows).toEqual([{ keyword: "工厂设备故障预警" }]);
+  });
+
+  it("通用文件关键词可携带独立真实证据，不要求百度字段且仍不宣称确认需求", async () => {
+    const client = await clientIdentity("generic-evidence@example.test", "generic-evidence-client");
+    const { project } = await seedKnowledge(client);
+    const cookie = await login(client.email);
+    const datasetId = randomUUID();
+    const batchId = randomUUID();
+    const recordId = randomUUID();
+    await db.query(
+      `INSERT INTO keyword_dataset
+        (id,client_organization_id,project_id,name,source_kind,status,created_by_user_id,created_at)
+       VALUES($1,$2,$3,'客户咨询统计','GENERIC_FILE','ACTIVE',$4,now())`,
+      [datasetId, client.organizationId, project.id, client.userId],
+    );
+    await db.query(
+      `INSERT INTO keyword_import_batch
+        (id,client_organization_id,project_id,dataset_id,source_kind,source_format,source_file_name,
+         manifest_hash,status,accepted_count,rejected_count,imported_by_user_id,imported_at)
+       VALUES($1,$2,$3,$4,'GENERIC_FILE','CSV','customer-inquiries.csv',$5,'COMPLETED',1,0,$6,now())`,
+      [batchId, client.organizationId, project.id, datasetId, "c".repeat(64), client.userId],
+    );
+    await db.query(
+      `INSERT INTO keyword_record
+        (id,client_organization_id,project_id,dataset_id,import_batch_id,keyword,normalized_keyword,
+         source_kind,created_by_user_id,created_at)
+       VALUES($1,$2,$3,$4,$5,'预测性维护方案','预测性维护方案','GENERIC_FILE',$6,now())`,
+      [recordId, client.organizationId, project.id, datasetId, batchId, client.userId],
+    );
+    await db.query(
+      `INSERT INTO demand_evidence
+        (id,client_organization_id,project_id,keyword_record_id,source_kind,metric_kind,metric_value,
+         metric_unit,source_reference,observed_at,recorded_at)
+       VALUES($1,$2,$3,$4,'GENERIC_FILE','customer_inquiry_count',12,'次','customer-crm-export',
+              '2026-06-30T00:00:00.000Z',now())`,
+      [randomUUID(), client.organizationId, project.id, recordId],
+    );
+
+    const preview = await previewRoute(new Request("http://test/preview", {
+      method: "POST", headers: { cookie, "content-type": "application/json" }, body: "{}",
+    }), { params: Promise.resolve({ projectId: project.id }) });
+    expect(preview.status).toBe(200);
+    const batch = (await preview.json()).data;
+    const candidate = batch.candidates.find((item: { seed?: { text: string } }) =>
+      item.seed?.text === "预测性维护方案");
+    expect(candidate.seed.origin).toBe("DATASET");
+    expect(candidate.seed.verifiedEvidence).toEqual([
+      expect.objectContaining({ field: "customer_inquiry_count", value: 12, verified: true }),
+    ]);
+    expect(candidate.demandClaim).toBe("NOT_ASSERTED");
+    expect(JSON.stringify(candidate)).not.toMatch(/BAIDU_DEMAND_INDEX|CONFIRMED_DEMAND/);
   });
 
   it("缺少真实行业前置时保留预览能力并明确拒绝伪造确认", async () => {

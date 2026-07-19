@@ -2,31 +2,11 @@ import { apiErr, apiOk } from "../../../../../../runtime/api-contracts/index.js"
 import { readJsonBody, toHttpResponse } from "../../../../../../runtime/auth/http.js";
 import { DeterministicKnowledgeOpportunityGenerator } from "../../../../../../runtime/knowledge-opportunity/offline-generator.js";
 import { PgKnowledgeGroundingPort } from "../../../../../../runtime/knowledge-opportunity/pg-grounding-port.js";
-import type { OptionalKeywordSeed } from "../../../../../../runtime/knowledge-opportunity/contracts.js";
+import { PgOptionalKeywordEnhancementPort } from "../../../../../../runtime/knowledge-opportunity/pg-keyword-enhancement-port.js";
 import { requireReadableWorkspaceProject } from "../../../../../../runtime/read-models/http-context.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function readSeeds(value: unknown): OptionalKeywordSeed[] {
-  if (!Array.isArray(value)) return [];
-  if (value.length > 100) throw new Error("一次最多使用 100 个可选关键词");
-  return value.map((raw) => {
-    if (!raw || typeof raw !== "object") throw new Error("关键词格式不正确");
-    const item = raw as Record<string, unknown>;
-    const text = typeof item.text === "string" ? item.text.trim() : "";
-    const origin = item.origin === "MANUAL" || item.origin === "DATASET" ? item.origin : null;
-    if (!text || !origin) throw new Error("关键词文本和来源不能为空");
-    // Browser input is a seed only. Demand evidence is never accepted from an untrusted body.
-    return {
-      text,
-      origin,
-      ...(typeof item.sourceRef === "string" && item.sourceRef.trim()
-        ? { sourceRef: item.sourceRef.trim() }
-        : {}),
-    };
-  });
-}
 
 export async function POST(
   request: Request,
@@ -57,9 +37,13 @@ export async function POST(
       knowledgePackageId: packageId,
     });
     if (!snapshot) return toHttpResponse(apiErr("NOT_FOUND", "未找到当前项目的知识包。"));
+    const optionalKeywordSeeds = await new PgOptionalKeywordEnhancementPort(rt.db).load({
+      clientOrganizationId: project.clientOrganizationId,
+      projectId: project.id,
+    });
     const batch = new DeterministicKnowledgeOpportunityGenerator().generate({
       ...snapshot,
-      optionalKeywordSeeds: readSeeds(body.optionalKeywordSeeds),
+      optionalKeywordSeeds,
     });
     return toHttpResponse(apiOk(batch));
   } catch (error) {

@@ -20,25 +20,12 @@ import { ExistingOpportunityConnector } from "../../../../../../runtime/knowledg
 import { DeterministicKnowledgeOpportunityGenerator } from "../../../../../../runtime/knowledge-opportunity/offline-generator.js";
 import { PgKnowledgeGroundingPort } from "../../../../../../runtime/knowledge-opportunity/pg-grounding-port.js";
 import { KnowledgeFirstOpportunityService } from "../../../../../../runtime/knowledge-opportunity/service.js";
-import type { OptionalKeywordSeed } from "../../../../../../runtime/knowledge-opportunity/contracts.js";
+import { PgOptionalKeywordEnhancementPort } from "../../../../../../runtime/knowledge-opportunity/pg-keyword-enhancement-port.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ACTION = "knowledge_opportunity.command.confirm";
-
-function readSeeds(value: unknown): OptionalKeywordSeed[] {
-  if (!Array.isArray(value)) return [];
-  if (value.length > 100) throw new CommandAbortError("VALIDATION_FAILED", "一次最多使用 100 个可选关键词");
-  return value.map((raw) => {
-    if (!raw || typeof raw !== "object") throw new CommandAbortError("VALIDATION_FAILED", "关键词格式不正确");
-    const item = raw as Record<string, unknown>;
-    const text = typeof item.text === "string" ? item.text.trim() : "";
-    const origin = item.origin === "MANUAL" || item.origin === "DATASET" ? item.origin : null;
-    if (!text || !origin) throw new CommandAbortError("VALIDATION_FAILED", "关键词文本和来源不能为空");
-    return { text, origin, ...(typeof item.sourceRef === "string" && item.sourceRef.trim() ? { sourceRef: item.sourceRef.trim() } : {}) };
-  });
-}
 
 export async function POST(
   request: Request,
@@ -63,7 +50,6 @@ export async function POST(
     return toHttpResponse(apiErr("VALIDATION_FAILED", "请选择需要确认的用户问题。"));
   }
   const idempotencyKey = readIdempotencyKey(request, body);
-  const optionalKeywordSeeds = readSeeds(body.optionalKeywordSeeds);
 
   try {
     const { dto } = await runWriteCommand({
@@ -78,11 +64,11 @@ export async function POST(
         const service = new KnowledgeFirstOpportunityService(
           grounding,
           new DeterministicKnowledgeOpportunityGenerator(),
+          new PgOptionalKeywordEnhancementPort(ctx.tx),
         );
         const batch = await service.generateForProject(authContext, {
           ...tenant,
           knowledgePackageId,
-          optionalKeywordSeeds,
         });
         const candidate = batch.candidates.find((item) => item.id === candidateId);
         if (!candidate) {
