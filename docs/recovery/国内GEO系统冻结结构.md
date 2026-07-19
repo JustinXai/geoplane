@@ -1,0 +1,74 @@
+# 国内 GEO 系统冻结结构
+
+阶段：`DOMESTIC_GEO_PARALLEL_RECOVERY_V1`  
+安全基线：`local/closed-pilot-staging-v1@baf550d3fc17589de2b474706560107763176cf1`
+
+## 1. 恢复性质
+
+本项目是对被删除系统的事实恢复与当前重建底座的对账，不是新产品设计。执行顺序固定为：历史证据 → 原能力矩阵 → 当前恢复状态 → 缺失能力 → 并行恢复 → 后端集成 → 最后恢复 UI。
+
+所有能力只能使用以下分类：
+
+- `RECOVERED_IMPLEMENTED`：删除前存在真实代码、数据、测试或运行证据；
+- `RECOVERED_SPECIFIED_NOT_COMPLETED`：删除前已冻结设计，但没有完成证据；
+- `REBUILT_EQUIVALENT`：原代码缺失，当前重建提供等价能力；
+- `CURRENT_REBUILD_ADDITION`：灾难重建新增，原系统没有明确证据；
+- `MISSING_REQUIRED_CAPABILITY`：原系统要求存在，当前仍缺；
+- `DEFERRED_BY_FROZEN_SCOPE`：明确后置，本轮不开发。
+
+没有直接证据的推测不得标记为 `RECOVERED_IMPLEMENTED`。
+
+## 2. 产品定位
+
+系统定位冻结为国内跨行业 GEO 内容生产、信源建设、AI 可见性验证与代理商交付系统。它不是通用 AI 写作器、海外模型控制台或单纯的多租户后台。
+
+客户价值链：真实企业知识 → 真实需求信号 → 人工确认的问题与机会 → 有信源支撑的内容 → 人工门禁 → 交付 → 国内 AI 平台可见性验证。
+
+底层结果必须能解释品牌曝光、推荐进入、可信引用、竞品声量与问题覆盖，不能用无法解释的总分替代。
+
+## 3. 三层商业结构
+
+### PLATFORM
+
+管理代理商、客户、项目、行业与平台规则、国内 AI 平台适配器、数据源适配器、质量治理、审计和系统健康。
+
+### AGENCY
+
+只管理明确授权的客户，负责建档、资料补齐、关键词导入与确认、内容任务、信源任务、审核、交付和效果复盘。
+
+### CLIENT
+
+确认企业资料、关键词与用户问题、内容和信源，查看交付与效果报告。客户端不得暴露数据库结构、UUID、Hash、Provider、Schema、Migration 或内部英文技术对象。
+
+## 4. 四层数据与 AI 边界
+
+1. **系统生成模型**：用于知识结构化、AI 拓词、问题/机会/内容生成。DeepSeek 或国内 OpenAI-compatible 网关只是内部算力适配器。
+2. **GEO 探测目标平台**：首批固定 `DOUBAO`、`QWEN`、`DEEPSEEK`、`YUANBAO`；高风险平台第一版允许 `MANUAL_SAMPLE`。
+3. **真实需求数据**：首批为百度关键词规划师 XLSX/CSV。只有真实来源才能承载搜索量、推荐出价、竞争度并标记 `OBSERVED_DEMAND`/`CONFIRMED_DEMAND`。
+4. **AI 拓词**：只能输出 AI 扩展、行业假设、知识支撑机会；不得伪造搜索量、出价、竞争度或百度需求，默认 `NEEDS_HUMAN_REVIEW`。
+
+## 5. 跨行业 Core 与行业 Pack
+
+Core 保持跨行业：KnowledgePackage、IndustryProfile、BusinessCapabilityGraph、KeywordContext、Opportunity、Source、Citation、Article、Publication、Probe、Metric。行业差异全部进入版本化 `VerticalPolicyPack`。
+
+首个 Pack 为 `MEDICAL_AESTHETICS_V1`，但本轮只冻结 Contract、加载机制和能被历史证据支持的规则类别；不得把医美、医院、医生、疗效或资质写死进 Core，也不得同时开发全部行业 Pack。
+
+## 6. 门禁
+
+内容交付依次受以下门禁约束：
+
+- `CORE_QUALITY_GATE`；
+- `PLATFORM_RULE_GATE`；
+- `VERTICAL_RULE_GATE`；
+- `SOURCE_GROUNDING_GATE`；
+- `HUMAN_REVIEW_GATE`。
+
+当前重建已有等价的 Quality/Platform/Vertical Gate 和 Article Approval；独立信源门禁及 Pack 驱动规则仍需恢复。Human Review 与 Article Approval 永不自动通过。
+
+## 7. 冻结边界
+
+- Provider Runtime 保持关闭；禁止真实 Provider 调用与 Cookie 自动化登录；
+- 自动批准关闭、自动发布关闭、默认渠道数 0；
+- 真实客户数据为 0；
+- P0 Contract 与恢复证据形成前禁止正式 UI/Taste 重建；
+- 计费、自动分佣、复杂订阅、完整白标、自动化高风险 Probe 和更多行业 Pack 后置。
