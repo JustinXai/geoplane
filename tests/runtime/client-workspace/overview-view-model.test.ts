@@ -7,7 +7,7 @@ const base:ClientOverviewData={
   keywords:[],opportunities:[],deliveries:[],
   knowledge:{packageCount:1,confirmedPackageCount:0,documentCount:2,openIssueCount:2,missingInformationCount:1,status:"NEEDS_INFORMATION",updatedAt:"2026-07-18T01:00:00.000Z"},
   baidu:{imports:[],keywords:[],reviewFamilies:[],totals:{imports:0,keywords:0,withObservedDemand:0,rejectedRows:0,pendingReview:0,confirmed:0,changesRequested:0,rejected:0},nextPackageVersion:1,capabilityGaps:[]},
-  expansionBatches:[],probes:[],
+  expansionBatches:[],
 };
 
 describe("客户首页验收展示模型",()=>{
@@ -31,13 +31,12 @@ describe("客户首页验收展示模型",()=>{
     expect(model.actions).toContainEqual(expect.objectContaining({label:"确认用户问题",href:"/app/questions"}));
   });
 
-  it("从真实失败样本和交付时间形成风险与最近进度",()=>{
+  it("交付时间形成最近进度且首页不依赖独立检测原型",()=>{
     const model=buildClientOverview({...base,
       deliveries:[{id:"d",projectId:"p",title:"已交付内容",status:"DELIVERED",deliveredAt:"2026-07-19T02:00:00.000Z",publicationRegisteredAt:null}],
-      probes:[{id:"r",clientOrganizationId:"c",projectId:"p",platform:"DOUBAO",collectionMode:"MANUAL_SAMPLE",question:"问题",outcome:"FAILED",answerText:null,screenshotReference:null,failureCode:"ANSWER_NOT_RETURNED",failureMessage:null,observedAt:"2026-07-19T01:00:00.000Z",recordedAt:"2026-07-19T01:00:00.000Z",recordedByUserId:"u"}],
     });
-    expect(model.failedProbeCount).toBe(1);
-    expect(model.risks.some(item=>item.includes("失败样本"))).toBe(true);
+    expect(model.metrics.some(item=>item.label.includes("检测"))).toBe(false);
+    expect(model.actions.some(item=>item.href==="/app/ai-results")).toBe(false);
     expect(model.activities[0]).toEqual(expect.objectContaining({label:"内容交付",detail:"已交付内容"}));
     expect(model.gaps).toContainEqual(expect.objectContaining({priority:"P1",title:"客户报告记录"}));
   });

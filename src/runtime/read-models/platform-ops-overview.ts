@@ -1,11 +1,7 @@
 /** Platform-wide, read-only operating summary for the domestic GEO workspace. */
 import type { Queryable } from "../../persistence/database-port.js";
 import type { AccountCenterReadModel } from "./domestic-workspaces.js";
-import {
-  readAccountCenter,
-  readConfirmedManualProbeQuestions,
-  readManualProbeSamples,
-} from "./domestic-workspaces.js";
+import { readAccountCenter } from "./domestic-workspaces.js";
 import type { GeoPrincipal } from "../geo/runtime-context.js";
 import type { DeliveryArticleReadModel } from "../geo/pg/geo-read-repository.js";
 import { deriveArticleDeliveryStatus } from "../geo/views.js";
@@ -41,13 +37,11 @@ export interface PlatformOpsOverviewReadModel {
   };
   readonly queues: {
     readonly contentReview: readonly PlatformOverviewQueueItem[];
-    readonly aiDetection: readonly PlatformOverviewQueueItem[];
     readonly delivery: readonly PlatformOverviewQueueItem[];
   };
   readonly risks: {
     readonly abnormalAccounts: readonly PlatformOverviewAccountRisk[];
     readonly failedAccountTasks: number;
-    readonly failedDetectionSamples: number;
   };
   readonly sources: readonly string[];
 }
@@ -57,8 +51,6 @@ export interface PlatformOpsOverviewFacts {
   readonly clients: number;
   readonly projects: readonly PlatformOverviewProject[];
   readonly deliveriesByProject: ReadonlyMap<string, readonly DeliveryArticleReadModel[]>;
-  readonly confirmedQuestionsByProject: ReadonlyMap<string, readonly string[]>;
-  readonly sampledQuestionsByProject: ReadonlyMap<string, readonly { readonly question: string; readonly failed: boolean }[]>;
   readonly accounts: AccountCenterReadModel;
 }
 
@@ -69,9 +61,7 @@ function queueItem(project: PlatformOverviewProject, count: number): PlatformOve
 /** Pure derivation kept separate so every dashboard number has a testable business definition. */
 export function derivePlatformOpsOverview(facts: PlatformOpsOverviewFacts): PlatformOpsOverviewReadModel {
   const contentReview: PlatformOverviewQueueItem[] = [];
-  const aiDetection: PlatformOverviewQueueItem[] = [];
   const delivery: PlatformOverviewQueueItem[] = [];
-  let failedDetectionSamples = 0;
 
   for (const project of facts.projects) {
     const articles = facts.deliveriesByProject.get(project.id) ?? [];
@@ -80,15 +70,6 @@ export function derivePlatformOpsOverview(facts: PlatformOpsOverviewFacts): Plat
     if (reviewCount > 0) contentReview.push(queueItem(project, reviewCount));
     if (deliveryCount > 0) delivery.push(queueItem(project, deliveryCount));
 
-    const samples = facts.sampledQuestionsByProject.get(project.id) ?? [];
-    const sampled = new Set(samples.map((sample) => sample.question.trim()));
-    const pendingQuestions = new Set(
-      (facts.confirmedQuestionsByProject.get(project.id) ?? [])
-        .map((question) => question.trim())
-        .filter((question) => question.length > 0 && !sampled.has(question)),
-    ).size;
-    if (pendingQuestions > 0) aiDetection.push(queueItem(project, pendingQuestions));
-    failedDetectionSamples += samples.filter((sample) => sample.failed).length;
   }
 
   const abnormalAccounts = facts.accounts.accounts
@@ -99,7 +80,7 @@ export function derivePlatformOpsOverview(facts: PlatformOpsOverviewFacts): Plat
       pendingTaskCount: account.pendingTaskCount,
       failedTaskCount: account.failedTaskCount,
     }));
-  const queueTotal = [...contentReview, ...aiDetection, ...delivery].reduce((sum, item) => sum + item.count, 0);
+  const queueTotal = [...contentReview, ...delivery].reduce((sum, item) => sum + item.count, 0);
 
   return {
     totals: {
@@ -108,16 +89,14 @@ export function derivePlatformOpsOverview(facts: PlatformOpsOverviewFacts): Plat
       activeProjects: facts.projects.length,
       pendingItems: queueTotal + facts.accounts.totals.pendingTasks,
     },
-    queues: { contentReview, aiDetection, delivery },
+    queues: { contentReview, delivery },
     risks: {
       abnormalAccounts,
       failedAccountTasks: facts.accounts.totals.failedTasks,
-      failedDetectionSamples,
     },
     sources: [
       "组织与项目目录",
       "最新内容版本、人工批准与交付记录",
-      "已确认用户问题与国内 AI 人工检测样本",
       "账号健康状态与人工操作任务",
     ],
   };
@@ -157,12 +136,8 @@ export async function readPlatformOpsOverview(
     clientName: safeBusinessDisplayName(row.client_name),
   }));
   const projectFacts = await Promise.all(projects.map(async (project) => {
-    const [deliveries, questions, samples] = await Promise.all([
-      deliveryReader.listDeliveryArticlesByScope({ clientOrganizationId: project.clientOrganizationId, projectId: project.id }),
-      readConfirmedManualProbeQuestions(db, project.clientOrganizationId, project.id),
-      readManualProbeSamples(db, project.clientOrganizationId, project.id),
-    ]);
-    return { project, deliveries, questions: questions.map((item) => item.question), samples };
+    const deliveries = await deliveryReader.listDeliveryArticlesByScope({ clientOrganizationId: project.clientOrganizationId, projectId: project.id });
+    return { project, deliveries };
   }));
 
   return derivePlatformOpsOverview({
@@ -170,8 +145,6 @@ export async function readPlatformOpsOverview(
     clients: Number(clientResult.rows[0]?.count ?? 0),
     projects,
     deliveriesByProject: new Map(projectFacts.map((item) => [item.project.id, item.deliveries])),
-    confirmedQuestionsByProject: new Map(projectFacts.map((item) => [item.project.id, item.questions])),
-    sampledQuestionsByProject: new Map(projectFacts.map((item) => [item.project.id, item.samples.map((sample) => ({ question: sample.question, failed: sample.outcome === "FAILED" }))])),
     accounts,
   });
 }

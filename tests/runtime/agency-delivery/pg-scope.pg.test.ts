@@ -114,10 +114,15 @@ describe.skipIf(config === null)("agency delivery PostgreSQL tenant scope", () =
     const runtime = createAgencyDeliveryRuntime(db);
     const service = new AgencyDeliveryControlService(runtime.writes,runtime.authorization,runtime.projects,{next:randomUUID},()=>new Date().toISOString());
     const common={agencyOrganizationId:agencyId,clientOrganizationId:clientA,projectId:projectA,actorUserId:actorId};
+    await service.moveWorkflow({...common,stage:"CHINA_AI_PROBE",toStatus:"IN_PROGRESS",reason:"保留原型历史事件"});
+    await service.moveWorkflow({...common,stage:"CHINA_AI_PROBE",toStatus:"BLOCKED",reason:"独立系统原型不具备结构化结果"});
     await service.moveWorkflow({...common,stage:"REPORT",toStatus:"IN_PROGRESS",reason:"开始整理客户报告"});
     await service.moveWorkflow({...common,stage:"REPORT",toStatus:"COMPLETED",reason:"客户报告已人工核对"});
     await service.markReady(common);
-    expect((await buildAgencyPortfolioSummary(agencyId,runtime.reads)).clients[0]?.delivery.status).toBe("READY");
+    const ready=await buildAgencyPortfolioSummary(agencyId,runtime.reads);
+    expect(ready.clients[0]?.delivery.status).toBe("READY");
+    expect(ready.abnormalProjects).toBe(0);
+    expect(ready.clients[0]?.pendingTasks.some(task=>task.kind==="RUN_PROBE")).toBe(false);
     await service.registerDelivered({...common,receiptReference:"manual-receipt-001"});
     const refreshed=await buildAgencyPortfolioSummary(agencyId,runtime.reads);
     expect(refreshed.clients[0]?.delivery.status).toBe("DELIVERED");

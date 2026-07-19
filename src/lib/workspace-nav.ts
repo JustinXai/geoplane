@@ -34,6 +34,9 @@ export interface WorkspaceNavLink {
   readonly group?: string;
 }
 
+const DETECTION_PROTOTYPE_ENABLED =
+  process.env.NEXT_PUBLIC_INDEPENDENT_DETECTION_PROTOTYPE_ENABLED?.trim().toUpperCase() === "TRUE";
+
 const SURFACE_PATH_PREFIX: Record<WorkspaceSurface, string> = {
   app: "/app",
   agency: "/agency",
@@ -82,8 +85,8 @@ export const CLIENT_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSur
   { group: "内容生产", label: "用户问题", href: "/app/questions" },
   { group: "内容生产", label: "内容与交付", href: "/app/content" },
   { group: "内容生产", label: "内容审核", href: "/app/content-review" },
-  { group: "检测与交付", label: "国内 AI 检测", href: "/app/ai-results" },
-  { group: "检测与交付", label: "客户报告", href: "/app/delivery" },
+  ...(DETECTION_PROTOTYPE_ENABLED ? [{ group: "外部集成实验", label: "独立检测原型", href: "/app/ai-results" }] : []),
+  { group: "交付与报告", label: "客户报告", href: "/app/delivery" },
 ]);
 
 // Checkpoint C3 update: added the six new "Agency workspace" surfaces built in
@@ -104,9 +107,9 @@ export const AGENCY_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSur
   { group: "生产协作", label: "用户问题", href: "/agency/keyword-questions" },
   { group: "生产协作", label: "内容生产", href: "/agency/content" },
   { group: "生产协作", label: "内容审核", href: "/agency/review-queue" },
-  { group: "检测与交付", label: "国内 AI 检测", href: "/agency/manual-probe" },
-  { group: "检测与交付", label: "交付管理", href: "/agency/deliveries" },
-  { group: "检测与交付", label: "客户报告", href: "/agency/reports" },
+  ...(DETECTION_PROTOTYPE_ENABLED ? [{ group: "外部集成实验", label: "独立检测原型", href: "/agency/manual-probe" }] : []),
+  { group: "交付与报告", label: "交付管理", href: "/agency/deliveries" },
+  { group: "交付与报告", label: "客户报告", href: "/agency/reports" },
   { group: "组织设置", label: "团队与权限", href: "/agency/team" },
 ]);
 
@@ -129,8 +132,8 @@ export const OPS_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSurfac
   { group: "业务运营", label: "关键词中心", href: "/ops/keywords" },
   { group: "业务运营", label: "智能拓词", href: "/ops/keyword-expansion" },
   { group: "业务运营", label: "内容审核", href: "/ops/content-review" },
-  { group: "检测与交付", label: "国内 AI 检测", href: "/ops/probes" },
-  { group: "检测与交付", label: "交付与报告", href: "/ops/delivery" },
+  ...(DETECTION_PROTOTYPE_ENABLED ? [{ group: "外部集成实验", label: "独立检测原型", href: "/ops/probes" }] : []),
+  { group: "交付与报告", label: "交付与报告", href: "/ops/delivery" },
   { group: "平台治理", label: "邀请与权限", href: "/ops/invitations" },
   { group: "平台治理", label: "审计中心", href: "/ops/audit" },
   { group: "平台治理", label: "系统健康", href: "/ops/system-health" },

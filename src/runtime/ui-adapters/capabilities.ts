@@ -1,9 +1,11 @@
 import { backendCapabilityGap, type BackendCapabilityGap } from "./chinese-errors.js";
 
 export type UiCapabilityState="AVAILABLE"|"BACKEND_CAPABILITY_GAP";
-export interface UiCapability {readonly key:string;readonly label:string;readonly state:UiCapabilityState;readonly route?:string;readonly gap?:BackendCapabilityGap}
+export interface UiCapability {readonly key:string;readonly label:string;readonly state:UiCapabilityState;readonly route?:string;readonly gap?:BackendCapabilityGap;readonly systemBoundary?:"INDEPENDENT_DETECTION_SYSTEM_PROTOTYPE";readonly gapDisposition?:"DEFERRED_TO_INDEPENDENT_DETECTION_SYSTEM"}
 const available=(key:string,label:string,route:string):UiCapability=>({key,label,state:"AVAILABLE",route});
 const gap=(key:string,label:string):UiCapability=>({key,label,state:"BACKEND_CAPABILITY_GAP",gap:backendCapabilityGap(label)});
+const detectionPrototype=(key:string,label:string,route:string):UiCapability=>({key,label,state:"AVAILABLE",route,systemBoundary:"INDEPENDENT_DETECTION_SYSTEM_PROTOTYPE"});
+const deferredDetection=(key:string,label:string):UiCapability=>({key,label,state:"BACKEND_CAPABILITY_GAP",gap:backendCapabilityGap(label),systemBoundary:"INDEPENDENT_DETECTION_SYSTEM_PROTOTYPE",gapDisposition:"DEFERRED_TO_INDEPENDENT_DETECTION_SYSTEM"});
 
 /** Auditable mapping: only AVAILABLE entries may render an enabled action. */
 export const DOMESTIC_GEO_UI_CAPABILITIES:readonly UiCapability[]=Object.freeze([
@@ -23,10 +25,10 @@ export const DOMESTIC_GEO_UI_CAPABILITIES:readonly UiCapability[]=Object.freeze(
   available("expansion.review","人工确认或删除拓词","POST /api/keyword-expansion/candidates/:id/:decision"),
   available("expansion.read","查看拓词批次","GET /api/keyword-expansion/projects/:projectId"),
   available("questions.read","查看用户问题","GET /api/projects/:projectId/keyword-questions"),
-  available("probe.options","获取人工查询可选项目和问题","GET /api/probes/options"),
-  available("probe.record","登记人工查询样本","POST /api/probes/manual-samples"),
-  available("probe.read","查看人工查询样本","GET /api/probes/projects/:projectId/manual-samples"),
-  gap("probe.annotations","持久化品牌与竞品人工标注"),gap("probe.report-metrics","读取持久化效果指标报告"),
+  detectionPrototype("probe.options","获取人工查询可选项目和问题","GET /api/probes/options"),
+  detectionPrototype("probe.record","登记人工查询样本","POST /api/probes/manual-samples"),
+  detectionPrototype("probe.read","查看人工查询样本","GET /api/probes/projects/:projectId/manual-samples"),
+  deferredDetection("probe.annotations","持久化品牌与竞品人工标注"),deferredDetection("probe.report-metrics","读取持久化效果指标报告"),
   available("policy.read","查看项目行业规则包","GET /api/policy-packs/projects/:projectId"),
   gap("policy.select","在页面切换行业规则包"),
   available("agency.portfolio","查看代理商交付总览","GET /api/agency-delivery/portfolio"),

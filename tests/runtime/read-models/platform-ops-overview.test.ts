@@ -13,8 +13,6 @@ function facts(): PlatformOpsOverviewFacts {
     clients: 3,
     projects: [project],
     deliveriesByProject: new Map([[project.id, [article({ inReview: true }), article({ approved: true })]]]),
-    confirmedQuestionsByProject: new Map([[project.id, ["问题 A", "问题 B", "问题 B"]]]),
-    sampledQuestionsByProject: new Map([[project.id, [{ question: "问题 A", failed: true }]]]),
     accounts: {
       accounts: [{
         id: "account-1", platformCode: "DOUBAO", displayLabel: "Sample Account Fixture", accountType: "AI_PLATFORM_ACCOUNT",
@@ -29,24 +27,20 @@ function facts(): PlatformOpsOverviewFacts {
 }
 
 describe("平台运营总览真实指标", () => {
-  it("按内容状态、已确认问题、人工样本和账号任务推导待办", () => {
+  it("按内容状态和账号任务推导主系统待办", () => {
     const model = derivePlatformOpsOverview(facts());
-    expect(model.totals).toEqual({ agencies: 2, clients: 3, activeProjects: 1, pendingItems: 5 });
+    expect(model.totals).toEqual({ agencies: 2, clients: 3, activeProjects: 1, pendingItems: 4 });
     expect(model.queues.contentReview).toEqual([{ projectId: project.id, projectName: project.projectName, clientName: project.clientName, count: 1 }]);
-    expect(model.queues.aiDetection[0]?.count).toBe(1);
     expect(model.queues.delivery[0]?.count).toBe(1);
-    expect(model.risks.failedDetectionSamples).toBe(1);
     expect(model.risks.failedAccountTasks).toBe(1);
   });
 
-  it("已交付内容和已有样本的问题不进入待办", () => {
+  it("已交付内容不进入待办", () => {
     const base = facts();
     const model = derivePlatformOpsOverview({
       ...base,
       deliveriesByProject: new Map([[project.id, [article({ approved: true, deliveredAt: new Date().toISOString() })]]]),
-      confirmedQuestionsByProject: new Map([[project.id, ["问题 A"]]]),
     });
     expect(model.queues.delivery).toHaveLength(0);
-    expect(model.queues.aiDetection).toHaveLength(0);
   });
 });

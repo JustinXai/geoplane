@@ -16,7 +16,6 @@ export default function AgencyWorkspaceHomePage() {
       {metric("/agency/todos#keywords","关键词待确认",`${data.clientsNeedingKeywordConfirmation} 个客户`)}
       {metric("/agency/todos#questions","用户问题待确认",`${data.questionsAwaitingConfirmation} 项`)}
       {metric("/agency/todos#content","内容待审核",`${data.contentAwaitingReview} 项`)}
-      {metric("/agency/todos#probe","国内 AI 检测",data.probeTasksPending===null?"暂无可靠统计":`${data.probeTasksPending} 项`)}
       {metric("/agency/deliveries","待交付",`${data.projectsAwaitingDelivery} 个项目`)}
       {metric("/agency/deliveries#delivered","已完成交付",`${data.completedDeliveries} 个项目`)}
       {metric("/agency/accounts#attention","异常账号",`${data.abnormalAccounts} 个`)}

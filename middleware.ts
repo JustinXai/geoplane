@@ -28,12 +28,18 @@ import { SESSION_COOKIE_NAME, allowedSurfaceForRole, decodeSessionCookie } from 
 import { allowedOriginsFromEnv, isSameOriginRequest, isStateChangingMethod } from "./src/lib/request-origin.js";
 
 const PROTECTED_SURFACES = ["app", "agency", "ops"] as const;
+const INDEPENDENT_DETECTION_PROTOTYPE_PATHS = ["/app/ai-results", "/agency/manual-probe", "/ops/probes"] as const;
 type ProtectedSurface = (typeof PROTECTED_SURFACES)[number];
 
 function surfaceForPath(pathname: string): ProtectedSurface | null {
   const segment = pathname.split("/")[1];
   if (segment === undefined) return null;
   return (PROTECTED_SURFACES as readonly string[]).includes(segment) ? (segment as ProtectedSurface) : null;
+}
+
+function isIndependentDetectionPrototypePath(pathname: string): boolean {
+  return (INDEPENDENT_DETECTION_PROTOTYPE_PATHS as readonly string[]).includes(pathname) ||
+    pathname === "/api/probes" || pathname.startsWith("/api/probes/");
 }
 
 /**
@@ -70,6 +76,12 @@ export function middleware(request: NextRequest) {
   }
 
   const surface = surfaceForPath(request.nextUrl.pathname);
+  if (
+    isIndependentDetectionPrototypePath(request.nextUrl.pathname) &&
+    process.env.NEXT_PUBLIC_INDEPENDENT_DETECTION_PROTOTYPE_ENABLED?.trim().toUpperCase() !== "TRUE"
+  ) {
+    return new NextResponse("Not Found", { status: 404 });
+  }
   if (surface === null) {
     // Not a protected surface (/api read routes, /, /login, static assets, etc.) - no session
     // required. (Mutating /api requests already passed the CSRF guard above.)

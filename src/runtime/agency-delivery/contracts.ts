@@ -1,7 +1,8 @@
 /** AGENCY_DELIVERY_AND_GROWTH_V1 — reconstructed P0 operating contract. */
 export type AgencyWorkflowStage="CLIENT_PROFILE"|"PROJECT_PROFILE"|"ENTERPRISE_KNOWLEDGE"|"ACCOUNT_AUTHORIZATION"|"BAIDU_KEYWORDS"|"AI_EXPANSION"|"USER_QUESTION_CONFIRMATION"|"CONTENT_TASK"|"CONTENT_REVIEW"|"CHINA_AI_PROBE"|"REPORT"|"DELIVERY"|"RETROSPECTIVE";
 export type AgencyWorkflowStatus="NOT_STARTED"|"IN_PROGRESS"|"WAITING_CLIENT"|"BLOCKED"|"COMPLETED";
-export const AGENCY_WORKFLOW_ORDER:readonly AgencyWorkflowStage[]=["CLIENT_PROFILE","PROJECT_PROFILE","ENTERPRISE_KNOWLEDGE","ACCOUNT_AUTHORIZATION","BAIDU_KEYWORDS","AI_EXPANSION","USER_QUESTION_CONFIRMATION","CONTENT_TASK","CONTENT_REVIEW","CHINA_AI_PROBE","REPORT","DELIVERY","RETROSPECTIVE"];
+/** Main-system order. CHINA_AI_PROBE remains a legacy/prototype event value but is not a delivery prerequisite. */
+export const AGENCY_WORKFLOW_ORDER:readonly AgencyWorkflowStage[]=["CLIENT_PROFILE","PROJECT_PROFILE","ENTERPRISE_KNOWLEDGE","ACCOUNT_AUTHORIZATION","BAIDU_KEYWORDS","AI_EXPANSION","USER_QUESTION_CONFIRMATION","CONTENT_TASK","CONTENT_REVIEW","REPORT","DELIVERY","RETROSPECTIVE"];
 export interface AgencyScope{readonly agencyOrganizationId:string;readonly clientOrganizationId:string;readonly projectId:string}
 export interface AgencyWorkflowEvent extends AgencyScope{readonly id:string;readonly stage:AgencyWorkflowStage;readonly fromStatus:AgencyWorkflowStatus;readonly toStatus:AgencyWorkflowStatus;readonly actorUserId:string;readonly reason:string;readonly occurredAt:string}
 export type AgencyPendingTaskKind="COMPLETE_KNOWLEDGE"|"CONFIRM_KEYWORDS"|"CONFIRM_QUESTIONS"|"REVIEW_CONTENT"|"RUN_PROBE"|"DELIVER_PROJECT"|"RESOLVE_ACCOUNT";

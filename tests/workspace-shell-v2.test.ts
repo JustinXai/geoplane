@@ -32,7 +32,10 @@ describe("H1 三角色共享工作台壳层", () => {
     expect(labels).not.toContain("内容与信源");
     expect(labels).not.toContain("国内 AI 查询");
     expect(labels).not.toContain("人工探测");
-    expect(labels).toContain("国内 AI 检测");
+    expect(labels).not.toContain("国内 AI 检测");
+    expect(hrefs).not.toContain("/app/ai-results");
+    expect(hrefs).not.toContain("/agency/manual-probe");
+    expect(hrefs).not.toContain("/ops/probes");
     expect(CLIENT_WORKSPACE_NAV_LINKS.map((item) => item.label)).toEqual(expect.arrayContaining(["内容与交付", "客户报告"]));
     expect(hrefs).not.toContain("/app/performance");
     expect(hrefs).not.toContain("/agency/templates");

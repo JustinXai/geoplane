@@ -12,17 +12,15 @@ describe("formal workspace language projection", () => {
     expect(safeBusinessDisplayName("华东品牌运营中心")).toBe("华东品牌运营中心");
   });
 
-  it("uses the same business name for domestic AI detection on remediated pages", () => {
+  it("marks retained manual Probe pages as an independent-system prototype", () => {
     const files = [
-      "src/app/agency/deliveries/page.tsx",
       "src/app/agency/manual-probe/page.tsx",
-      "src/app/agency/todos/page.tsx",
       "src/app/app/ai-results/page.tsx",
-      "src/components/agency-delivery-runtime/AgencyDeliveryActions.tsx",
       "src/components/ops-runtime/OpsManualProbePage.tsx",
     ];
     const visibleSources = files.map((file) => readFileSync(file, "utf8")).join("\n");
-    expect(visibleSources).toContain("国内 AI 检测");
+    expect(visibleSources).toContain("INDEPENDENT_DETECTION_SYSTEM_PROTOTYPE");
+    expect(visibleSources).toContain("独立检测系统人工原型");
     expect(visibleSources).not.toMatch(/国内 AI 查询|人工探测|AI 查询结果/);
   });
 

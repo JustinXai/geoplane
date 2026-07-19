@@ -142,7 +142,6 @@ export interface ClientOverviewData {
   readonly knowledge: ClientKnowledgeProgressReadModel;
   readonly baidu: BaiduKeywordReadModel;
   readonly expansionBatches: readonly KeywordExpansionBatch[];
-  readonly probes: readonly RawProbeResult[];
 }
 
 export function loadKnowledgeProgress(projectId:string,client:ApiClient=defaultApiClient):Promise<Result<ClientKnowledgeProgressReadModel>>{
@@ -157,6 +156,7 @@ export function loadExpansionProgress(projectId:string,client:ApiClient=defaultA
   return client.request<readonly KeywordExpansionBatch[]>(`/api/keyword-expansion/projects/${enc(projectId)}`);
 }
 
+/** Independent detection prototype loader; intentionally excluded from loadClientOverview. */
 export function loadProbeProgress(projectId:string,client:ApiClient=defaultApiClient):Promise<Result<readonly RawProbeResult[]>>{
   return client.request<readonly RawProbeResult[]>(`/api/probes/projects/${enc(projectId)}/manual-samples`);
 }
@@ -170,14 +170,13 @@ export async function loadClientOverview(
   const project = selectActiveProject(projects.data);
   if (project === null) return ok(null);
 
-  const [keywords, opportunities, deliveries, knowledge, baidu, expansionBatches, probes] = await Promise.all([
+  const [keywords, opportunities, deliveries, knowledge, baidu, expansionBatches] = await Promise.all([
     loadKeywordQuestions(project.id, client),
     loadOpportunities(project.id, client),
     loadDeliveries(project.id, client),
     loadKnowledgeProgress(project.id,client),
     loadBaiduKeywordProgress(project.id,client),
     loadExpansionProgress(project.id,client),
-    loadProbeProgress(project.id,client),
   ]);
   if (!keywords.ok) return keywords;
   if (!opportunities.ok) return opportunities;
@@ -185,7 +184,6 @@ export async function loadClientOverview(
   if (!knowledge.ok) return knowledge;
   if (!baidu.ok) return baidu;
   if (!expansionBatches.ok) return expansionBatches;
-  if (!probes.ok) return probes;
   return ok({ project, keywords: keywords.data, opportunities: opportunities.data, deliveries: deliveries.data,
-    knowledge:knowledge.data,baidu:baidu.data,expansionBatches:expansionBatches.data,probes:probes.data });
+    knowledge:knowledge.data,baidu:baidu.data,expansionBatches:expansionBatches.data });
 }

@@ -1,6 +1,6 @@
 # 国内 AI 检测结构化结果能力核验 V2
 
-核验结论：`BLOCKED_BY_FROZEN_SCHEMA_CAPABILITY_GAP`。当前可以真实登记、按项目读取并在刷新后保留人工检测原始样本，但不能在不新增迁移的前提下完成结构化 Observation 与客户效果报告闭环。
+范围纠正结论：`DEFERRED_TO_INDEPENDENT_DETECTION_SYSTEM`。现有人工样本能力统一冻结为 `INDEPENDENT_DETECTION_SYSTEM_PROTOTYPE`；结构化 Observation 与检测报告属于未来独立检测系统，不再构成国内 GEO 运营与交付主系统的 P0 阻断。
 
 ## 已核实的真实能力
 
