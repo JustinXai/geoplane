@@ -68,6 +68,7 @@
 | Security Scan | PASS |
 | Repo Safety | PASS；Local Only、无 upstream |
 | Supervisor Decision | `PASS` |
+| Bundle Path | `E:\GEO_REBUILD_BACKUPS\geoplane\domestic-geo-p0-final.bundle` |
 
 全量测试的 5 个跳过来自明确的安全/环境条件：保留既存 `geoplane_local_restore_verify` 恢复证据，以及最终测试进程未注入 Runtime/Canary 等非本阶段数据库角色。没有删除或覆盖该恢复证据，也没有为了测试通过而迁移 Runtime 数据库。
 
