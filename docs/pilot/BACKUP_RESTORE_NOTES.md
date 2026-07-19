@@ -10,7 +10,7 @@ other `docs/pilot` content.
 | --- | --- |
 | `scripts/backup/pg-lib.mjs` | Shared plumbing: env/connection resolution, pg client-tool locator, the production/recovery guard, `PGPASSWORD`-only secret handling. |
 | `scripts/backup/backup.mjs` | `pg_dump -Fc` (custom, compressed format) of a database to a timestamped `*.dump`; prints the artifact path + sha256; refuses production/recovery database names. |
-| `scripts/backup/restore.mjs` | Creates a FRESH target database and `pg_restore`s into it; refuses to overwrite a populated database without `--force`; verifies object counts post-restore. |
+| `scripts/backup/restore.mjs` | Creates a FRESH allowlisted verification database and `pg_restore`s into it; rejects `--force`, existing targets, and runtime/test/canary role databases; verifies object counts post-restore. |
 | `scripts/backup/pg-verify.mjs` | Canonical-Postgres verification: attempts PG16, else runs the equivalent battery on the installed PostgreSQL. |
 | `tests/runtime/staging/backup-restore.e2e.test.ts` | Real backup + restore-to-fresh + data-survival E2E against a throwaway database. |
 
@@ -20,11 +20,11 @@ other `docs/pilot` content.
 # Back up (custom format) — never dumps a production/recovery-named database.
 node scripts/backup/backup.mjs --test --db <src> --user postgres --out <dir>
 
-# Restore into a FRESH target (the script CREATEs it); refuses a populated target without --force.
-node scripts/backup/restore.mjs --test --db <target> --user postgres --dump <file.dump>
+# Restore into a FRESH allowlisted verification target (the script CREATEs it).
+node scripts/backup/restore.mjs --test --db geoplane_bkp_dst_<suffix> --user postgres --dump <file.dump>
 
 # Optional integrity gate: verify the dump before any restore connection is opened.
-node scripts/backup/restore.mjs --test --db <target> --user postgres --dump <file.dump> --checksum <sha256>
+node scripts/backup/restore.mjs --test --db geoplane_bkp_dst_<suffix> --user postgres --dump <file.dump> --checksum <sha256>
 
 # Canonical Postgres verification (PG16 attempt + equivalent run).
 node scripts/backup/pg-verify.mjs --test
@@ -43,7 +43,8 @@ Notes:
 - `backup.mjs` / `restore.mjs` refuse any database whose name matches the production/recovery
   pattern (`prod`, `production`, `prd`, `live`, `recover*` as a `_`/`-`-delimited segment). Verified:
   `geoplane_production_canary` is refused with a non-zero exit (also asserted in the E2E).
-- `restore.mjs` refuses to restore over an already-populated database unless `--force` is given.
+- `restore.mjs` accepts only explicit disposable/verification target-name patterns. It rejects
+  runtime, test, canary, arbitrary, and existing databases. `--force` is always rejected.
 - When `--checksum` is supplied, `restore.mjs` rejects an invalid or mismatched SHA-256 before
   resolving or opening a database connection. `LOCAL_RECOVERY_DRILL_V1` always supplies it.
 - Every throwaway database name is unique per run (`geoplane_bkp_src_<suffix>` /

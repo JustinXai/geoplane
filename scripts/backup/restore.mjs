@@ -2,13 +2,11 @@
  * STAGING_OPERATIONS_V1 batch 2 (Agent E2) — restore-to-fresh CLI.
  *
  *   node scripts/backup/restore.mjs --dump <file> --db <target> --user postgres
- *   node scripts/backup/restore.mjs --dump <file> --url <conn>          # target db = conn's db
- *   node scripts/backup/restore.mjs --dump <file> --db <target> --force # allow a populated target
  *
  * Creates a FRESH target database (CREATE DATABASE) and pg_restores the custom-format archive into
- * it, then verifies object counts (tables / indexes / triggers / rows) post-restore. By default it
- * REFUSES to restore over an already-populated database (guarding against clobbering live data);
- * --force opts into a clean re-restore of an existing database.
+ * it, then verifies object counts (tables / indexes / triggers / rows) post-restore. It only accepts
+ * explicit disposable/verification target-name patterns and always refuses an existing database.
+ * `--force` is rejected; runtime, test, and canary role databases can never be overwritten.
  *
  * Safety: refuses any target whose name matches the production/recovery pattern; the target
  * identifier is validated before it is ever interpolated into CREATE DATABASE. The password is
@@ -17,8 +15,8 @@
 import { existsSync } from "node:fs";
 import { Pool } from "pg";
 import {
+  assertAllowedRestoreTarget,
   assertNotProtectedDb,
-  assertSafeDbIdentifier,
   baseConnArgs,
   formatPgUrl,
   parseArgs,
@@ -76,6 +74,10 @@ async function verifyRestore(targetParts) {
 async function main() {
   const flags = parseArgs(process.argv.slice(2));
 
+  if (typeof flags.url === "string") {
+    throw new Error("--url is forbidden for restore; use the environment so credentials never appear on argv");
+  }
+
   const dumpFile = typeof flags.dump === "string" ? flags.dump : null;
   if (!dumpFile) {
     console.error("restore: --dump <file> is required.");
@@ -102,46 +104,32 @@ async function main() {
 
   // Hard guards before we touch the server.
   assertNotProtectedDb(target.database, "restore into");
-  assertSafeDbIdentifier(target.database);
+  assertAllowedRestoreTarget(target.database);
+  if (flags.force === true) {
+    throw new Error("--force is forbidden: restore targets must be fresh and must not already exist");
+  }
 
   if (!(await pgToolsAvailable())) {
     console.error("restore: pg_dump / pg_restore are not available on PATH or a known PostgreSQL bin dir.");
     process.exit(3);
   }
 
-  const force = flags.force === true;
   const maintenance = withDatabase(target, "postgres");
   const admin = new Pool({ connectionString: formatPgUrl(maintenance), max: 2 });
 
-  let created = false;
   try {
     const exists = await admin.query(`SELECT 1 FROM pg_database WHERE datname = $1`, [
       target.database,
     ]);
 
     if (exists.rowCount && exists.rowCount > 0) {
-      // Target already exists — refuse to clobber a populated database unless --force.
-      const probe = new Pool({ connectionString: formatPgUrl(target), max: 1 });
-      let populated = 0;
-      try {
-        populated = await countTables(probe);
-      } finally {
-        await probe.end();
-      }
-      if (populated > 0 && !force) {
-        console.error(
-          `restore: target "${target.database}" already exists and holds ${populated} table(s). ` +
-            "Refusing to restore over it. Re-run with --force to overwrite, or choose a fresh --db.",
-        );
-        process.exit(4);
-      }
-      console.log(
-        `restore: target "${target.database}" exists (${populated} table(s)); ${force ? "--force: restoring with --clean" : "empty: restoring"}.`,
+      console.error(
+        `restore: target "${target.database}" already exists. Refusing to clean, overwrite, or reuse it; choose a fresh allowlisted target.`,
       );
+      process.exit(4);
     } else {
       console.log(`restore: creating fresh target database "${target.database}".`);
       await admin.query(`CREATE DATABASE "${target.database}"`);
-      created = true;
     }
   } finally {
     await admin.end();
@@ -154,7 +142,6 @@ async function main() {
     "--no-owner",
     "--no-acl",
   ];
-  if (force && !created) restoreArgs.push("--clean", "--if-exists");
   restoreArgs.push(dumpFile);
 
   console.log(`restore: pg_restore ${dumpFile} -> "${target.database}"`);

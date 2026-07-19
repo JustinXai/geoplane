@@ -4,6 +4,34 @@ This drill is a deliberately local-only recovery path. It does not access GitHub
 a real provider. It does not truncate the application runtime database. Provider Ledger rows are
 treated only as restored historical/offline evidence; the drill never creates a provider call.
 
+## One-command operator path
+
+The operator path is split so backup is read-only against the exact runtime and restore can never
+point back at it:
+
+```powershell
+$env:LOCAL_ONLY_MODE = 'TRUE'
+$env:REMOTE_WRITE = 'FORBIDDEN'
+node scripts/local/backup.mjs
+node scripts/local/restore-verify.mjs --manifest <manifest-from-backup>
+```
+
+`scripts/local/backup.mjs` accepts only loopback `GEO_DATABASE_URL` whose database is exactly
+`geoplane_local_runtime`. It creates the dump, checksum, and manifest outside the repository. The
+manifest contains only table counts and hashes—not row content or a connection URL. It reads the
+business summary before and after `pg_dump` and rejects the evidence if runtime state changed during
+backup.
+
+`scripts/local/restore-verify.mjs` accepts no URL, database, dump, checksum, force, or test override.
+It reads the artifact and checksum from the manifest, restores only into a nonexistent
+`geoplane_local_restore_verify`, then compares hashed readback for migrations, organizations,
+users, memberships, projects, knowledge packages and content, opportunities, article briefs and
+drafts, distribution plans and publication receipts, deliveries, audit events, historical Provider
+Ledger rows, and sessions. It never prints raw business rows.
+
+Neither command imports or invokes Provider code. Provider credential variables are removed from
+the PostgreSQL child processes. Real Provider calls and remote-write attempts remain zero.
+
 ## Safety boundary
 
 - `LOCAL_ONLY_MODE` must be exactly `TRUE`.

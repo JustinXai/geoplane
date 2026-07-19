@@ -39,7 +39,7 @@ end-to-end round trip (executed here: **7/7 pass**):
    `tests/runtime/staging/backup-restore.e2e.test.ts:303-392`.
 5. `backup.mjs` **refuses a production/recovery-named database** (`geoplane_production_canary`
    → non-zero exit) — `tests/runtime/staging/backup-restore.e2e.test.ts:394-410`;
-   `restore.mjs` refuses to overwrite a populated target without `--force`, and every
+   `restore.mjs` rejects existing targets and `--force`, and every
    throwaway DB name is unique per run and dropped — `docs/pilot/BACKUP_RESTORE_NOTES.md:38-46`.
 
 Password handling: the connection password is passed to the client tools **only** via
