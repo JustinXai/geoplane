@@ -21,7 +21,6 @@ CREATE TABLE platform_account (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT ck_platform_account_platform CHECK (length(trim(platform_code)) > 0),
   CONSTRAINT ck_platform_account_label CHECK (length(trim(display_label)) > 0),
-  CONSTRAINT ck_platform_account_secret_reference CHECK (secret_reference IS NULL OR secret_reference ~ '^secretref://[A-Za-z0-9][A-Za-z0-9._/-]{2,253}$'),
   CONSTRAINT ck_platform_account_type CHECK (account_type IN ('AI_PLATFORM_ACCOUNT','CONTENT_PLATFORM_ACCOUNT')),
   CONSTRAINT ck_platform_account_ownership CHECK (ownership IN ('PLATFORM_OWNED','CLIENT_OWNED','AGENCY_OWNED')),
   CONSTRAINT ck_platform_account_owner_shape CHECK (
@@ -136,23 +135,6 @@ CREATE TABLE account_operation_result (
   CONSTRAINT ck_account_result_status CHECK (status IN ('SUCCEEDED','FAILED')),
   CONSTRAINT ck_account_result_failure CHECK ((status='SUCCEEDED' AND failure_category IS NULL) OR status='FAILED')
 );
-
-CREATE OR REPLACE FUNCTION enforce_account_result_receipt_scope() RETURNS TRIGGER AS $$
-DECLARE task_client UUID; task_project UUID; task_account UUID; task_assignment UUID; assignment_client UUID; assignment_project UUID; receipt_client UUID; receipt_project UUID;
-BEGIN
-  SELECT client_organization_id,project_id,account_id,assignment_id INTO STRICT task_client,task_project,task_account,task_assignment FROM account_operation_task WHERE id=NEW.task_id;
-  IF task_account <> NEW.account_id THEN RAISE EXCEPTION 'operation result account must match task' USING ERRCODE='23514'; END IF;
-  SELECT client_organization_id,project_id INTO STRICT assignment_client,assignment_project FROM account_assignment WHERE id=task_assignment AND status='ACTIVE';
-  IF assignment_client <> task_client OR assignment_project <> task_project THEN RAISE EXCEPTION 'operation task scope must match active assignment' USING ERRCODE='23514'; END IF;
-  IF NEW.publication_receipt_id IS NOT NULL THEN
-    SELECT client_organization_id,project_id INTO STRICT receipt_client,receipt_project FROM publication_receipt WHERE id=NEW.publication_receipt_id;
-    IF receipt_client <> task_client OR receipt_project <> task_project THEN RAISE EXCEPTION 'publication receipt scope must match operation task' USING ERRCODE='23514'; END IF;
-  END IF;
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-CREATE TRIGGER trg_enforce_account_result_receipt_scope BEFORE INSERT ON account_operation_result
-  FOR EACH ROW EXECUTE FUNCTION enforce_account_result_receipt_scope();
 
 -- Usage and result rows are historical ledgers. Database-level mutation denial closes bypasses.
 CREATE OR REPLACE FUNCTION reject_account_ledger_mutation() RETURNS TRIGGER AS $$
