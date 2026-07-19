@@ -21,6 +21,12 @@ export type AccountHealthStatus = "UNKNOWN" | "HEALTHY" | "DEGRADED" | "UNAVAILA
 export type AccountRiskStatus = "UNKNOWN" | "NORMAL" | "ATTENTION" | "BLOCKED";
 export type OperationTaskStatus = "PENDING" | "IN_PROGRESS" | "SUCCEEDED" | "FAILED" | "CANCELLED";
 
+/** Only references issued by the configured secret broker are accepted; never raw secret text. */
+export const SECRET_REFERENCE_PATTERN = /^secretref:\/\/[A-Za-z0-9][A-Za-z0-9._/-]{2,253}$/;
+export function isValidSecretReference(value: string): boolean {
+  return SECRET_REFERENCE_PATTERN.test(value);
+}
+
 export interface PlatformAccount {
   readonly id: string;
   readonly platformCode: string;

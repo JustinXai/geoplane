@@ -13,6 +13,9 @@ class FakeRepo implements AccountRepository {
   async revokeAuthorization(_id:string,_userId:string,_at:string):Promise<AccountAuthorization>{throw new Error("unused");}
   async addAssignment(i:Omit<AccountAssignment,"id"|"assignedAt"|"revokedAt">){const a={...i,id:`s${this.assignments.length+1}`,assignedAt:new Date().toISOString(),revokedAt:null};this.assignments.push(a);return a;}
   async findActiveAssignment(a:string,p:string){return this.assignments.find(x=>x.accountId===a&&x.projectId===p&&x.status==="ACTIVE")??null;}
+  operatorEligible=true;
+  async isOperatorEligible(){return this.operatorEligible;}
+  async findPublicationReceiptScope(){return null;}
   async addHealth(_i:Omit<AccountHealth,"id">):Promise<AccountHealth>{throw new Error("unused");}
   async addUsage(_i:Omit<AccountUsageRecord,"id">):Promise<AccountUsageRecord>{throw new Error("unused");}
   async createOperationTask(_i:Omit<AccountOperationTask,"id"|"requestedAt"|"startedAt"|"completedAt">):Promise<AccountOperationTask>{throw new Error("unused");}
@@ -38,5 +41,12 @@ describe("account ownership authorization",()=>{
     await svc.authorize(agency,{accountId:account.id});
     const assignment=await svc.assign(agency,{accountId:account.id,projectId:"p1",clientOrganizationId:"client-a",operatorUserId:"operator"});
     expect(assignment.clientOrganizationId).toBe("client-a"); expect(events.filter(e=>e.outcome==="ALLOWED")).toHaveLength(3);
+  });
+
+  it("rejects arbitrary secret text and an operator outside the assignment scope",async()=>{
+    const repo=new FakeRepo();const events:AccountAuditEntry[]=[];const svc=new AccountAuthorizationService(repo,{append:async e=>{events.push(e);}});const owner=ctx("CLIENT_OWNER","client-a");
+    await expect(svc.register(owner,{platformCode:"QWEN",accountType:"AI_PLATFORM_ACCOUNT",ownership:"CLIENT_OWNED",clientOrganizationId:"client-a",displayLabel:"账号",secretReference:"raw-password-like-value"})).rejects.toThrow(/secretref:\/\//);
+    const account=await svc.register(owner,{platformCode:"QWEN",accountType:"AI_PLATFORM_ACCOUNT",ownership:"CLIENT_OWNED",clientOrganizationId:"client-a",displayLabel:"账号",secretReference:"secretref://client-a/qwen"});await svc.authorize(owner,{accountId:account.id});repo.operatorEligible=false;
+    await expect(svc.assign(owner,{accountId:account.id,projectId:"p1",clientOrganizationId:"client-a",operatorUserId:"outsider"})).rejects.toBeInstanceOf(AccountAuthorizationError);expect(repo.assignments).toHaveLength(0);expect(events.at(-1)?.outcome).toBe("DENIED");
   });
 });

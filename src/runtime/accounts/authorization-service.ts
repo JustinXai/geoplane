@@ -1,6 +1,6 @@
 import { canAccessClientOrganization } from "../../contracts/tenancy/authorization.js";
 import type { AuthorizationContext } from "../../contracts/tenancy/entities.js";
-import type { AccountAssignment, AccountAuthorization, PlatformAccount } from "./entities.js";
+import { isValidSecretReference, type AccountAssignment, type AccountAuthorization, type PlatformAccount } from "./entities.js";
 import type { AccountRepository } from "./ports.js";
 import { getAccountPlatform } from "./platform-registry.js";
 
@@ -83,12 +83,14 @@ export class AccountAuthorizationService {
     if (!platform || platform.accountType !== input.accountType) {
       throw new Error("platformCode is not registered for the selected accountType");
     }
+    const secretReference=input.secretReference?.trim()||null;
+    if(secretReference&&!isValidSecretReference(secretReference))throw new Error("secretReference must use the approved secretref:// opaque-reference format");
 
     const account = await this.repo.createAccount({
       platformCode: platform.code, accountType: input.accountType,
       ownership: input.ownership, agencyOrganizationId: agencyId, clientOrganizationId: clientId,
-      displayLabel: input.displayLabel.trim(), secretReference: input.secretReference?.trim() || null,
-      credentialStatus: input.secretReference ? "UNVERIFIED" : "NOT_CONFIGURED", lastVerifiedAt: null,
+      displayLabel: input.displayLabel.trim(), secretReference,
+      credentialStatus: secretReference ? "UNVERIFIED" : "NOT_CONFIGURED", lastVerifiedAt: null,
       status: "ACTIVE", operationMode: "MANUAL_OPERATION", createdByUserId: ctx.actorUserId,
     });
     await this.audit.append({ ...auditBase(ctx, "account.register", "platform_account"), outcome: "ALLOWED", clientOrganizationId: clientId, projectId: null, targetId: account.id, metadata: { ownership: account.ownership, platformCode: account.platformCode } });
@@ -122,6 +124,7 @@ export class AccountAuthorizationService {
     if (!canReachClient || !ownerMatches || !agencyMatches) return this.deny(ctx, "account.assign", input.clientOrganizationId, input.projectId, account.id);
     if (!await this.repo.findActiveAuthorization(account.id)) throw new Error("Account must be authorized before assignment");
     if (await this.repo.findActiveAssignment(account.id, input.projectId)) throw new Error("Account is already assigned to this project");
+    if(!await this.repo.isOperatorEligible(input.operatorUserId,input.clientOrganizationId,input.projectId))return this.deny(ctx,"account.assign",input.clientOrganizationId,input.projectId,account.id);
     const assignment = await this.repo.addAssignment({ accountId: account.id, projectId: input.projectId, clientOrganizationId: input.clientOrganizationId, operatorUserId: input.operatorUserId, status: "ACTIVE", assignedByUserId: ctx.actorUserId });
     await this.audit.append({ ...auditBase(ctx, "account.assign", "account_assignment"), outcome: "ALLOWED", clientOrganizationId: input.clientOrganizationId, projectId: input.projectId, targetId: assignment.id, metadata: { accountId: account.id, operatorUserId: input.operatorUserId } });
     return assignment;

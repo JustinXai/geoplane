@@ -16,6 +16,8 @@ export interface AccountRepository {
   revokeAuthorization(id: string, revokedByUserId: string, revokedAt: string): Promise<AccountAuthorization>;
   addAssignment(input: Omit<AccountAssignment, "id" | "assignedAt" | "revokedAt">): Promise<AccountAssignment>;
   findActiveAssignment(accountId: string, projectId: string): Promise<AccountAssignment | null>;
+  isOperatorEligible(operatorUserId: string, clientOrganizationId: string, projectId: string): Promise<boolean>;
+  findPublicationReceiptScope(id: string): Promise<{ clientOrganizationId: string; projectId: string } | null>;
   addHealth(input: Omit<AccountHealth, "id">): Promise<AccountHealth>;
   addUsage(input: Omit<AccountUsageRecord, "id">): Promise<AccountUsageRecord>;
   createOperationTask(input: Omit<AccountOperationTask, "id" | "requestedAt" | "startedAt" | "completedAt">): Promise<AccountOperationTask>;
