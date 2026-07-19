@@ -16,6 +16,7 @@ CREATE TABLE keyword_reference_source_import (
   parsed_count INTEGER NOT NULL DEFAULT 0 CHECK (parsed_count >= 0),
   rejected_count INTEGER NOT NULL DEFAULT 0 CHECK (rejected_count >= 0),
   UNIQUE (client_organization_id, project_id, source_manifest_hash),
+  UNIQUE (id, client_organization_id, project_id),
   CHECK ((status = 'COMPLETED' AND completed_at IS NOT NULL) OR status <> 'COMPLETED')
 );
 
@@ -23,7 +24,7 @@ CREATE TABLE keyword_raw_observation (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_organization_id UUID NOT NULL REFERENCES organization(id),
   project_id UUID NOT NULL REFERENCES project(id),
-  import_id UUID NOT NULL REFERENCES keyword_reference_source_import(id),
+  import_id UUID NOT NULL,
   source_locator TEXT NOT NULL,
   seed_keyword TEXT NOT NULL CHECK (length(trim(seed_keyword)) > 0),
   raw_keyword TEXT NOT NULL CHECK (length(trim(raw_keyword)) > 0),
@@ -31,50 +32,60 @@ CREATE TABLE keyword_raw_observation (
   observed_at TIMESTAMPTZ NOT NULL,
   raw_record_hash TEXT NOT NULL CHECK (raw_record_hash ~ '^[0-9a-f]{64}$'),
   UNIQUE (import_id, raw_record_hash),
-  UNIQUE (id, client_organization_id, project_id)
+  UNIQUE (id, client_organization_id, project_id),
+  FOREIGN KEY (import_id, client_organization_id, project_id)
+    REFERENCES keyword_reference_source_import(id, client_organization_id, project_id)
 );
 
 CREATE TABLE keyword_normalized_form (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_organization_id UUID NOT NULL REFERENCES organization(id),
   project_id UUID NOT NULL REFERENCES project(id),
-  raw_observation_id UUID NOT NULL REFERENCES keyword_raw_observation(id),
+  raw_observation_id UUID NOT NULL,
   normalized_keyword TEXT NOT NULL CHECK (length(trim(normalized_keyword)) > 0),
   normalization_rule_version TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL,
   UNIQUE (raw_observation_id, normalization_rule_version),
-  UNIQUE (id, client_organization_id, project_id)
+  UNIQUE (id, client_organization_id, project_id),
+  FOREIGN KEY (raw_observation_id, client_organization_id, project_id)
+    REFERENCES keyword_raw_observation(id, client_organization_id, project_id)
 );
 
 CREATE TABLE keyword_discovery (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_organization_id UUID NOT NULL REFERENCES organization(id),
   project_id UUID NOT NULL REFERENCES project(id),
-  normalized_form_id UUID NOT NULL REFERENCES keyword_normalized_form(id),
+  normalized_form_id UUID NOT NULL,
   seed_keyword TEXT NOT NULL CHECK (length(trim(seed_keyword)) > 0),
   discovery_method TEXT NOT NULL CHECK (discovery_method = 'IMPORTED_SEED_EXPANSION'),
   discovered_at TIMESTAMPTZ NOT NULL,
-  UNIQUE (normalized_form_id, seed_keyword)
+  UNIQUE (normalized_form_id, seed_keyword),
+  FOREIGN KEY (normalized_form_id, client_organization_id, project_id)
+    REFERENCES keyword_normalized_form(id, client_organization_id, project_id)
 );
 
 CREATE TABLE keyword_demand_observation (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_organization_id UUID NOT NULL REFERENCES organization(id),
   project_id UUID NOT NULL REFERENCES project(id),
-  normalized_form_id UUID NOT NULL REFERENCES keyword_normalized_form(id),
-  raw_observation_id UUID NOT NULL REFERENCES keyword_raw_observation(id),
+  normalized_form_id UUID NOT NULL,
+  raw_observation_id UUID NOT NULL,
   evidence_status TEXT NOT NULL CHECK (evidence_status = 'OBSERVED_DEMAND'),
   metric_kind TEXT NOT NULL CHECK (metric_kind = 'BAIDU_DEMAND_INDEX'),
   metric_value NUMERIC NOT NULL CHECK (metric_value >= 0),
   observed_at TIMESTAMPTZ NOT NULL,
-  UNIQUE (normalized_form_id, raw_observation_id, metric_kind)
+  UNIQUE (normalized_form_id, raw_observation_id, metric_kind),
+  FOREIGN KEY (normalized_form_id, client_organization_id, project_id)
+    REFERENCES keyword_normalized_form(id, client_organization_id, project_id),
+  FOREIGN KEY (raw_observation_id, client_organization_id, project_id)
+    REFERENCES keyword_raw_observation(id, client_organization_id, project_id)
 );
 
 CREATE TABLE keyword_reference_snapshot (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_organization_id UUID NOT NULL REFERENCES organization(id),
   project_id UUID NOT NULL REFERENCES project(id),
-  import_id UUID NOT NULL REFERENCES keyword_reference_source_import(id),
+  import_id UUID NOT NULL,
   snapshot_version INTEGER NOT NULL CHECK (snapshot_version >= 1),
   manifest_hash TEXT NOT NULL CHECK (manifest_hash ~ '^[0-9a-f]{64}$'),
   raw_observation_count INTEGER NOT NULL CHECK (raw_observation_count >= 0),
@@ -82,7 +93,9 @@ CREATE TABLE keyword_reference_snapshot (
   demand_observation_count INTEGER NOT NULL CHECK (demand_observation_count >= 0),
   sealed_at TIMESTAMPTZ NOT NULL,
   UNIQUE (client_organization_id, project_id, snapshot_version),
-  UNIQUE (id, client_organization_id, project_id)
+  UNIQUE (id, client_organization_id, project_id),
+  FOREIGN KEY (import_id, client_organization_id, project_id)
+    REFERENCES keyword_reference_source_import(id, client_organization_id, project_id)
 );
 
 CREATE TABLE keyword_taxonomy_version (
@@ -91,30 +104,36 @@ CREATE TABLE keyword_taxonomy_version (
   project_id UUID NOT NULL REFERENCES project(id),
   version INTEGER NOT NULL CHECK (version >= 1),
   status TEXT NOT NULL CHECK (status IN ('DRAFT', 'PUBLISHED')),
-  parent_version_id UUID REFERENCES keyword_taxonomy_version(id),
+  parent_version_id UUID,
   published_at TIMESTAMPTZ,
   UNIQUE (client_organization_id, project_id, version),
   UNIQUE (id, client_organization_id, project_id),
-  CHECK ((status = 'PUBLISHED' AND published_at IS NOT NULL) OR status = 'DRAFT')
+  CHECK ((status = 'PUBLISHED' AND published_at IS NOT NULL) OR status = 'DRAFT'),
+  FOREIGN KEY (parent_version_id, client_organization_id, project_id)
+    REFERENCES keyword_taxonomy_version(id, client_organization_id, project_id)
 );
 
 CREATE TABLE keyword_classification_version (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_organization_id UUID NOT NULL REFERENCES organization(id),
   project_id UUID NOT NULL REFERENCES project(id),
-  normalized_form_id UUID NOT NULL REFERENCES keyword_normalized_form(id),
-  taxonomy_version_id UUID NOT NULL REFERENCES keyword_taxonomy_version(id),
+  normalized_form_id UUID NOT NULL,
+  taxonomy_version_id UUID NOT NULL,
   category_key TEXT NOT NULL,
   evidence TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL,
-  UNIQUE (normalized_form_id, taxonomy_version_id)
+  UNIQUE (normalized_form_id, taxonomy_version_id),
+  FOREIGN KEY (normalized_form_id, client_organization_id, project_id)
+    REFERENCES keyword_normalized_form(id, client_organization_id, project_id),
+  FOREIGN KEY (taxonomy_version_id, client_organization_id, project_id)
+    REFERENCES keyword_taxonomy_version(id, client_organization_id, project_id)
 );
 
 CREATE TABLE keyword_family_draft (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_organization_id UUID NOT NULL REFERENCES organization(id),
   project_id UUID NOT NULL REFERENCES project(id),
-  snapshot_id UUID NOT NULL REFERENCES keyword_reference_snapshot(id),
+  snapshot_id UUID NOT NULL,
   version INTEGER NOT NULL CHECK (version >= 1),
   label TEXT NOT NULL CHECK (length(trim(label)) > 0),
   rationale TEXT NOT NULL CHECK (length(trim(rationale)) > 0),
@@ -122,50 +141,70 @@ CREATE TABLE keyword_family_draft (
   created_by_user_id UUID NOT NULL REFERENCES "user"(id),
   created_at TIMESTAMPTZ NOT NULL,
   UNIQUE (client_organization_id, project_id, id, version),
-  UNIQUE (id, client_organization_id, project_id)
+  UNIQUE (id, client_organization_id, project_id),
+  FOREIGN KEY (snapshot_id, client_organization_id, project_id)
+    REFERENCES keyword_reference_snapshot(id, client_organization_id, project_id)
 );
 
 CREATE TABLE keyword_family_draft_member (
-  family_draft_id UUID NOT NULL REFERENCES keyword_family_draft(id),
-  normalized_form_id UUID NOT NULL REFERENCES keyword_normalized_form(id),
+  client_organization_id UUID NOT NULL REFERENCES organization(id),
+  project_id UUID NOT NULL REFERENCES project(id),
+  family_draft_id UUID NOT NULL,
+  normalized_form_id UUID NOT NULL,
   position INTEGER NOT NULL CHECK (position >= 0),
   PRIMARY KEY (family_draft_id, normalized_form_id),
-  UNIQUE (family_draft_id, position)
+  UNIQUE (family_draft_id, position),
+  FOREIGN KEY (family_draft_id, client_organization_id, project_id)
+    REFERENCES keyword_family_draft(id, client_organization_id, project_id),
+  FOREIGN KEY (normalized_form_id, client_organization_id, project_id)
+    REFERENCES keyword_normalized_form(id, client_organization_id, project_id)
 );
 
 CREATE TABLE keyword_human_review_package (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_organization_id UUID NOT NULL REFERENCES organization(id),
   project_id UUID NOT NULL REFERENCES project(id),
-  snapshot_id UUID NOT NULL REFERENCES keyword_reference_snapshot(id),
+  snapshot_id UUID NOT NULL,
   package_version INTEGER NOT NULL CHECK (package_version >= 1),
   status TEXT NOT NULL CHECK (status IN ('OPEN', 'IN_REVIEW', 'COMPLETED')),
   submitted_by_user_id UUID NOT NULL REFERENCES "user"(id),
   submitted_at TIMESTAMPTZ NOT NULL,
   UNIQUE (client_organization_id, project_id, package_version),
-  UNIQUE (id, client_organization_id, project_id)
+  UNIQUE (id, client_organization_id, project_id),
+  FOREIGN KEY (snapshot_id, client_organization_id, project_id)
+    REFERENCES keyword_reference_snapshot(id, client_organization_id, project_id)
 );
 
 CREATE TABLE keyword_human_review_package_item (
-  review_package_id UUID NOT NULL REFERENCES keyword_human_review_package(id),
-  family_draft_id UUID NOT NULL REFERENCES keyword_family_draft(id),
+  client_organization_id UUID NOT NULL REFERENCES organization(id),
+  project_id UUID NOT NULL REFERENCES project(id),
+  review_package_id UUID NOT NULL,
+  family_draft_id UUID NOT NULL,
   position INTEGER NOT NULL CHECK (position >= 0),
   PRIMARY KEY (review_package_id, family_draft_id),
-  UNIQUE (review_package_id, position)
+  UNIQUE (review_package_id, position),
+  FOREIGN KEY (review_package_id, client_organization_id, project_id)
+    REFERENCES keyword_human_review_package(id, client_organization_id, project_id),
+  FOREIGN KEY (family_draft_id, client_organization_id, project_id)
+    REFERENCES keyword_family_draft(id, client_organization_id, project_id)
 );
 
 CREATE TABLE keyword_human_review_record (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   client_organization_id UUID NOT NULL REFERENCES organization(id),
   project_id UUID NOT NULL REFERENCES project(id),
-  review_package_id UUID NOT NULL REFERENCES keyword_human_review_package(id),
-  family_draft_id UUID NOT NULL REFERENCES keyword_family_draft(id),
+  review_package_id UUID NOT NULL,
+  family_draft_id UUID NOT NULL,
   decision TEXT NOT NULL CHECK (decision IN ('CONFIRMED', 'CHANGES_REQUESTED', 'REJECTED')),
   reviewer_user_id UUID NOT NULL REFERENCES "user"(id),
   decided_at TIMESTAMPTZ NOT NULL,
   note TEXT,
   UNIQUE (review_package_id, family_draft_id, id),
-  CHECK (decision = 'CONFIRMED' OR length(trim(coalesce(note, ''))) > 0)
+  CHECK (decision = 'CONFIRMED' OR length(trim(coalesce(note, ''))) > 0),
+  FOREIGN KEY (review_package_id, client_organization_id, project_id)
+    REFERENCES keyword_human_review_package(id, client_organization_id, project_id),
+  FOREIGN KEY (family_draft_id, client_organization_id, project_id)
+    REFERENCES keyword_family_draft(id, client_organization_id, project_id)
 );
 
 CREATE INDEX ix_keyword_raw_scope ON keyword_raw_observation(client_organization_id, project_id);
@@ -182,9 +221,11 @@ $$ LANGUAGE plpgsql;
 
 DO $$ DECLARE table_name TEXT; BEGIN
   FOREACH table_name IN ARRAY ARRAY[
-    'keyword_raw_observation', 'keyword_normalized_form', 'keyword_discovery',
+    'keyword_reference_source_import', 'keyword_raw_observation',
+    'keyword_normalized_form', 'keyword_discovery',
     'keyword_demand_observation', 'keyword_reference_snapshot',
-    'keyword_classification_version', 'keyword_human_review_record'
+    'keyword_taxonomy_version', 'keyword_classification_version', 'keyword_family_draft',
+    'keyword_human_review_package', 'keyword_human_review_record'
   ] LOOP
     EXECUTE format('CREATE TRIGGER trg_%s_no_update BEFORE UPDATE OR DELETE ON %I FOR EACH ROW EXECUTE FUNCTION keyword_runtime_forbid_mutation()', table_name, table_name);
   END LOOP;

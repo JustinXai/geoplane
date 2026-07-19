@@ -7,9 +7,11 @@ import type {
   KeywordReviewRecord,
   KeywordScope,
 } from "./contracts.js";
+import type { PreparedKeywordImport } from "./normalization.js";
 
 /** Append-only storage contract. No update/delete operation is exposed. */
 export interface KeywordRuntimeRepository {
+  savePreparedImport(value: PreparedKeywordImport): Promise<"CREATED" | "ALREADY_IMPORTED">;
   addImport(value: KeywordReferenceSourceImport): Promise<void>;
   findCompletedImportByManifest(scope: KeywordScope, manifestHash: string): Promise<KeywordReferenceSourceImport | undefined>;
   addRawObservations(values: readonly KeywordRawObservation[]): Promise<void>;
