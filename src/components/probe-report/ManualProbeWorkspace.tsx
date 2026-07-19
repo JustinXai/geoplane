@@ -118,7 +118,7 @@ export function ManualProbeWorkspace({ projectId, questions }: ManualProbeWorksp
           </div>
           {visibleResults.length===0?<p className="cp-placeholder-note">没有符合当前筛选条件的检测记录。</p>:<div className="cp-table-wrap"><table className="cp-data-table"><thead><tr><th>平台</th><th>问题</th><th>状态</th><th>检测时间</th><th>详情</th></tr></thead><tbody>{[...visibleResults].reverse().map((item) => <tr key={item.id}><td>{DOMESTIC_AI_PLATFORMS.find((platform) => platform.code === item.platform)?.name ?? "已停用平台"}</td><td>{item.question}</td><td>{item.outcome === "ANSWERED" ? "已获得回答" : "检测失败"}</td><td>{new Date(item.observedAt).toLocaleString("zh-CN")}</td><td><details><summary>查看</summary><p><strong>{item.outcome==="ANSWERED"?"回答摘要":"失败说明"}：</strong>{item.answerText??item.failureMessage??PROBE_FAILURE_LABELS[item.failureCode as ProbeFailureCode]??"未填写"}</p><p><strong>证据引用：</strong>{item.screenshotReference??"未填写"}</p><p><strong>登记时间：</strong>{new Date(item.recordedAt).toLocaleString("zh-CN")}</p></details></td></tr>)}</tbody></table></div>}
         </>}
-        <div className="cp-callout"><strong>运行边界：</strong>仅支持豆包、通义千问、DeepSeek、腾讯元宝的人工登记；自动登录关闭，真实平台调用为 0。品牌、竞品和推荐标注尚无持久化能力，系统不显示推测指标。</div>
+        <div className="cp-callout"><strong>当前可交付范围：</strong>仅支持豆包、通义千问、DeepSeek、腾讯元宝的人工检测原始记录；自动登录关闭，真实平台调用为 0。品牌提及、推荐情况、回答位置和引用判断尚不能持久保存，因此客户效果报告暂不生成，系统不会根据回答摘要推测指标。</div>
       </section>
     </div>
   );
