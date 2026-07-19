@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 /**
  * Recovery classification: RECONSTRUCTED_FROM_FROZEN_SPEC
- * repo:safety:preflight - checks the invariants from AGENTS.md / the
- * overnight rebuild spec before any destructive or wide-reaching command
- * (build cleanup, dependency install, etc.) is allowed to proceed.
+ * repo:safety:preflight — local-only repository and recovery-source safety checks.
+ *
+ * LOCAL_ONLY_MODE is the permanent posture for this stage. This script never reads or prints a
+ * remote URL, never inspects remote-tracking refs, never recommends a push, and uses only local
+ * filesystem/config/object-database operations. No command here can contact a network service.
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, realpathSync } from "node:fs";
@@ -21,7 +23,12 @@ function ok(msg) {
   console.log(`PREFLIGHT OK: ${msg}`);
 }
 
-// .git accessible
+// LOCAL_ONLY_MODE is fail-closed. No other posture is accepted by this stage's safety gate.
+const localOnly = String(process.env.LOCAL_ONLY_MODE ?? "true").trim().toLowerCase();
+if (!["true", "1"].includes(localOnly)) fail("LOCAL_ONLY_MODE must remain true");
+ok("LOCAL_ONLY_MODE active; remote state is intentionally not inspected");
+
+// .git accessible using only the local filesystem/object database.
 if (!existsSync(".git") && !existsSync(resolve(".git"))) {
   try {
     execFileSync("git", ["rev-parse", "--git-dir"], { stdio: "ignore" });
@@ -31,48 +38,40 @@ if (!existsSync(".git") && !existsSync(resolve(".git"))) {
 }
 ok(".git accessible");
 
-// HEAD resolvable
 let head;
+let branch;
 try {
   head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
-  ok(`HEAD resolves to ${head}`);
+  branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { encoding: "utf8" }).trim();
+  ok(`local HEAD resolves to ${head}`);
+  ok(`local branch resolves to ${branch}`);
 } catch {
-  fail("HEAD does not resolve");
+  fail("local HEAD or branch does not resolve");
 }
 
-// origin configured
-let originUrl;
+// Local work branches must not carry an upstream in this stage.
+let configuredUpstream = "";
 try {
-  originUrl = execFileSync("git", ["remote", "get-url", "origin"], { encoding: "utf8" }).trim();
-  ok(`origin configured: ${originUrl}`);
+  configuredUpstream = execFileSync(
+    "git",
+    ["config", "--get", `branch.${branch}.remote`],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+  ).trim();
 } catch {
-  fail("origin remote not configured");
+  // git config --get exits 1 when the key is absent; absence is the required local-only state.
 }
+if (configuredUpstream !== "") fail("local branch must not have an upstream in LOCAL_ONLY_MODE");
+ok("local branch has no upstream");
 
-// current HEAD has been pushed (best-effort; requires a prior fetch)
-try {
-  const branch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { encoding: "utf8" }).trim();
-  const remoteHead = execFileSync("git", ["rev-parse", `origin/${branch}`], { encoding: "utf8" }).trim();
-  if (remoteHead === head) {
-    ok(`current HEAD already pushed to origin/${branch}`);
-  } else {
-    console.warn(`PREFLIGHT WARN: local HEAD (${head}) differs from origin/${branch} (${remoteHead}) - push before ending this checkpoint`);
-  }
-} catch {
-  console.warn("PREFLIGHT WARN: could not compare against a remote-tracking branch");
-}
-
-// working directory is not the recovery source
+// Working directory must remain outside the read-only recovery evidence tree.
 const cwd = realpathSync(process.cwd());
 if (cwd.toLowerCase().startsWith(RECOVERY_SOURCE.toLowerCase())) {
-  fail(`current working directory (${cwd}) is inside the read-only recovery source (${RECOVERY_SOURCE})`);
+  fail("current working directory is inside the read-only recovery source");
 }
 ok("working directory is not the recovery source");
 
-// delete targets not in protected paths (informational contract, enforced by callers)
-ok(`protected path patterns loaded: ${PROTECTED_PATTERNS.map((p) => p.source).join(", ")}`);
-
-// recovery source has no file changes (best effort - caller should pass a checksum baseline)
+// Delete-target and evidence checks remain caller-enforced contracts.
+ok(`protected path patterns loaded: ${PROTECTED_PATTERNS.map((pattern) => pattern.source).join(", ")}`);
 ok("recovery-source mutation check delegated to caller's checksum spot-check");
 
-console.log("repo:safety:preflight PASS");
+console.log("repo:safety:preflight PASS (local-only)");
