@@ -152,6 +152,33 @@ export function assertSafeDbIdentifier(name) {
   }
 }
 
+/**
+ * Restore targets are an explicit allowlist of disposable/verification database names. This is
+ * intentionally stricter than assertNotProtectedDb(): runtime, test, and canary role databases are
+ * valid backup sources in some workflows, but must never be restore targets.
+ */
+const RESTORE_TARGET_PATTERNS = [
+  /^geoplane_local_restore_verify$/,
+  /^geoplane_bkp_dst_[A-Za-z0-9_]+$/,
+  /^geoplane_pilot_rst_[A-Za-z0-9_]+$/,
+  /^geoplane_cpops_rst_[A-Za-z0-9_]+$/,
+  /^geoplane_ci_bkr_[A-Za-z0-9_]+$/,
+  /^geoplane_pgverify_[A-Za-z0-9_]+$/,
+  /^geoplane_rep_r[0-9]+_restore_test$/,
+];
+
+export function assertAllowedRestoreTarget(name) {
+  const database = String(name ?? "");
+  assertSafeDbIdentifier(database);
+  assertNotProtectedDb(database, "restore into");
+  if (!RESTORE_TARGET_PATTERNS.some((pattern) => pattern.test(database))) {
+    throw new Error(
+      `refusing to restore into database "${database}": target is not an allowlisted ` +
+        "fresh restore-verification database (runtime/test/canary targets are forbidden)",
+    );
+  }
+}
+
 /** Validate a caller-supplied SHA-256 before it is used as restore evidence. */
 export function assertSha256(value) {
   if (!/^[a-f0-9]{64}$/i.test(String(value ?? ""))) {

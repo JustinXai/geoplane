@@ -94,15 +94,16 @@ production/recovery-named database.
 
 ## 4. Restore (to a FRESH database)
 
-Restore is always into a **fresh** target the script CREATEs; it refuses to overwrite a populated
-database without `--force`, and verifies object/row counts post-restore.
+Restore is always into a **fresh, allowlisted verification** target the script CREATEs. Runtime,
+test, canary, arbitrary, and existing targets are rejected; `--force` is forbidden. The script
+verifies object/row counts post-restore.
 
 ```
 # Restore into a brand-new target database:
-node scripts/backup/restore.mjs --db <fresh-target> --user postgres --dump <file.dump>
+node scripts/backup/restore.mjs --db geoplane_bkp_dst_<suffix> --user postgres --dump <file.dump>
 
 # Test-lane base connection (--test) with a fresh target:
-node scripts/backup/restore.mjs --test --db <fresh-target> --user postgres --dump <file.dump>
+node scripts/backup/restore.mjs --test --db geoplane_bkp_dst_<suffix> --user postgres --dump <file.dump>
 ```
 
 Post-restore, the script prints `RESTORED <db> tables=… indexes=… triggers=… rows=…`. Connect and
