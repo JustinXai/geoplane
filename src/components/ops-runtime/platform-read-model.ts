@@ -1,6 +1,7 @@
 import type { ProjectViewV1, AuditEventViewV1 } from "../../runtime/api-contracts/index.js";
 import { type ApiClient, defaultApiClient, type Result } from "../../lib/api-client/index.js";
 import { listAllOrganizations, listOpsAudit, type OrganizationSummaryV1 } from "./ops-api.js";
+import { safeBusinessDisplayName } from "../../runtime/ui-adapters/formatters.js";
 
 export interface PlatformDirectoryReadModel {
   readonly organizations: readonly OrganizationSummaryV1[];
@@ -18,9 +19,16 @@ export async function loadPlatformDirectory(client: ApiClient = defaultApiClient
   const audit = await listOpsAudit({ limit: 100 }, client);
   if (!audit.ok) return audit;
   return { ok: true, data: {
-    organizations: organizations.data,
-    projects: projectResults.flatMap((item) => item.ok ? item.data : []),
-    auditEvents: audit.data,
+    organizations: organizations.data.map((item) => ({ ...item, displayName: safeBusinessDisplayName(item.displayName) })),
+    projects: projectResults.flatMap((item) => item.ok ? item.data.map((project) => ({
+      ...project,
+      name: safeBusinessDisplayName(project.name, "项目"),
+      clientOrganizationName: safeBusinessDisplayName(project.clientOrganizationName),
+    })) : []),
+    auditEvents: audit.data.map((event) => ({
+      ...event,
+      actorDisplayName: event.actorDisplayName === null ? null : safeBusinessDisplayName(event.actorDisplayName),
+    })),
   } };
 }
 

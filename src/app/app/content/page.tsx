@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * CLIENT_WORKSPACE_RUNTIME_V1 (Agent D) — 内容与信源 (content & source grounding), wired to
+ * CLIENT_WORKSPACE_RUNTIME_V1 (Agent D) — 内容与交付, wired to
  * real APIs (replaces the C2 fixtures). Resolves the caller's active project, then loads its
  * knowledge-grounded content opportunities (GET /api/projects/[projectId]/opportunities) —
  * the read-side content items the endpoints currently support. Renders all five async states
@@ -9,8 +9,7 @@
  *
  * batch 2 wires the per-row 内容方向 confirmation to the real client review command (POST
  * /api/opportunities/[id]/reviews) via OpportunityReviewControl — reviewer server-derived, list
- * refreshes on success. The 信源类型 decision has no modeled command, so it keeps the C5
- * presentation-only ClientConfirmationControl (the intended clean state).
+ * refreshes on success. Automatic source collection remains a separate deferred system.
  */
 import { useAsyncData } from "../../../components/runtime/index.js";
 import { AsyncSection } from "../../../components/client-runtime/AsyncSection.js";
@@ -28,7 +27,7 @@ export default function ContentSourcingPage() {
       <header className="cp-page-header">
         <div>
           <p className="eyebrow">客户工作台</p>
-          <h1>内容与信源</h1>
+          <h1>内容与交付</h1>
           <span>基于知识库的内容方向及其确认状态。</span>
         </div>
       </header>
@@ -53,7 +52,7 @@ export default function ContentSourcingPage() {
                       handle (never rendered). The validation the command keys on is carried by the
                       client-safe OPAQUE reviewReferenceCode on opportunity.review — never a raw UUID.
                       When review is absent the control renders a disabled affordance (no fabrication).
-                      信源类型 has no modeled command and stays presentation-only.
+                      Automatic source collection has no modeled command in this system.
                     */}
                     <OpportunityReviewControl
                       opportunityId={opportunity.id}

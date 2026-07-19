@@ -15,7 +15,7 @@ const stageLabel: Record<string, string> = {
   USER_QUESTION_CONFIRMATION: "用户问题确认",
   CONTENT_TASK: "内容任务",
   CONTENT_REVIEW: "内容审核",
-  CHINA_AI_PROBE: "国内 AI 查询",
+  CHINA_AI_PROBE: "国内 AI 检测",
   REPORT: "报告",
   DELIVERY: "交付",
   RETROSPECTIVE: "复盘",

@@ -28,6 +28,7 @@ import type {
 import type { AgencyActingContextV1 } from "../../runtime/auth/auth-service.js";
 import type { AgencyPortfolioSummary } from "../../runtime/agency-delivery/contracts.js";
 import { type ApiClient, defaultApiClient, type Result } from "../../lib/api-client/index.js";
+import { safeBusinessDisplayName } from "../../runtime/ui-adapters/formatters.js";
 
 export type { AgencyActingContextV1 };
 
@@ -43,10 +44,19 @@ function enc(segment: string): string {
  * FORBIDDEN and an unauthenticated caller UNAUTHENTICATED. No client outside the active
  * assignment set can appear in this payload.
  */
-export function getAgencyClients(
+export async function getAgencyClients(
   client: ApiClient = defaultApiClient,
 ): Promise<Result<AgencyClientPortfolioViewV1>> {
-  return client.request<AgencyClientPortfolioViewV1>("/api/agency/clients");
+  const result = await client.request<AgencyClientPortfolioViewV1>("/api/agency/clients");
+  if (!result.ok) return result;
+  return { ok: true, data: {
+    ...result.data,
+    agencyOrganizationName: safeBusinessDisplayName(result.data.agencyOrganizationName),
+    clients: result.data.clients.map((item) => ({
+      ...item,
+      clientOrganizationName: safeBusinessDisplayName(item.clientOrganizationName),
+    })),
+  } };
 }
 
 export async function getAgencyPortfolio(
@@ -54,9 +64,15 @@ export async function getAgencyPortfolio(
 ): Promise<Result<AgencyPortfolioSummary>> {
   const authorized = await getAgencyClients(client);
   if (!authorized.ok) return authorized;
-  return client.request<AgencyPortfolioSummary>(
+  const result = await client.request<AgencyPortfolioSummary>(
     `/api/agency-delivery/portfolio?agencyOrganizationId=${enc(authorized.data.agencyOrganizationId)}`,
   );
+  if (!result.ok) return result;
+  return { ok: true, data: { ...result.data, clients: result.data.clients.map((item) => ({
+    ...item,
+    clientName: safeBusinessDisplayName(item.clientName),
+    projectName: safeBusinessDisplayName(item.projectName, "项目"),
+  })) } };
 }
 
 // --- Acting-for-client context ---------------------------------------------
@@ -85,10 +101,16 @@ export function setAgencyContext(
  * server-side to the agency's ACTIVE-assigned client organizations, so no unauthorized
  * client's project can appear. Returns a bare ProjectViewV1[].
  */
-export function listAgencyProjects(
+export async function listAgencyProjects(
   client: ApiClient = defaultApiClient,
 ): Promise<Result<readonly ProjectViewV1[]>> {
-  return client.request<readonly ProjectViewV1[]>("/api/projects");
+  const result = await client.request<readonly ProjectViewV1[]>("/api/projects");
+  if (!result.ok) return result;
+  return { ok: true, data: result.data.map((project) => ({
+    ...project,
+    name: safeBusinessDisplayName(project.name, "项目"),
+    clientOrganizationName: safeBusinessDisplayName(project.clientOrganizationName),
+  })) };
 }
 
 /** GET /api/projects/[projectId]/deliveries — read-only ArticleDeliveryViewV1[] for a project. */

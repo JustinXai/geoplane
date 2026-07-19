@@ -18,7 +18,7 @@ export default function OpsWorkspaceHomePage() {
             <Metric label="近七日业务进度" value={progress.length} />
           </section>
           <section className={opsPageStyles.panel}><h2>待办指标</h2><ul className={opsPageStyles.list}>
-            {["待补资料项目", "待确认关键词", "待人工审核内容", "待执行 AI 查询", "待交付项目", "异常账号", "失败任务"].map((label) => <li key={label}><span>{label}</span><span className={opsPageStyles.muted}>该功能尚未开放</span></li>)}
+            {["待补资料项目", "待确认关键词", "待人工审核内容", "待执行国内 AI 检测", "待交付项目", "异常账号", "失败任务"].map((label) => <li key={label}><span>{label}</span><span className={opsPageStyles.muted}>暂无可靠统计</span></li>)}
           </ul></section>
           <section className={opsPageStyles.panel}><h2>最近业务进度</h2>{progress.length === 0 ? <p className={opsPageStyles.muted}>近七日暂无业务记录。</p> : <ul className={opsPageStyles.list}>{progress.slice(0, 8).map((event) => { const row = toSafeOpsAuditRow(event); return <li key={event.id}><span>{row.action} · {row.actorLabel}</span><time>{displayDate(event.occurredAt)}</time></li>; })}</ul>}</section>
         </>;

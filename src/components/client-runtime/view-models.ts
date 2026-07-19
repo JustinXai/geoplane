@@ -31,6 +31,7 @@ import type {
   OrganizationType,
   PlatformRole,
 } from "../../contracts/tenancy/entities.js";
+import { safeBusinessDisplayName } from "../../runtime/ui-adapters/formatters.js";
 
 // ---------------------------------------------------------------------------
 // Human-facing label maps (client copy — no internal vocabulary)
@@ -128,7 +129,7 @@ export interface ProjectOptionVM {
 
 /** Selector options: a 0-based index (opaque handle) + the human project name. */
 export function toProjectOptions(projects: readonly ProjectViewV1[]): readonly ProjectOptionVM[] {
-  return projects.map((project, index) => ({ index, label: project.name }));
+  return projects.map((project, index) => ({ index, label: safeBusinessDisplayName(project.name, "项目") }));
 }
 
 // ---------------------------------------------------------------------------
@@ -146,7 +147,7 @@ export interface AccountSummaryVM {
 export function toAccountSummary(account: AccountViewV1): AccountSummaryVM {
   return {
     greetingName: account.displayName ?? account.email,
-    organizationName: account.organizationName,
+    organizationName: safeBusinessDisplayName(account.organizationName),
     organizationTypeLabel: ORG_TYPE_LABELS[account.organizationType],
     roleLabel: ROLE_LABELS[account.role],
     surfaceLabel: SURFACE_LABELS[account.surface],
@@ -161,8 +162,8 @@ export interface ProjectSummaryVM {
 
 export function toProjectSummary(project: ProjectViewV1): ProjectSummaryVM {
   return {
-    name: project.name,
-    clientOrganizationName: project.clientOrganizationName,
+    name: safeBusinessDisplayName(project.name, "项目"),
+    clientOrganizationName: safeBusinessDisplayName(project.clientOrganizationName),
     createdAtLabel: formatDateLabel(project.createdAt),
   };
 }
@@ -180,7 +181,7 @@ export function toKnowledgePackageReadiness(
   pkg: KnowledgePackageViewV1,
 ): KnowledgePackageReadinessVM {
   return {
-    title: pkg.title,
+    title: safeBusinessDisplayName(pkg.title, "内容"),
     statusLabel: PACKAGE_STATUS_LABELS[pkg.status],
     documentCount: pkg.documentCount,
     openIssueCount: pkg.openIssueCount,
@@ -240,7 +241,7 @@ export interface DeliveryRowVM {
 
 export function toDeliveryRow(item: ArticleDeliveryViewV1): DeliveryRowVM {
   return {
-    title: item.title,
+    title: safeBusinessDisplayName(item.title, "内容"),
     statusLabel: DELIVERY_STATUS_LABELS[item.status],
     deliveredAtLabel: formatDateLabel(item.deliveredAt),
     publicationRegisteredAtLabel:
@@ -264,7 +265,7 @@ export interface OpportunityRowVM {
 
 export function toOpportunityRow(item: OpportunityViewV1): OpportunityRowVM {
   return {
-    title: item.title,
+    title: safeBusinessDisplayName(item.title, "内容"),
     summary: item.summary,
     statusLabel: OPPORTUNITY_STATUS_LABELS[item.status],
   };

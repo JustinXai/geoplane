@@ -10,7 +10,7 @@ export default function Page(){
       <li className="cp-list-row"><span className="cp-list-title">补齐企业资料</span><span className="cp-list-meta">{data.clientsNeedingKnowledge} 个项目</span></li>
       <li className="cp-list-row"><span className="cp-list-title">确认关键词</span><span className="cp-list-meta">{data.clientsNeedingKeywordConfirmation} 个项目</span></li>
       <li className="cp-list-row"><span className="cp-list-title">审核内容</span><span className="cp-list-meta">{data.contentAwaitingReview} 项</span></li>
-      <li className="cp-list-row"><span className="cp-list-title">人工探测</span><span className="cp-list-meta">{data.probeTasksPending === null ? "暂无可靠统计" : `${data.probeTasksPending} 项`}</span></li>
+      <li className="cp-list-row"><span className="cp-list-title">国内 AI 检测</span><span className="cp-list-meta">{data.probeTasksPending === null ? "暂无可靠统计" : `${data.probeTasksPending} 项`}</span></li>
       <li className="cp-list-row"><span className="cp-list-title">项目交付</span><span className="cp-list-meta">{data.projectsAwaitingDelivery} 个项目</span></li>
     </ul></section>}</AgencyAsyncView></>;
 }

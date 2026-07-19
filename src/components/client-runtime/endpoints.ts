@@ -22,6 +22,7 @@ import type {
 } from "../../runtime/api-contracts/index.js";
 import { type ApiClient, defaultApiClient, ok, type Result } from "../../lib/api-client/http.js";
 import { selectActiveProject } from "./view-models.js";
+import { safeBusinessDisplayName } from "../../runtime/ui-adapters/formatters.js";
 
 function enc(segment: string): string {
   return encodeURIComponent(segment);
@@ -33,10 +34,16 @@ export function loadAccount(client: ApiClient = defaultApiClient): Promise<Resul
   return client.request<AccountViewV1>("/api/account");
 }
 
-export function loadProjects(
+export async function loadProjects(
   client: ApiClient = defaultApiClient,
 ): Promise<Result<readonly ProjectViewV1[]>> {
-  return client.request<readonly ProjectViewV1[]>("/api/projects");
+  const result = await client.request<readonly ProjectViewV1[]>("/api/projects");
+  if (!result.ok) return result;
+  return { ok: true, data: result.data.map((project) => ({
+    ...project,
+    name: safeBusinessDisplayName(project.name, "项目"),
+    clientOrganizationName: safeBusinessDisplayName(project.clientOrganizationName),
+  })) };
 }
 
 // --- Knowledge base (readiness + issues) -----------------------------------

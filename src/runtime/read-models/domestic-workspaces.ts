@@ -6,6 +6,7 @@ import type { KeywordExpansionBatch } from "../keyword-expansion/contract.js";
 import { createDomesticP0PolicyPackRegistry } from "../policy-packs/medical-aesthetics-v1.js";
 import type { VerticalPolicyPackDefinition } from "../policy-packs/entities.js";
 import { PgRawProbeResultRepository, type RawProbeResult } from "../probes/manual-sample.js";
+import { safeBusinessDisplayName } from "../ui-adapters/formatters.js";
 
 const iso = (value: Date | string | null): string | null => value === null ? null : new Date(value).toISOString();
 
@@ -132,16 +133,16 @@ export async function readManualProbeEntryOptions(db:Queryable,principal:GeoPrin
   else if(principal.role!=="PLATFORM_SUPER_ADMIN")where="FALSE";
   const projects=await db.query<any>(`SELECT p.id,p.name,o.display_name AS client_name FROM project p JOIN organization o ON o.id=p.client_organization_id WHERE ${where} ORDER BY o.display_name,p.name,p.id`,params);
   const values:ManualProbeProjectOption[]=[];
-  for(const p of projects.rows){const questions=await db.query<any>(`SELECT k.keyword,q.question FROM keyword_question_map_keyword k JOIN keyword_question_map_question q ON q.keyword_id=k.id WHERE k.project_id=$1 ORDER BY k.position,q.position,q.id`,[p.id]);values.push({projectId:p.id,projectName:p.name,clientName:p.client_name,questions:questions.rows.map((q:any)=>({keyword:q.keyword,question:q.question}))})}
+  for(const p of projects.rows){const questions=await db.query<any>(`SELECT k.keyword,q.question FROM keyword_question_map_keyword k JOIN keyword_question_map_question q ON q.keyword_id=k.id WHERE k.project_id=$1 ORDER BY k.position,q.position,q.id`,[p.id]);values.push({projectId:p.id,projectName:safeBusinessDisplayName(p.name,"项目"),clientName:safeBusinessDisplayName(p.client_name),questions:questions.rows.map((q:any)=>({keyword:q.keyword,question:q.question}))})}
   return {projects:values,platforms:[{code:"DOUBAO",displayName:"豆包"},{code:"QWEN",displayName:"通义千问"},{code:"DEEPSEEK",displayName:"DeepSeek"},{code:"YUANBAO",displayName:"腾讯元宝"}]};
 }
 
-export interface PolicyPackReadModel { readonly projectId:string; readonly industry:{readonly id:string;readonly slug:string;readonly label:string}|null; readonly pack:VerticalPolicyPackDefinition; readonly recentEvaluations:readonly {readonly category:string;readonly status:"PASSED"|"FAILED";readonly failureReasons:readonly string[];readonly evaluatedAt:string}[] }
+export interface PolicyPackReadModel { readonly projectId:string; readonly industry:{readonly id:string;readonly slug:string;readonly label:string}|null; readonly pack:VerticalPolicyPackDefinition; readonly switching:{readonly allowed:false;readonly reason:string}; readonly recentEvaluations:readonly {readonly category:string;readonly status:"PASSED"|"FAILED";readonly failureReasons:readonly string[];readonly evaluatedAt:string}[] }
 export async function readPolicyPack(db:Queryable,projectId:string):Promise<PolicyPackReadModel>{
   const profile=await db.query<any>("SELECT id,vertical_slug,vertical_label FROM industry_profile WHERE project_id=$1 LIMIT 1",[projectId]); const p=profile.rows[0];
   const selection=p?await db.query<any>("SELECT pack_id,pack_version FROM industry_profile_pack_selection WHERE project_id=$1 AND industry_profile_id=$2 AND revoked_at IS NULL ORDER BY selected_at DESC LIMIT 1",[projectId,p.id]):{rows:[]};
   const selected=selection.rows[0]; const registry=createDomesticP0PolicyPackRegistry(); const pack=registry.get(selected?.pack_id??"GENERIC_GEO_V1",Number(selected?.pack_version??1));
   if(!pack)throw new Error("Selected policy pack is not registered.");
   const evaluations=await db.query<any>("SELECT category,status,failure_reasons,evaluated_at FROM vertical_rule_evaluation WHERE project_id=$1 ORDER BY evaluated_at DESC,id DESC LIMIT 50",[projectId]);
-  return {projectId,industry:p?{id:p.id,slug:p.vertical_slug,label:p.vertical_label}:null,pack,recentEvaluations:evaluations.rows.map((r:any)=>({category:r.category,status:r.status,failureReasons:Array.isArray(r.failure_reasons)?r.failure_reasons:[],evaluatedAt:iso(r.evaluated_at)!}))};
+  return {projectId,industry:p?{id:p.id,slug:p.vertical_slug,label:p.vertical_label}:null,pack,switching:{allowed:false,reason:"当前阶段由平台根据已确认的项目行业资料绑定规则包。为避免绕过行业门禁，工作台暂不提供自行切换；如行业信息有误，请先联系平台管理员核验。"},recentEvaluations:evaluations.rows.map((r:any)=>({category:r.category,status:r.status,failureReasons:Array.isArray(r.failure_reasons)?r.failure_reasons:[],evaluatedAt:iso(r.evaluated_at)!}))};
 }
