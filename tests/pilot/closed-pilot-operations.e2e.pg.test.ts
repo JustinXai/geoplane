@@ -85,6 +85,7 @@ import type { ProviderGenerateArticleContentRequest } from "../../src/runtime/pr
 
 // --- Real App Router handlers under test (imported exactly as Next.js mounts them) ---
 import { POST as loginRoute } from "../../src/app/api/auth/login/route.js";
+import { TEST_LOGIN_PASSWORD, TEST_LOGIN_PASSWORD_HASH } from "../helpers/auth-credentials.js";
 import { POST as acceptInvitationRoute } from "../../src/app/api/invitations/[token]/accept/route.js";
 import { POST as opsAgenciesRoute } from "../../src/app/api/ops/agencies/route.js";
 import { POST as opsClientsRoute } from "../../src/app/api/ops/clients/route.js";
@@ -273,11 +274,15 @@ async function get(
 
 /** Runs POST /api/auth/login for `email` and returns the reusable `name=value` Cookie header. */
 async function loginAndGetCookie(email: string): Promise<string> {
+  await db.query(`UPDATE "user" SET password_hash = $2 WHERE lower(email) = lower($1)`, [
+    email,
+    TEST_LOGIN_PASSWORD_HASH,
+  ]);
   const res = await loginRoute(
     new Request("http://test/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, password: TEST_LOGIN_PASSWORD }),
     }),
   );
   expect(res.status).toBe(200);
@@ -875,17 +880,18 @@ describe.skipIf(testConfig === null)(
       });
       expect(plan.status).toBe(200);
       expect(plan.body.data.channelIds).toEqual([CHANNEL]);
+      expect(plan.body.data.selectedByActorId).toBe(clientOwnerUserId);
       const distributionPlanId: string = plan.body.data.id;
 
-      // ---- HOP 19: PublicationReceipt — automatic publication is IMPOSSIBLE: a system actor is
-      //      rejected 422 and writes nothing; only the human actor is accepted. ----
+      // ---- HOP 19: PublicationReceipt — automatic publication is IMPOSSIBLE without a signed
+      //      human session; request-body actor cannot override that session actor. ----
       const autoReceipt = await post(
         publicationReceiptsRoute,
         "http://test/api/publication-receipts",
-        clientCookie,
+        null,
         { distributionPlanId, channelId: CHANNEL, publishedByActorId: "system" },
       );
-      expect(autoReceipt.status).toBe(422);
+      expect(autoReceipt.status).toBe(401);
       const noReceipt = await db.query<{ n: string }>(
         `SELECT count(*)::text AS n FROM publication_receipt WHERE distribution_plan_id = $1`,
         [distributionPlanId],
@@ -895,7 +901,7 @@ describe.skipIf(testConfig === null)(
         publicationReceiptsRoute,
         "http://test/api/publication-receipts",
         clientCookie,
-        { distributionPlanId, channelId: CHANNEL, publishedByActorId: clientOwnerUserId },
+        { distributionPlanId, channelId: CHANNEL, publishedByActorId: "system" },
       );
       expect(receipt.status).toBe(200);
       expect(receipt.body.data.publishedByActorId).toBe(clientOwnerUserId);

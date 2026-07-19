@@ -5,7 +5,7 @@
  * BUSINESS_COMMAND_API_V1 (Agent C — batch 2).
  *
  * A human selects the channels (SYSTEM_INVARIANTS_V1.md "Publication"): `channelIds` must be a
- * non-empty, explicitly-supplied list and `selectedByActorId` a real actor — there is no default
+ * non-empty, explicitly-supplied list; the selecting actor is always the signed session user — there is no default
  * channel and no "ready with zero explicit action" plan. An empty channel list is rejected 422.
  *
  * Server-side tenant resolution: the tenant is read from the referenced ChannelNeutralContentPackage,
@@ -46,14 +46,10 @@ export async function POST(request: Request): Promise<Response> {
 
   const body = await readJsonBody(request);
   const channelNeutralContentPackageId = readString(body, "channelNeutralContentPackageId");
-  const selectedByActorId = readString(body, "selectedByActorId");
   const channelIds = readStringArray(body, "channelIds");
-  if (!channelNeutralContentPackageId || !selectedByActorId) {
+  if (!channelNeutralContentPackageId) {
     return toHttpResponse(
-      apiErr(
-        "VALIDATION_FAILED",
-        "channelNeutralContentPackageId and selectedByActorId are required.",
-      ),
+      apiErr("VALIDATION_FAILED", "channelNeutralContentPackageId is required."),
     );
   }
   if (!channelIds || channelIds.length === 0) {
@@ -100,7 +96,7 @@ export async function POST(request: Request): Promise<Response> {
           geo.services.distribution.createDistributionPlan(authContext, {
             channelNeutralPackage: cnc,
             channelIds: [channelIds[0]!, ...channelIds.slice(1)],
-            selectedByActorId,
+            selectedByActorId: session.userId,
           }),
         );
         const view: DistributionPlanViewV1 = {

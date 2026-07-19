@@ -26,7 +26,7 @@
  *      (PROVIDER_RUNTIME_ENABLED stays false), and its opaque envelope pointer feeds the compile route
  *   -> Quality/Platform/Vertical gates PASS -> Article Approval CONFIRMED
  *   -> PublishPackage (0 default channels) -> human selects channel -> DistributionPlan
- *   -> PublicationReceipt (a 'system' actor is REJECTED 422; only a human is accepted)
+ *   -> PublicationReceipt (actor bound to the signed human session)
  *   -> Client Delivery Center shows the DELIVERED article
  *   -> Agency sees ONLY its ACTIVE-assigned client -> Ops sees the full Audit Trail.
  *
@@ -35,7 +35,7 @@
  *     PROVIDER_RUNTIME_ENABLED resolves to false, assertRealProviderCallAllowed() throws, the
  *     provider_execution ledger (migration 0007) has 0 rows for the tenant, and the persisted
  *     provider_article_content row stores exactly the opaque offline envelope pointer.
- *   - Automatic Publication = NO (a system/automatic actor is rejected 422, writes nothing).
+ *   - Automatic Publication = NO (an unsigned attempt is rejected 401; body actor cannot override session).
  *   - Default Selected Channel Count = 0 (the publish package selects no channel by default).
  *   - Real Customer Data = 0 (all fixtures desensitized — enforced by an explicit assertion block).
  *   - Tenant + agency-assignment isolation (a second client cannot read the first's data; the agency
@@ -81,6 +81,7 @@ import {
 } from "../../src/runtime/provider/feature-flag.js";
 import { PgProviderLedger } from "../../src/runtime/provider/pg-provider-ledger.js";
 import type { ProviderGenerateArticleContentRequest } from "../../src/runtime/provider/provider-port.js";
+import { TEST_LOGIN_PASSWORD, TEST_LOGIN_PASSWORD_HASH } from "../helpers/auth-credentials.js";
 
 // --- Real App Router handlers under test (imported exactly as Next.js mounts them) ---
 import { POST as loginRoute } from "../../src/app/api/auth/login/route.js";
@@ -191,9 +192,10 @@ let geoRuntime: GeoRuntime;
 // --- Out-of-band provisioning helpers (users + memberships have no HTTP route this checkpoint) ---
 
 async function createUser(email: string): Promise<string> {
-  const res = await db.query<{ id: string }>(`INSERT INTO "user" (email) VALUES ($1) RETURNING id`, [
-    email,
-  ]);
+  const res = await db.query<{ id: string }>(
+    `INSERT INTO "user" (email, password_hash) VALUES ($1, $2) RETURNING id`,
+    [email, TEST_LOGIN_PASSWORD_HASH],
+  );
   const row = res.rows[0];
   if (!row) throw new Error("user insert returned no row");
   return row.id;
@@ -230,7 +232,7 @@ async function loginAndGetCookie(email: string): Promise<string> {
     new Request("http://test/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, password: TEST_LOGIN_PASSWORD }),
     }),
   );
   expect(res.status).toBe(200);
@@ -681,20 +683,21 @@ describe.skipIf(testConfig === null)(
       });
       expect(plan.status).toBe(200);
       expect(plan.body.data.channelIds).toEqual([CHANNEL]);
+      expect(plan.body.data.selectedByActorId).toBe(clientOwnerUser);
       const distributionPlanId: string = plan.body.data.id;
 
       // ================================================================
-      // 21. Publication receipt (HTTP). AUTOMATIC PUBLICATION = NO: a system/automatic actor is
-      //     rejected 422 and writes nothing; only a real human actor is accepted.
+      // 21. Publication receipt (HTTP). AUTOMATIC PUBLICATION = NO: no signed human session means
+      //     401 and no write. A forged body actor cannot override the signed client-owner actor.
       // ================================================================
       const autoReceipt = await post(
         publicationReceiptsRoute,
         "http://test/api/publication-receipts",
-        clientCookie,
+        null,
         { distributionPlanId, channelId: CHANNEL, publishedByActorId: "system" },
       );
-      expect(autoReceipt.status).toBe(422);
-      expect(autoReceipt.body.error.code).toBe("VALIDATION_FAILED");
+      expect(autoReceipt.status).toBe(401);
+      expect(autoReceipt.body.error.code).toBe("UNAUTHENTICATED");
       const noReceipt = await db.query<{ n: string }>(
         `SELECT count(*)::text AS n FROM publication_receipt WHERE distribution_plan_id = $1`,
         [distributionPlanId],
@@ -705,7 +708,7 @@ describe.skipIf(testConfig === null)(
         publicationReceiptsRoute,
         "http://test/api/publication-receipts",
         clientCookie,
-        { distributionPlanId, channelId: CHANNEL, publishedByActorId: clientOwnerUser },
+        { distributionPlanId, channelId: CHANNEL, publishedByActorId: "system" },
       );
       expect(receipt.status).toBe(200);
       expect(receipt.body.data.publishedByActorId).toBe(clientOwnerUser);

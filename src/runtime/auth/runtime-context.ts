@@ -185,8 +185,10 @@ export interface AuthRuntime {
   readonly authService: AuthService;
   /** Resolves the raw Cookie header to a server-derived principal, or null when unauthenticated. */
   resolveSession(cookieHeader: string | null | undefined): Promise<AuthenticatedSession | null>;
-  /** Looks up an already-verified user by email (credential verification is out of scope). */
-  findUserByEmail(email: string): Promise<AuthenticatedUser | null>;
+  /** Loads the identity + password digest used by the login route; never exposes it in a response. */
+  findLoginCredentialByEmail(
+    email: string,
+  ): Promise<{ readonly user: AuthenticatedUser; readonly passwordHash: string | null } | null>;
   /** Persists every AuditIntent the service emitted, computing each event hash via recordAuditEvent. */
   persistAuditIntents(intents: readonly AuditIntentV1[], now: Date): Promise<void>;
 }
@@ -196,13 +198,20 @@ export function createAuthRuntime(db: DatabasePort): AuthRuntime {
   const deps = buildAuthServiceDeps(repos);
   const authService = new AuthService(deps);
 
-  async function findUserByEmail(email: string): Promise<AuthenticatedUser | null> {
-    const res = await db.query<{ id: string; email: string }>(
-      `SELECT id, email FROM "user" WHERE lower(email) = lower($1)`,
+  async function findLoginCredentialByEmail(
+    email: string,
+  ): Promise<{ readonly user: AuthenticatedUser; readonly passwordHash: string | null } | null> {
+    const res = await db.query<{ id: string; email: string; password_hash: string | null }>(
+      `SELECT id, email, password_hash FROM "user" WHERE lower(email) = lower($1)`,
       [email],
     );
     const row = res.rows[0];
-    return row ? { id: row.id, email: row.email, displayName: null } : null;
+    return row
+      ? {
+          user: { id: row.id, email: row.email, displayName: null },
+          passwordHash: row.password_hash,
+        }
+      : null;
   }
 
   /**
@@ -365,7 +374,14 @@ export function createAuthRuntime(db: DatabasePort): AuthRuntime {
     }
   }
 
-  return { db, repos, authService, resolveSession, findUserByEmail, persistAuditIntents };
+  return {
+    db,
+    repos,
+    authService,
+    resolveSession,
+    findLoginCredentialByEmail,
+    persistAuditIntents,
+  };
 }
 
 // ---------------------------------------------------------------------------

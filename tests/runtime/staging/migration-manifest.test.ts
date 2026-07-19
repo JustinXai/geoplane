@@ -47,9 +47,9 @@ describe("validateMigrationManifest", () => {
     expect(r.ok).toBe(true);
     expect(r.errors).toEqual([]);
     expect(requiredMigrationVersions(realMigrationsDir)).toEqual([
-      "0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008",
+      "0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008", "0009",
     ]);
-    expect(highestRequiredMigrationVersion(realMigrationsDir)).toBe("0008");
+    expect(highestRequiredMigrationVersion(realMigrationsDir)).toBe("0009");
   });
 
   it("passes for a well-formed fixture", () => {
@@ -97,32 +97,32 @@ describe("validateMigrationManifest", () => {
 });
 
 describe("evaluateMigrationReadiness (floor semantics)", () => {
-  const all = new Set(["0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008"]);
+  const all = new Set(["0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008", "0009"]);
 
-  it("PASSes when all required versions (0001-0008) are applied", () => {
+  it("PASSes when all required versions (0001-0009) are applied", () => {
     const r = evaluateMigrationReadiness(all, realMigrationsDir);
     expect(r.status).toBe("PASS");
     expect(r.databaseAheadOfBuild).toBe(false);
-    expect(r.highestRequired).toBe("0008");
+    expect(r.highestRequired).toBe("0009");
   });
 
-  it("FAILs when the DB only has 0001-0007 (missing 0008)", () => {
-    const r = evaluateMigrationReadiness(new Set(["0001", "0002", "0003", "0004", "0005", "0006", "0007"]), realMigrationsDir);
+  it("FAILs when the DB only has 0001-0008 (missing 0009)", () => {
+    const r = evaluateMigrationReadiness(new Set(["0001", "0002", "0003", "0004", "0005", "0006", "0007", "0008"]), realMigrationsDir);
     expect(r.status).toBe("FAIL");
-    expect(r.missing).toContain("0008");
+    expect(r.missing).toContain("0009");
   });
 
   it("FAILs when a middle version (0004) is missing", () => {
-    const r = evaluateMigrationReadiness(new Set(["0001", "0002", "0003", "0005", "0006", "0007", "0008"]), realMigrationsDir);
+    const r = evaluateMigrationReadiness(new Set(["0001", "0002", "0003", "0005", "0006", "0007", "0008", "0009"]), realMigrationsDir);
     expect(r.status).toBe("FAIL");
     expect(r.missing).toContain("0004");
   });
 
-  it("PASSes with DATABASE_AHEAD_OF_BUILD when the DB has 0001-0009", () => {
-    const ahead = new Set([...all, "0009"]);
+  it("PASSes with DATABASE_AHEAD_OF_BUILD when the DB has 0001-0010", () => {
+    const ahead = new Set([...all, "0010"]);
     const r = evaluateMigrationReadiness(ahead, realMigrationsDir);
     expect(r.status).toBe("PASS");
     expect(r.databaseAheadOfBuild).toBe(true);
-    expect(r.ahead).toEqual(["0009"]);
+    expect(r.ahead).toEqual(["0010"]);
   });
 });

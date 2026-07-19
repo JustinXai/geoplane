@@ -127,9 +127,12 @@ describe.skipIf(testConfig === null)(
             [`req_legacy_${randomUUID()}`, legacyKey, projectId, orgId, randomUUID()],
           );
 
-          // Stage 3: apply the full directory — only 0008 is new.
+          // Stage 3: apply the full directory — provider identity plus subsequent migrations are new.
           const second = await applyMigrations(db, migrationsDir);
-          expect(second.applied).toEqual(["0008_provider_identity.sql"]);
+          expect(second.applied).toEqual([
+            "0008_provider_identity.sql",
+            "0009_password_credentials.sql",
+          ]);
           expect(second.skipped).toHaveLength(ALL_MIGRATIONS.length - 1);
 
           // The legacy row was backfilled by the DDL default (a row UPDATE would

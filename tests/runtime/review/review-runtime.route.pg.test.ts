@@ -53,6 +53,7 @@ import { PgKeywordQuestionMapRepository } from "../../../src/runtime/geo/pg/keyw
 import { PgOpportunityRepository } from "../../../src/runtime/geo/pg/opportunity-repository.js";
 import { PgOpportunityValidationRepository } from "../../../src/runtime/geo/pg/opportunity-validation-repository.js";
 import { POST as loginRoute } from "../../../src/app/api/auth/login/route.js";
+import { TEST_LOGIN_PASSWORD, TEST_LOGIN_PASSWORD_HASH } from "../../helpers/auth-credentials.js";
 import { GET as opportunitiesRoute } from "../../../src/app/api/projects/[projectId]/opportunities/route.js";
 import { GET as reviewQueueRoute } from "../../../src/app/api/projects/[projectId]/review-queue/route.js";
 import { POST as reviewsRoute } from "../../../src/app/api/opportunities/[id]/reviews/route.js";
@@ -123,11 +124,15 @@ async function bootstrapClientTenant(key: string): Promise<Tenant> {
 }
 
 async function loginAndGetCookie(email: string): Promise<string> {
+  await db.query(`UPDATE "user" SET password_hash = $2 WHERE lower(email) = lower($1)`, [
+    email,
+    TEST_LOGIN_PASSWORD_HASH,
+  ]);
   const res = await loginRoute(
     new Request("http://test/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, password: TEST_LOGIN_PASSWORD }),
     }),
   );
   expect(res.status).toBe(200);

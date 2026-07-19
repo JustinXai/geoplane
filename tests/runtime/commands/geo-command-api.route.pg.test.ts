@@ -16,7 +16,7 @@
  *   - human review is NEVER auto-approved (a decision requires an explicit reviewer);
  *   - article approval is NEVER auto-approved (an explicit approver + three PASSED gates);
  *   - the default selected-channel count of a publish package is 0;
- *   - a system/automatic publication actor is rejected;
+ *   - publication requires a signed human session and ignores forged request-body actors;
  *   - a `knowledge_package.created` audit is emitted through the knowledge command wrapper;
  *   - the same Idempotency-Key yields exactly ONE entity.
  *
@@ -48,6 +48,7 @@ import { POST as articleReviewsRoute } from "../../../src/app/api/article-drafts
 import { POST as publishPackagesRoute } from "../../../src/app/api/publish-packages/route.js";
 import { POST as distributionPlansRoute } from "../../../src/app/api/distribution-plans/route.js";
 import { POST as publicationReceiptsRoute } from "../../../src/app/api/publication-receipts/route.js";
+import { TEST_LOGIN_PASSWORD, TEST_LOGIN_PASSWORD_HASH } from "../../helpers/auth-credentials.js";
 
 const testConfig = loadDatabaseConfig({ test: true });
 const migrationsDir = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "migrations");
@@ -59,8 +60,8 @@ let runtime: AuthRuntime;
 
 async function createUser(email: string): Promise<string> {
   const res = await db.query<{ id: string }>(
-    `INSERT INTO "user" (email) VALUES ($1) RETURNING id`,
-    [email],
+    `INSERT INTO "user" (email, password_hash) VALUES ($1, $2) RETURNING id`,
+    [email, TEST_LOGIN_PASSWORD_HASH],
   );
   const row = res.rows[0];
   if (!row) throw new Error("user insert returned no row");
@@ -104,7 +105,7 @@ async function loginAndGetCookie(email: string): Promise<string> {
     new Request("http://test/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, password: TEST_LOGIN_PASSWORD }),
     }),
   );
   expect(res.status).toBe(200);
@@ -333,26 +334,27 @@ describe.skipIf(testConfig === null)(
       });
       expect(plan.status).toBe(200);
       expect(plan.body.data.channelIds).toEqual(["client_blog"]);
+      expect(plan.body.data.selectedByActorId).toBe(adminUser);
       const distributionPlanId: string = plan.body.data.id;
 
-      // Invariant: a system/automatic publication actor is rejected.
-      const autoReceipt = await post(publicationReceiptsRoute as never, "http://test/api/publication-receipts", cookie, {
+      // Automatic publication remains closed: without a signed human session no receipt is written.
+      const automaticReceipt = await post(publicationReceiptsRoute as never, "http://test/api/publication-receipts", null, {
         distributionPlanId,
         channelId: "client_blog",
         publishedByActorId: "system",
       });
-      expect(autoReceipt.status).toBe(422);
-      expect(autoReceipt.body.error.code).toBe("VALIDATION_FAILED");
+      expect(automaticReceipt.status).toBe(401);
+      expect(automaticReceipt.body.error.code).toBe("UNAUTHENTICATED");
       expect(await countRows("publication_receipt", "distribution_plan_id = $1", [distributionPlanId])).toBe(0);
 
-      // 12. Publication receipt (real human actor).
+      // 12. A forged request-body actor cannot override the signed human session actor.
       const receipt = await post(publicationReceiptsRoute as never, "http://test/api/publication-receipts", cookie, {
         distributionPlanId,
         channelId: "client_blog",
-        publishedByActorId: "user_publisher_kim",
+        publishedByActorId: "system",
       });
       expect(receipt.status).toBe(200);
-      expect(receipt.body.data.publishedByActorId).toBe("user_publisher_kim");
+      expect(receipt.body.data.publishedByActorId).toBe(adminUser);
       const publicationReceiptId: string = receipt.body.data.id;
 
       // --- Persistence assertions --------------------------------------------------------------
@@ -369,7 +371,7 @@ describe.skipIf(testConfig === null)(
       expect(await countRows("article_approval", "id = $1", [articleApprovalId])).toBe(1);
       expect(await countRows("publish_package", "id = $1", [publishPackageId])).toBe(1);
       expect(await countRows("distribution_plan", "id = $1", [distributionPlanId])).toBe(1);
-      expect(await countRows("publication_receipt", "id = $1 AND published_by_actor_id = 'user_publisher_kim'", [publicationReceiptId])).toBe(1);
+      expect(await countRows("publication_receipt", "id = $1 AND published_by_actor_id = $2", [publicationReceiptId, adminUser])).toBe(1);
       expect(await countRows("delivery", "publication_receipt_id = $1", [publicationReceiptId])).toBe(1);
 
       // Everything landed under the right tenant.
@@ -378,6 +380,13 @@ describe.skipIf(testConfig === null)(
       // --- Domain audit-trail assertions -------------------------------------------------------
       // The knowledge-audit-gap closure: knowledge_package.created emitted through the wrapper.
       expect(await auditCount("knowledge_package.created")).toBe(1);
+      expect(
+        await countRows(
+          "audit_event",
+          "action IN ('distribution_plan.command.create', 'publication_receipt.command.create') AND actor_user_id = $1",
+          [adminUser],
+        ),
+      ).toBe(2);
       // Representative domain events across the chain.
       expect(await auditCount("industry_profile.created")).toBe(1);
       expect(await auditCount("keyword_question_map.created")).toBe(1);
