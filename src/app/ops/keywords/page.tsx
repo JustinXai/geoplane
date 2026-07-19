@@ -1,2 +1,2 @@
-import { OpsKeywordWorkspace } from "@/components/ops-runtime";
-export default function Page(){return <OpsKeywordWorkspace mode="BAIDU"/>;}
+import { OpsGenericKeywordWorkspace } from "@/components/generic-keyword-runtime";
+export default function Page(){return <OpsGenericKeywordWorkspace/>;}
