@@ -24,9 +24,18 @@
   --color-warning: #a66300;
   --color-danger: #bd2c2c;
   --color-info: #2463c7;
+  --color-text: var(--color-ink-900);
+  --color-text-muted: var(--color-ink-500);
   --radius-sm: 6px;
   --radius-md: 10px;
+  --radius-lg: 14px;
   --shadow-card: 0 1px 2px rgba(23, 32, 51, .05);
+  --shadow-lg: 0 18px 48px rgba(23, 32, 51, .18);
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
   --sidebar-width: 232px;
   --topbar-height: 64px;
 }
@@ -102,7 +111,15 @@ button { cursor: pointer; }
 .button-secondary { color:var(--color-ink-700); background:#fff; border-color:var(--color-border-strong); }
 .button-danger { color:var(--color-danger); background:#fff; border-color:#efbcbc; }
 .button:disabled { opacity:.5; cursor:not-allowed; }
+.cp-button { display:inline-flex; align-items:center; justify-content:center; min-height:36px; padding:7px 14px; border:1px solid var(--color-border-strong); border-radius:var(--radius-sm); background:#fff; color:var(--color-ink-700); font-weight:600; }
+.cp-button-primary { border-color:var(--color-brand-600); color:#fff; background:var(--color-brand-600); }
+.cp-button:disabled { opacity:.5; cursor:not-allowed; }
 .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.cp-form { display:grid; gap:14px; }
+.cp-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.cp-form label { display:grid; gap:6px; color:var(--color-ink-700); font-weight:600; }
+.cp-placeholder-note { margin:0; color:var(--color-ink-500); font-size:12px; }
+.cp-callout { padding:14px; border:1px solid var(--color-border); border-left:3px solid var(--color-info); border-radius:var(--radius-sm); background:#fff; color:var(--color-ink-700); }
 .form-field { display:grid; gap:6px; }
 .form-field label { color:var(--color-ink-700); font-weight:600; }
 .input, .select, .textarea, input:not([type="checkbox"]):not([type="radio"]), select, textarea { width:100%; min-height:38px; padding:8px 10px; border:1px solid var(--color-border-strong); border-radius:var(--radius-sm); color:var(--color-ink-900); background:#fff; }
@@ -121,6 +138,35 @@ input:focus, select:focus, textarea:focus { outline:2px solid var(--color-brand-
 .feedback-message[data-tone="success"] { border-color:#b7dfca; background:#f2fbf6; }
 .feedback-message[data-tone="error"] { border-color:#efc0c0; background:#fff6f6; }
 .feedback-message[data-tone="info"] { border-color:#bfd2f5; background:#f4f8ff; }
+.breadcrumbs ol { display:flex; align-items:center; gap:8px; margin:0 0 var(--space-3); padding:0; list-style:none; color:var(--color-text-muted); font-size:13px; }
+.breadcrumbs li + li::before { content:"/"; margin-right:8px; color:#a8b0bd; }
+.breadcrumbs a { color:var(--color-brand-700); text-decoration:none; }
+.form-field { display:grid; gap:7px; }
+.form-label { font-size:14px; font-weight:650; color:var(--color-text); }
+.form-label b,.field-error { color:var(--color-danger); }
+.field-error,.field-help { font-size:12px; }
+.stepper { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:0; padding:0; margin:0; list-style:none; }
+.stepper li { display:flex; align-items:center; gap:8px; color:var(--color-text-muted); border-top:2px solid var(--color-border); padding-top:10px; }
+.stepper li > span { display:grid; place-items:center; width:24px; height:24px; border-radius:50%; background:#edf0f4; font-size:12px; }
+.stepper li[data-state="current"],.stepper li[data-state="done"] { color:var(--color-brand-700); border-color:var(--color-brand-600); }
+.stepper li[data-state="current"] > span,.stepper li[data-state="done"] > span { color:white; background:var(--color-brand-600); }
+.business-timeline { margin:0; padding:0; list-style:none; }
+.business-timeline li { position:relative; display:grid; grid-template-columns:18px 1fr; gap:10px; padding-bottom:18px; }
+.business-timeline li::after { content:""; position:absolute; top:15px; bottom:0; left:5px; border-left:1px solid var(--color-border); }
+.business-timeline li:last-child::after { display:none; }
+.timeline-marker { z-index:1; width:11px; height:11px; margin-top:4px; border:2px solid white; border-radius:50%; background:var(--color-brand-600); box-shadow:0 0 0 1px var(--color-brand-600); }
+.business-timeline p,.business-timeline time { margin:4px 0 0; color:var(--color-text-muted); font-size:13px; }
+.drawer-layer,.dialog-layer { position:fixed; inset:0; z-index:50; }
+.drawer-backdrop,.dialog-layer { background:rgba(18,25,38,.34); }
+.drawer-backdrop { position:absolute; inset:0; width:100%; border:0; }
+.detail-drawer { position:absolute; inset:0 0 0 auto; width:min(560px,92vw); padding:var(--space-6); background:var(--color-surface); box-shadow:-12px 0 30px rgba(18,25,38,.14); overflow:auto; }
+.detail-drawer > header { display:flex; justify-content:space-between; gap:var(--space-4); padding-bottom:var(--space-4); border-bottom:1px solid var(--color-border); }
+.detail-drawer h2,.confirm-dialog h2 { margin:0; font-size:20px; }
+.detail-drawer p,.confirm-dialog p { color:var(--color-text-muted); }
+.drawer-content { padding-top:var(--space-5); }
+.dialog-layer { display:grid; place-items:center; padding:var(--space-5); }
+.confirm-dialog { width:min(440px,100%); padding:var(--space-6); border-radius:var(--radius-lg); background:var(--color-surface); box-shadow:var(--shadow-lg); }
+.dialog-actions { display:flex; justify-content:flex-end; gap:var(--space-3); margin-top:var(--space-6); }
 .progress { height:7px; overflow:hidden; border-radius:999px; background:#e8ecf2; }
 .progress > span { display:block; height:100%; border-radius:inherit; background:var(--color-brand-600); }
 .timeline { list-style:none; padding:0; margin:0; }
@@ -137,6 +183,6 @@ input:focus, select:focus, textarea:focus { outline:2px solid var(--color-brand-
   :root { --sidebar-width: 0px; }
   .cp-workspace-nav, .workspace-sidebar { position:static; width:auto; max-height:none; }
   .shell, .workspace-shell { padding-left:0; }
-  .form-grid, .lifecycle-grid { grid-template-columns:1fr; }
+  .form-grid, .cp-form-grid, .lifecycle-grid { grid-template-columns:1fr; }
   .band, .workspace-main { padding:18px 16px 36px; }
 }
