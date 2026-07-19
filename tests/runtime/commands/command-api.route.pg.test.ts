@@ -36,6 +36,7 @@ import {
   type AuthRuntime,
 } from "../../../src/runtime/auth/runtime-context.js";
 import { POST as loginRoute } from "../../../src/app/api/auth/login/route.js";
+import { TEST_LOGIN_PASSWORD, TEST_LOGIN_PASSWORD_HASH } from "../../helpers/auth-credentials.js";
 import { POST as opsAgenciesRoute } from "../../../src/app/api/ops/agencies/route.js";
 import { POST as opsClientsRoute } from "../../../src/app/api/ops/clients/route.js";
 import { POST as opsAssignmentsRoute } from "../../../src/app/api/ops/assignments/route.js";
@@ -94,11 +95,15 @@ async function createMembership(
 
 /** Runs login for `email` and returns the reusable `name=value` Cookie header value. */
 async function loginAndGetCookie(email: string): Promise<string> {
+  await db.query(`UPDATE "user" SET password_hash = $2 WHERE lower(email) = lower($1)`, [
+    email,
+    TEST_LOGIN_PASSWORD_HASH,
+  ]);
   const res = await loginRoute(
     new Request("http://test/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, password: TEST_LOGIN_PASSWORD }),
     }),
   );
   expect(res.status).toBe(200);

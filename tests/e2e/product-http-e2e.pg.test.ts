@@ -20,14 +20,14 @@
  *   -> POST /api/article-briefs -> POST /api/article-drafts/compile
  *   -> POST /api/article-drafts/[id]/reviews (approval; 3 gates PASS)
  *   -> POST /api/publish-packages (0 default channels) -> POST /api/distribution-plans
- *   -> POST /api/publication-receipts (human actor; a 'system' actor is REJECTED 422)
+ *   -> POST /api/publication-receipts (actor bound to the signed human session)
  *   -> GET /api/projects/[id]/deliveries (client sees the delivery)
  *   -> GET /api/agency/clients (agency sees only its ACTIVE-assigned client)
  *   -> GET /api/ops/audit (platform sees the full trail).
  *
  * Final invariants asserted directly: Provider Calls = 0 (content entered ONLY as an opaque offline
  * envelope pointer — no provider/network port exists in the graph), Automatic Publication = NO (a
- * system/automatic actor is rejected 422), Default Selected Channel Count = 0, Production DB writes
+ * unsigned publication is rejected 401 and body actor is ignored), Default Selected Channel Count = 0, Production DB writes
  * = 0 (the connection string is the throwaway test db, never geoplane_runtime), and tenant isolation
  * (a second client cannot read the first client's data through the routes -> 403 / empty).
  *
@@ -72,6 +72,7 @@ import {
 
 // --- Real App Router handlers under test (imported exactly as Next.js mounts them) ---
 import { POST as loginRoute } from "../../src/app/api/auth/login/route.js";
+import { TEST_LOGIN_PASSWORD, TEST_LOGIN_PASSWORD_HASH } from "../helpers/auth-credentials.js";
 import { POST as acceptInvitationRoute } from "../../src/app/api/invitations/[token]/accept/route.js";
 import { POST as opsAgenciesRoute } from "../../src/app/api/ops/agencies/route.js";
 import { POST as opsClientsRoute } from "../../src/app/api/ops/clients/route.js";
@@ -190,11 +191,15 @@ async function createMembership(
 
 /** Runs POST /api/auth/login for `email` and returns the reusable `name=value` Cookie header. */
 async function loginAndGetCookie(email: string): Promise<string> {
+  await db.query(`UPDATE "user" SET password_hash = $2 WHERE lower(email) = lower($1)`, [
+    email,
+    TEST_LOGIN_PASSWORD_HASH,
+  ]);
   const res = await loginRoute(
     new Request("http://test/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, password: TEST_LOGIN_PASSWORD }),
     }),
   );
   expect(res.status).toBe(200);
@@ -589,20 +594,21 @@ describe.skipIf(testConfig === null)(
       });
       expect(plan.status).toBe(200);
       expect(plan.body.data.channelIds).toEqual([CHANNEL]);
+      expect(plan.body.data.selectedByActorId).toBe(clientOwnerUser);
       const distributionPlanId: string = plan.body.data.id;
 
       // ====================================================================
-      // 19. Publication receipt (HTTP). AUTOMATIC PUBLICATION = NO: a system/automatic actor is
-      //     rejected 422 and writes nothing; only a real human actor is accepted.
+      // 19. Publication receipt (HTTP). AUTOMATIC PUBLICATION = NO: no signed human session is
+      //     rejected 401 and writes nothing; request-body actor cannot override the session actor.
       // ====================================================================
       const autoReceipt = await post(
         publicationReceiptsRoute,
         "http://test/api/publication-receipts",
-        clientCookie,
+        null,
         { distributionPlanId, channelId: CHANNEL, publishedByActorId: "system" },
       );
-      expect(autoReceipt.status).toBe(422);
-      expect(autoReceipt.body.error.code).toBe("VALIDATION_FAILED");
+      expect(autoReceipt.status).toBe(401);
+      expect(autoReceipt.body.error.code).toBe("UNAUTHENTICATED");
       const noReceipt = await db.query<{ n: string }>(
         `SELECT count(*)::text AS n FROM publication_receipt WHERE distribution_plan_id = $1`,
         [distributionPlanId],
@@ -613,7 +619,7 @@ describe.skipIf(testConfig === null)(
         publicationReceiptsRoute,
         "http://test/api/publication-receipts",
         clientCookie,
-        { distributionPlanId, channelId: CHANNEL, publishedByActorId: clientOwnerUser },
+        { distributionPlanId, channelId: CHANNEL, publishedByActorId: "system" },
       );
       expect(receipt.status).toBe(200);
       expect(receipt.body.data.publishedByActorId).toBe(clientOwnerUser);

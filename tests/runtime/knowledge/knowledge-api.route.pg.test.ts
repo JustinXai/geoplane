@@ -36,6 +36,7 @@ import {
   type KnowledgeRuntime,
 } from "../../../src/runtime/knowledge/runtime-context.js";
 import { POST as loginRoute } from "../../../src/app/api/auth/login/route.js";
+import { TEST_LOGIN_PASSWORD, TEST_LOGIN_PASSWORD_HASH } from "../../helpers/auth-credentials.js";
 import { POST as createPackageRoute } from "../../../src/app/api/projects/[projectId]/knowledge/packages/route.js";
 import { POST as uploadFileRoute } from "../../../src/app/api/knowledge/packages/[id]/files/route.js";
 import { GET as getPackageRoute } from "../../../src/app/api/knowledge/packages/[id]/route.js";
@@ -102,11 +103,15 @@ async function createProject(
 
 /** Runs login for `email` and returns the reusable `name=value` Cookie header value. */
 async function loginAndGetCookie(email: string): Promise<string> {
+  await db.query(`UPDATE "user" SET password_hash = $2 WHERE lower(email) = lower($1)`, [
+    email,
+    TEST_LOGIN_PASSWORD_HASH,
+  ]);
   const res = await loginRoute(
     new Request("http://test/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, password: TEST_LOGIN_PASSWORD }),
     }),
   );
   expect(res.status).toBe(200);

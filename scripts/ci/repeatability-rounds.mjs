@@ -11,7 +11,7 @@
  * — and runs the seven critical gates against them by overriding GEO_TEST_DATABASE_URL in the
  * child-process environment (every existing tool/suite resolves process.env first):
  *
- *   1. migration-apply-0001-0008   scripts/db/migrate.mjs --test   (fresh DB, 8 files applied)
+ *   1. migration-apply-0001-0009   scripts/db/migrate.mjs --test   (fresh DB, 9 files applied)
  *   2. db-purpose-preflight        scripts/preflight/database-environment.mjs
  *   3. tenant-isolation            vitest tests/persistence/ (pg tenancy suites)
  *   4. concurrent-idempotency      vitest -t "collapses 10 concurrent same-key creates …"
@@ -212,7 +212,7 @@ function buildGates(round) {
 
   return [
     {
-      id: "migration-apply-0001-0008",
+      id: "migration-apply-0001-0009",
       run: async () => {
         const res = await run(process.execPath, [migrateScript, "--test"], env);
         const applied = /migrate: done \((\d+) applied/.exec(res.stdout);
@@ -220,7 +220,7 @@ function buildGates(round) {
         let status = "FAIL";
         let reason = null;
         if (res.code !== 0) reason = `migrate exited with code ${res.code}`;
-        else if (!applied || Number(applied[1]) !== 8) reason = `expected 8 fresh applies, saw ${applied ? applied[1] : "none"}`;
+        else if (!applied || Number(applied[1]) !== 9) reason = `expected 9 fresh applies, saw ${applied ? applied[1] : "none"}`;
         else if (skips) reason = "migration files were skipped — the database was not fresh";
         else status = "PASS";
         return { status, reason, durationMs: res.durationMs, exitCode: res.code, details: { applied: applied ? Number(applied[1]) : 0 }, stdout: res.stdout, stderr: res.stderr };
@@ -336,7 +336,7 @@ function buildGates(round) {
         let reason = null;
         if (restored.tables !== source.tables) reason = `restored table count ${restored.tables} != source ${source.tables}`;
         else if (restored.triggers !== source.triggers) reason = `restored trigger count ${restored.triggers} != source ${source.triggers}`;
-        else if (restored.ledger !== 8) reason = `restored schema_migrations has ${restored.ledger} rows, expected 8`;
+        else if (restored.ledger !== 9) reason = `restored schema_migrations has ${restored.ledger} rows, expected 9`;
         else status = "PASS";
 
         return { status, reason, durationMs: Date.now() - started, exitCode: 0, details, stdout: logs.join("\n"), stderr: "" };

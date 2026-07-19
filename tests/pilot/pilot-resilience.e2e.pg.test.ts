@@ -46,6 +46,7 @@ import {
   type AuthRuntime,
 } from "../../src/runtime/auth/runtime-context.js";
 import { POST as loginRoute } from "../../src/app/api/auth/login/route.js";
+import { TEST_LOGIN_PASSWORD, TEST_LOGIN_PASSWORD_HASH } from "../helpers/auth-credentials.js";
 import {
   __setSessionSigningKeysForTests,
   signSessionCookieValue,
@@ -144,7 +145,7 @@ async function loginAndGetCookie(email: string): Promise<string> {
     new Request("http://test/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, password: TEST_LOGIN_PASSWORD }),
     }),
   );
   expect(res.status).toBe(200);
@@ -164,9 +165,10 @@ function withUserAndDb(baseUrl: string, user: string, database: string): string 
 }
 
 async function insertUser(db: DatabasePort, email: string): Promise<string> {
-  const res = await db.query<{ id: string }>(`INSERT INTO "user" (email) VALUES ($1) RETURNING id`, [
-    email,
-  ]);
+  const res = await db.query<{ id: string }>(
+    `INSERT INTO "user" (email, password_hash) VALUES ($1, $2) RETURNING id`,
+    [email, TEST_LOGIN_PASSWORD_HASH],
+  );
   const row = res.rows[0];
   if (!row) throw new Error("user insert returned no row");
   return row.id;

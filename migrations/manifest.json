@@ -8,6 +8,7 @@
     { "version": "0005", "filename": "0005_runtime_continuity.sql" },
     { "version": "0006", "filename": "0006_knowledge_content.sql" },
     { "version": "0007", "filename": "0007_provider_ledger.sql" },
-    { "version": "0008", "filename": "0008_provider_identity.sql" }
+    { "version": "0008", "filename": "0008_provider_identity.sql" },
+    { "version": "0009", "filename": "0009_password_credentials.sql" }
   ]
 }

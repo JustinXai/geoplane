@@ -5,10 +5,8 @@
  * BUSINESS_COMMAND_API_V1 (Agent C — batch 2).
  *
  * No automatic publication under any circumstance (SYSTEM_INVARIANTS_V1.md "Publication"): the
- * frozen `createPublicationReceipt` throws if `publishedByActorId` is empty or one of the
- * system/automatic sentinels ("system"/"auto"/"automated"/"automatic"), and this route delegates to
- * it via the DeliveryService — a system/automatic actor is rejected 422. The channel must be one the
- * DistributionPlan actually selected.
+ * actor comes exclusively from the verified signed session; request-body actor fields are ignored.
+ * The channel must be one the DistributionPlan actually selected.
  *
  * Server-side tenant resolution: the tenant is read from the referenced DistributionPlan, never the
  * body. Cross-tenant -> 403 + DENIED. Idempotency-Key makes a retried record replay the first result.
@@ -49,13 +47,9 @@ export async function POST(request: Request): Promise<Response> {
   const body = await readJsonBody(request);
   const distributionPlanId = readString(body, "distributionPlanId");
   const channelId = readString(body, "channelId");
-  const publishedByActorId = readString(body, "publishedByActorId");
-  if (!distributionPlanId || !channelId || !publishedByActorId) {
+  if (!distributionPlanId || !channelId) {
     return toHttpResponse(
-      apiErr(
-        "VALIDATION_FAILED",
-        "distributionPlanId, channelId and publishedByActorId (a real, non-automatic actor) are required.",
-      ),
+      apiErr("VALIDATION_FAILED", "distributionPlanId and channelId are required."),
     );
   }
 
@@ -95,7 +89,7 @@ export async function POST(request: Request): Promise<Response> {
             authContext,
             plan,
             channelId,
-            publishedByActorId,
+            session.userId,
           ),
         );
         const view: PublicationReceiptViewV1 = {

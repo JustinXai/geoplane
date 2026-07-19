@@ -34,6 +34,7 @@ import { GET as accountRoute } from "../../../src/app/api/account/route.js";
 import { GET as agencyClientsRoute } from "../../../src/app/api/agency/clients/route.js";
 import { POST as agencyContextRoute } from "../../../src/app/api/agency/context/route.js";
 import { POST as acceptInvitationRoute } from "../../../src/app/api/invitations/[token]/accept/route.js";
+import { TEST_LOGIN_PASSWORD, TEST_LOGIN_PASSWORD_HASH } from "../../helpers/auth-credentials.js";
 
 const testConfig = loadDatabaseConfig({ test: true });
 const migrationsDir = join(
@@ -51,8 +52,8 @@ let runtime: AuthRuntime;
 
 async function createUser(email: string): Promise<string> {
   const res = await db.query<{ id: string }>(
-    `INSERT INTO "user" (email) VALUES ($1) RETURNING id`,
-    [email],
+    `INSERT INTO "user" (email, password_hash) VALUES ($1, $2) RETURNING id`,
+    [email, TEST_LOGIN_PASSWORD_HASH],
   );
   const row = res.rows[0];
   if (!row) throw new Error("user insert returned no row");
@@ -88,7 +89,7 @@ async function loginAndGetCookie(email: string): Promise<string> {
     new Request("http://test/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, password: TEST_LOGIN_PASSWORD }),
     }),
   );
   expect(res.status).toBe(200);
@@ -127,7 +128,7 @@ describe.skipIf(testConfig === null)("ACCOUNT_AUTH_RUNTIME_V1 — routes over re
       new Request("http://test/api/auth/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: "owner@example.test" }),
+        body: JSON.stringify({ email: "owner@example.test", password: TEST_LOGIN_PASSWORD }),
       }),
     );
 
@@ -147,6 +148,31 @@ describe.skipIf(testConfig === null)("ACCOUNT_AUTH_RUNTIME_V1 — routes over re
       organizationName: "Client A",
       organizationType: "CLIENT",
       activeClientOrganizationId: orgId,
+    });
+  });
+
+  it("rejects unknown email and wrong password with the same non-enumerating response", async () => {
+    await createUser("known@example.test");
+    const attempts = [
+      { email: "known@example.test", password: "Wrong-Password-2026" },
+      { email: "unknown@example.test", password: "Wrong-Password-2026" },
+    ];
+    const responses = [];
+    for (const attempt of attempts) {
+      const response = await loginRoute(
+        new Request("http://test/api/auth/login", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(attempt),
+        }),
+      );
+      responses.push({ status: response.status, body: await response.json() });
+      expect(response.headers.get("set-cookie")).toBeNull();
+    }
+    expect(responses[0]).toEqual(responses[1]);
+    expect(responses[0]).toMatchObject({
+      status: 401,
+      body: { ok: false, error: { code: "UNAUTHENTICATED", message: "Invalid email or password." } },
     });
   });
 
