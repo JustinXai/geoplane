@@ -16,8 +16,14 @@ try {
     "SESSION_SIGNING_KEY_CURRENT",
     "SESSION_SIGNING_KEY_PREVIOUS",
     "REVIEW_REFERENCE_KEY_CURRENT",
+    "LOCAL_PLATFORM_ADMIN_PASSWORD",
+    "LOCAL_AGENCY_OWNER_PASSWORD",
+    "LOCAL_CLIENT_OWNER_PASSWORD",
     "PROVIDER_RUNTIME_ENABLED",
     "LOCAL_APP_PORT",
+    "LOCAL_BACKUP_DIR",
+    "LOCAL_ONLY_MODE",
+    "REMOTE_WRITE",
   ]) {
     const state = name === "SESSION_SIGNING_KEY_PREVIOUS" && values[name] === "" ? "EMPTY (rotation closed)" : "VALID (value hidden)";
     console.log(`${name}: ${state}`);

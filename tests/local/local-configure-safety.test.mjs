@@ -17,15 +17,20 @@ function validEnvironment() {
     GEO_CANARY_DATABASE_URL: "postgresql://local_role:local-db-password@127.0.0.1:5432/geoplane_local_canary",
     SESSION_SIGNING_KEY_CURRENT: "session-local-key-0000000000000000000000",
     REVIEW_REFERENCE_KEY_CURRENT: "review-local-key-00000000000000000000000",
+    LOCAL_PLATFORM_ADMIN_PASSWORD: "LocalPilotA1-secure",
+    LOCAL_AGENCY_OWNER_PASSWORD: "LocalPilotB2-secure",
+    LOCAL_CLIENT_OWNER_PASSWORD: "LocalPilotC3-secure",
     PROVIDER_RUNTIME_ENABLED: "false",
     LOCAL_APP_PORT: "3010",
+    LOCAL_BACKUP_DIR: join(tmpdir(), "geoplane-local-config-backups"),
   };
 }
 
 describe("secret-safe local configuration", () => {
   it("validates exact targets, distinct strong keys, and Provider OFF", () => {
     const values = validateLocalConfiguration(validEnvironment());
-    expect(values.LOCAL_ONLY_MODE).toBe("true");
+    expect(values.LOCAL_ONLY_MODE).toBe("TRUE");
+    expect(values.REMOTE_WRITE).toBe("FORBIDDEN");
     expect(values.PROVIDER_RUNTIME_ENABLED).toBe("false");
     expect(values.LOCAL_APP_PORT).toBe("3010");
   });
@@ -36,6 +41,7 @@ describe("secret-safe local configuration", () => {
     expect(() => validateLocalConfiguration({ ...validEnvironment(), REVIEW_REFERENCE_KEY_CURRENT: validEnvironment().SESSION_SIGNING_KEY_CURRENT })).toThrow("must be distinct");
     expect(() => validateLocalConfiguration({ ...validEnvironment(), PROVIDER_RUNTIME_ENABLED: "true" })).toThrow("explicitly false");
     expect(() => validateLocalConfiguration({ ...validEnvironment(), GEO_DATABASE_URL: "postgresql://local_role@127.0.0.1:5432/geoplane_local_runtime" })).toThrow("database credential");
+    expect(() => validateLocalConfiguration({ ...validEnvironment(), LOCAL_CLIENT_OWNER_PASSWORD: validEnvironment().LOCAL_AGENCY_OWNER_PASSWORD })).toThrow("must be distinct");
   });
 
   it("writes a complete file atomically with restrictive POSIX mode where supported", () => {

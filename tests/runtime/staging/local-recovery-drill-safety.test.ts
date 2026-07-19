@@ -239,6 +239,18 @@ describe("LOCAL_RECOVERY_DRILL_V1 safety envelope", () => {
     expect(result.stderr).not.toMatch(/ECONNREFUSED|password authentication failed/i);
   });
 
+  it("one-command restore without an override requires a prior local backup manifest", () => {
+    const emptyBackupDir = mkdtempSync(join(tempDir, "empty-backups-"));
+    const result = spawnSync(process.execPath, [localRestoreScript], {
+      cwd: repoRoot,
+      env: { ...safeEnv, LOCAL_BACKUP_DIR: emptyBackupDir },
+      encoding: "utf8",
+    });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/run npm run local:backup first/i);
+    expect(result.stderr).not.toMatch(/ECONNREFUSED|password authentication failed/i);
+  });
+
   it("one-command restore requires exact local runtime as its connection base before connection", () => {
     const artifact = join(tempDir, "local-wrapper.dump");
     writeFileSync(artifact, "local-wrapper", "utf8");

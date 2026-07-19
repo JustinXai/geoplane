@@ -2,8 +2,9 @@
  * Restore a checksummed local-runtime backup only into fresh geoplane_local_restore_verify, then
  * compare hashed business readback with the backup manifest. No raw business rows are printed.
  */
-import { existsSync, readFileSync, realpathSync } from "node:fs";
-import { isAbsolute, relative } from "node:path";
+import { existsSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { isAbsolute, join, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { Pool } from "pg";
 import {
@@ -18,8 +19,10 @@ import {
   assertExactDatabase,
   assertLocalOnlyMode,
   assertLoopback,
+  defaultLocalEvidenceDir,
   LOCAL_RESTORE_VERIFY_DB,
   LOCAL_RUNTIME_DB,
+  outsideRepoDirectory,
   providerCredentialFreeEnv,
   readBusinessSummary,
   repoRoot,
@@ -59,14 +62,28 @@ function assertArtifactOutsideRepo(path) {
   return artifact;
 }
 
+function latestBackupManifest() {
+  const directory = outsideRepoDirectory(
+    process.env.LOCAL_BACKUP_DIR?.trim() || defaultLocalEvidenceDir(tmpdir()),
+  );
+  const manifests = readdirSync(directory)
+    .filter((name) => name.endsWith(".dump.manifest.json"))
+    .map((name) => ({ path: join(directory, name), modified: statSync(join(directory, name)).mtimeMs }))
+    .sort((left, right) => right.modified - left.modified);
+  if (manifests.length === 0) {
+    throw new Error("no LOCAL_RUNTIME_BACKUP_V1 manifest exists; run npm run local:backup first");
+  }
+  return manifests[0].path;
+}
+
 export async function runLocalRestoreVerify(argv = process.argv.slice(2)) {
   assertLocalOnlyMode();
   const flags = parseArgs(argv);
   if (flags.url || flags.db || flags.test || flags.force || flags.checksum || flags.dump) {
     throw new Error("database/force/dump overrides are forbidden; supply only --manifest and optional --user");
   }
-  if (typeof flags.manifest !== "string") throw new Error("--manifest <file> is required");
-  const manifest = readManifest(flags.manifest);
+  const manifestPath = typeof flags.manifest === "string" ? flags.manifest : latestBackupManifest();
+  const manifest = readManifest(manifestPath);
   if (!existsSync(manifest.artifact)) throw new Error("backup artifact from manifest does not exist");
   const artifact = assertArtifactOutsideRepo(manifest.artifact);
   await verifyFileSha256(artifact, manifest.checksumSha256);

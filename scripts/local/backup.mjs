@@ -40,7 +40,9 @@ export async function runLocalRuntimeBackup(argv = process.argv.slice(2)) {
   assertExactDatabase(source, LOCAL_RUNTIME_DB, "back up");
 
   const outDir = outsideRepoDirectory(
-    typeof flags.out === "string" ? flags.out : defaultLocalEvidenceDir(tmpdir()),
+    typeof flags.out === "string"
+      ? flags.out
+      : process.env.LOCAL_BACKUP_DIR?.trim() || defaultLocalEvidenceDir(tmpdir()),
   );
   const before = await readBusinessSummary(source);
   const backup = await runProcess(process.execPath, [genericBackup, "--out", outDir], {
