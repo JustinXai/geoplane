@@ -135,14 +135,42 @@ export async function readManualProbeSamples(db:Queryable,clientOrganizationId:s
 export interface ManualProbeQuestionOption { readonly keyword:string; readonly question:string }
 export interface ManualProbeProjectOption { readonly projectId:string; readonly projectName:string; readonly clientName:string; readonly questions:readonly ManualProbeQuestionOption[] }
 export interface ManualProbeEntryOptions { readonly projects:readonly ManualProbeProjectOption[]; readonly platforms:readonly {readonly code:string;readonly displayName:string}[] }
+
+const CONFIRMED_PROBE_QUESTIONS_SQL = `SELECT DISTINCT k.keyword,q.question
+  FROM opportunity o
+  JOIN LATERAL (
+    SELECT h.decision FROM human_review_decision h
+    WHERE h.opportunity_id=o.id
+    ORDER BY h.decided_at DESC,h.created_at DESC,h.id DESC LIMIT 1
+  ) latest_review ON latest_review.decision='APPROVED'
+  JOIN keyword_question_map_keyword k
+    ON k.keyword_question_map_id=o.keyword_question_map_id AND k.keyword=o.keyword
+  JOIN keyword_question_map_question q ON q.keyword_id=k.id
+  WHERE o.client_organization_id=$1 AND o.project_id=$2
+  ORDER BY k.keyword,q.question`;
+
+export async function readConfirmedManualProbeQuestions(
+  db:Queryable,clientOrganizationId:string,projectId:string,
+):Promise<readonly ManualProbeQuestionOption[]>{
+  const result=await db.query<any>(CONFIRMED_PROBE_QUESTIONS_SQL,[clientOrganizationId,projectId]);
+  return result.rows.map((row:any)=>({keyword:row.keyword,question:row.question}));
+}
+
+export async function isConfirmedManualProbeQuestion(
+  db:Queryable,clientOrganizationId:string,projectId:string,question:string,
+):Promise<boolean>{
+  const questions=await readConfirmedManualProbeQuestions(db,clientOrganizationId,projectId);
+  return questions.some(item=>item.question===question.trim());
+}
+
 export async function readManualProbeEntryOptions(db:Queryable,principal:GeoPrincipal):Promise<ManualProbeEntryOptions>{
   let where="TRUE";const params:SqlParam[]=[];
   if(principal.organizationType==="CLIENT"&&principal.clientOrganizationId){where="p.client_organization_id=$1";params.push(principal.clientOrganizationId)}
   else if(principal.organizationType==="AGENCY"){const ids=[...principal.assignedClientOrganizationIds];where=ids.length===0?"FALSE":`p.client_organization_id IN (${ids.map((_,i)=>`$${i+1}`).join(",")})`;params.push(...ids)}
   else if(principal.role!=="PLATFORM_SUPER_ADMIN")where="FALSE";
-  const projects=await db.query<any>(`SELECT p.id,p.name,o.display_name AS client_name FROM project p JOIN organization o ON o.id=p.client_organization_id WHERE ${where} ORDER BY o.display_name,p.name,p.id`,params);
+  const projects=await db.query<any>(`SELECT p.id,p.name,p.client_organization_id,o.display_name AS client_name FROM project p JOIN organization o ON o.id=p.client_organization_id WHERE ${where} ORDER BY o.display_name,p.name,p.id`,params);
   const values:ManualProbeProjectOption[]=[];
-  for(const p of projects.rows){const questions=await db.query<any>(`SELECT k.keyword,q.question FROM keyword_question_map_keyword k JOIN keyword_question_map_question q ON q.keyword_id=k.id WHERE k.project_id=$1 ORDER BY k.position,q.position,q.id`,[p.id]);values.push({projectId:p.id,projectName:safeBusinessDisplayName(p.name,"项目"),clientName:safeBusinessDisplayName(p.client_name),questions:questions.rows.map((q:any)=>({keyword:q.keyword,question:q.question}))})}
+  for(const p of projects.rows){const questions=await readConfirmedManualProbeQuestions(db,p.client_organization_id??p.clientOrganizationId??principal.clientOrganizationId??"",p.id);values.push({projectId:p.id,projectName:safeBusinessDisplayName(p.name,"项目"),clientName:safeBusinessDisplayName(p.client_name),questions})}
   return {projects:values,platforms:[{code:"DOUBAO",displayName:"豆包"},{code:"QWEN",displayName:"通义千问"},{code:"DEEPSEEK",displayName:"DeepSeek"},{code:"YUANBAO",displayName:"腾讯元宝"}]};
 }
 

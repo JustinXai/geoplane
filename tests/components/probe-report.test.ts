@@ -3,6 +3,7 @@ import type { RawProbeResult } from "../../src/runtime/probes/manual-sample.js";
 import type { ApiClient } from "../../src/lib/api-client/http.js";
 import {
   DOMESTIC_AI_PLATFORMS,
+  filterProbeResults,
   listManualProbeSamples,
   recordManualProbeSample,
   summarizeProbeResults,
@@ -18,9 +19,18 @@ const sample = (id: string, outcome: "ANSWERED" | "FAILED"): RawProbeResult => (
 });
 
 describe("国内 AI 人工查询展示模型", () => {
-  it("只启用冻结的四个平台，两个保留平台明确停用", () => {
-    expect(DOMESTIC_AI_PLATFORMS.filter((item) => item.enabled).map((item) => item.code)).toEqual(["DOUBAO", "QWEN", "DEEPSEEK", "YUANBAO"]);
-    expect(DOMESTIC_AI_PLATFORMS.filter((item) => !item.enabled).map((item) => item.code)).toEqual(["KIMI", "WENXIN"]);
+  it("正式界面只提供冻结的四个平台", () => {
+    expect(DOMESTIC_AI_PLATFORMS.map((item) => item.code)).toEqual(["DOUBAO", "QWEN", "DEEPSEEK", "YUANBAO"]);
+  });
+
+  it("按平台、状态和问题关键词筛选持久化样本", () => {
+    const qwen = { ...sample("qwen", "FAILED"), platform: "QWEN" as const, question: "价格是多少？" };
+    expect(filterProbeResults([sample("doubao", "ANSWERED"), qwen], {
+      platform: "QWEN", outcome: "FAILED", question: "价格",
+    })).toEqual([qwen]);
+    expect(filterProbeResults([sample("doubao", "ANSWERED"), qwen], {
+      platform: "DOUBAO", outcome: "FAILED", question: "",
+    })).toEqual([]);
   });
 
   it("报告只汇总已保存样本，并保持信源引用率未计算", () => {

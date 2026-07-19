@@ -9,8 +9,6 @@ export const DOMESTIC_AI_PLATFORMS = [
   { code: "QWEN", name: "通义千问", enabled: true },
   { code: "DEEPSEEK", name: "DeepSeek", enabled: true },
   { code: "YUANBAO", name: "腾讯元宝", enabled: true },
-  { code: "KIMI", name: "Kimi", enabled: false },
-  { code: "WENXIN", name: "文心一言", enabled: false },
 ] as const;
 
 export const PROBE_FAILURE_LABELS = {
@@ -26,6 +24,23 @@ export interface ProbeReportSummary {
   readonly failedCount: number;
   readonly managedSourceCitationRate: "尚未计算";
   readonly reviewStatus: "人工指标复核尚未开放";
+}
+
+export interface ProbeResultFilters {
+  readonly platform: string;
+  readonly outcome: "ALL" | "ANSWERED" | "FAILED";
+  readonly question: string;
+}
+
+export function filterProbeResults(
+  results: readonly RawProbeResult[], filters: ProbeResultFilters,
+): readonly RawProbeResult[] {
+  const needle = filters.question.trim().toLocaleLowerCase("zh-CN");
+  return results.filter((item) =>
+    (!filters.platform || item.platform === filters.platform) &&
+    (filters.outcome === "ALL" || item.outcome === filters.outcome) &&
+    (!needle || item.question.toLocaleLowerCase("zh-CN").includes(needle)),
+  );
 }
 
 export function summarizeProbeResults(results: readonly RawProbeResult[]): ProbeReportSummary {
