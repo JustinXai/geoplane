@@ -12,12 +12,14 @@
  * Adding the nav link is a batch-2 IA task; this batch delivers the wired read screen itself.
  */
 import { useAsyncData } from "@/components/runtime";
+import { KeywordExpansionHistory } from "@/components/account-keyword-runtime";
 import {
   type AgencyProjectReadGroup,
   AgencyAsyncView,
   isAggregateEmpty,
   listClientKeywordQuestions,
   loadAgencyProjectReads,
+  AuthorizedProjectWorkspace,
 } from "@/components/agency-runtime";
 import type { KeywordQuestionViewV1 } from "@/runtime/api-contracts";
 
@@ -70,6 +72,7 @@ export default function AgencyKeywordQuestionsPage() {
           ))
         }
       </AgencyAsyncView>
+      <AuthorizedProjectWorkspace>{(project) => <section className="cp-section"><h2>{project.name} · 扩展问题人工确认</h2><p className="cp-placeholder-note">下列记录来自该项目已保存的离线整理批次；决定会真实保存，刷新后仍可查看。</p><KeywordExpansionHistory projectId={project.id} questionsOnly /></section>}</AuthorizedProjectWorkspace>
     </>
   );
 }

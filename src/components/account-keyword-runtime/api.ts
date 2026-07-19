@@ -56,6 +56,9 @@ export const accountKeywordApi = {
   previewExpansion(input: { projectId: string; reason: string; groups: readonly ExpansionGroupInput[] }, client: ApiClient = defaultApiClient): Promise<Result<KeywordExpansionBatch>> {
     return client.request("/api/keyword-expansion/preview", { method: "POST", body: input });
   },
+  listExpansions(projectId: string, client: ApiClient = defaultApiClient): Promise<Result<readonly KeywordExpansionBatch[]>> {
+    return client.request(`/api/keyword-expansion/projects/${encodeURIComponent(projectId)}`);
+  },
   confirmExpansion(candidateId: string, reason: string, client: ApiClient = defaultApiClient): Promise<Result<KeywordExpansionCandidate>> {
     return client.request(`/api/keyword-expansion/candidates/${encodeURIComponent(candidateId)}/confirm`, { method: "POST", body: { reason } });
   },

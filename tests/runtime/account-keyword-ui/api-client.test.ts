@@ -37,4 +37,14 @@ describe("账号与关键词界面真实接口接线", () => {
       "/api/keyword-expansion/candidates/%E5%80%99%E9%80%89%2F2/delete",
     ]);
   });
+
+  it("按项目读取已保存批次，刷新后继续展示真实状态", async () => {
+    const paths: string[] = [];
+    const client: ApiClient = { request: async (path) => {
+      paths.push(path);
+      return { ok: true, data: [] } as never;
+    } };
+    await accountKeywordApi.listExpansions("项目/甲", client);
+    expect(paths).toEqual(["/api/keyword-expansion/projects/%E9%A1%B9%E7%9B%AE%2F%E7%94%B2"]);
+  });
 });

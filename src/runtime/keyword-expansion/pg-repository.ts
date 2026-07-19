@@ -46,6 +46,9 @@ export class PgExpansionRepository implements ExpansionRepository {
   }
   async appendReview(id: string, status: "CONFIRMED" | "DELETED", actor: string, reason: string, at: string) {
     if (!reason.trim()) throw new Error("review reason is required");
+    const existing = await this.findCandidate(id);
+    if (!existing) throw new Error("candidate not found");
+    if (existing.status !== "NEEDS_HUMAN_REVIEW") throw new Error("candidate already reviewed");
     await this.db.query(`INSERT INTO keyword_expansion_review_event(candidate_id,status,actor_user_id,reason,created_at)
       VALUES($1,$2,$3,$4,$5)`, [id,status,actor,reason.trim(),at]);
     const found = await this.findCandidate(id);

@@ -10,7 +10,7 @@ import { expansionGroupLabel, expansionReviewStatusLabel } from "./labels.js";
 const groupTypes: readonly ExpansionGroupType[] = ["PREFIX", "MAIN", "SUFFIX", "RECOMMENDATION", "QUESTION", "REGION"];
 const splitValues = (value: string) => value.split(/[\n,，]/).map((item) => item.trim()).filter(Boolean);
 
-export function KeywordExpansionPanel({ projectId }: { readonly projectId: string }): ReactNode {
+export function KeywordExpansionPanel({ projectId, onSaved }: { readonly projectId: string; readonly onSaved?: () => void }): ReactNode {
   const [inputs, setInputs] = useState<Record<ExpansionGroupType, string>>({ PREFIX: "", MAIN: "", SUFFIX: "", RECOMMENDATION: "", QUESTION: "", REGION: "" });
   const [reason, setReason] = useState("");
   const [pending, setPending] = useState(false);
@@ -26,7 +26,7 @@ export function KeywordExpansionPanel({ projectId }: { readonly projectId: strin
     try {
       const response = await accountKeywordApi.previewExpansion({ projectId, reason: reason.trim(), groups });
       setResult(response);
-      if (response.ok) setBatch(response.data);
+      if (response.ok) { setBatch(response.data); onSaved?.(); }
     } catch {
       setResult({ ok: false, code: "INTERNAL_ERROR", message: "网络请求失败" });
     } finally {
@@ -35,11 +35,16 @@ export function KeywordExpansionPanel({ projectId }: { readonly projectId: strin
   }
 
   async function decide(candidate: KeywordExpansionCandidate, decision: "confirm" | "remove") {
-    const response = decision === "confirm"
-      ? await accountKeywordApi.confirmExpansion(candidate.id, "人工确认用于后续问题整理")
-      : await accountKeywordApi.removeExpansion(candidate.id, "人工判断不适合当前项目");
-    if (response.ok && batch) setBatch({ ...batch, candidates: batch.candidates.map((item) => item.id === candidate.id ? response.data : item) });
-    else setResult(response as Result<KeywordExpansionBatch>);
+    setPending(true); setResult(null);
+    try {
+      const response = decision === "confirm"
+        ? await accountKeywordApi.confirmExpansion(candidate.id, "人工确认用于后续问题整理")
+        : await accountKeywordApi.removeExpansion(candidate.id, "人工判断不适合当前项目");
+      if (response.ok && batch) { setBatch({ ...batch, candidates: batch.candidates.map((item) => item.id === candidate.id ? response.data : item) }); onSaved?.(); }
+      else setResult(response as Result<KeywordExpansionBatch>);
+    } catch {
+      setResult({ ok: false, code: "INTERNAL_ERROR", message: "网络请求失败" });
+    } finally { setPending(false); }
   }
 
   return (
@@ -67,7 +72,7 @@ export function KeywordExpansionPanel({ projectId }: { readonly projectId: strin
             <tbody>{batch.candidates.map((candidate) => (
               <tr key={candidate.id}>
                 <td>{candidate.keyword}</td><td>{candidate.question ?? "—"}</td><td>{candidate.reason}</td><td>{expansionReviewStatusLabel[candidate.status]}</td>
-                <td>{candidate.status === "NEEDS_HUMAN_REVIEW" ? <div className="cp-actions"><button type="button" className="cp-button cp-button-primary" onClick={() => void decide(candidate, "confirm")}>确认保留</button><button type="button" className="cp-button" onClick={() => void decide(candidate, "remove")}>移除</button></div> : "已处理"}</td>
+                <td>{candidate.status === "NEEDS_HUMAN_REVIEW" ? <div className="cp-actions"><button type="button" className="cp-button cp-button-primary" disabled={pending} onClick={() => void decide(candidate, "confirm")}>确认保留</button><button type="button" className="cp-button" disabled={pending} onClick={() => void decide(candidate, "remove")}>移除</button></div> : "已处理"}</td>
               </tr>
             ))}</tbody>
           </table>
