@@ -10,8 +10,26 @@
  * original_file_unavailable: true
  */
 import type { NextConfig } from "next";
+import { execFileSync } from "node:child_process";
+
+function gitValue(args: readonly string[]): string {
+  try {
+    return execFileSync("git", args, { encoding: "utf8" }).trim();
+  } catch {
+    return "unknown";
+  }
+}
+
+// Captured by `next build`: this identifies the code inside the build artifact,
+// not a different checkout that may later start the artifact.
+const buildIdentity = {
+  GEO_BUILD_BRANCH: gitValue(["branch", "--show-current"]),
+  GEO_BUILD_GIT_SHA: gitValue(["rev-parse", "HEAD"]),
+  GEO_BUILD_TIME: new Date().toISOString(),
+};
 
 const nextConfig: NextConfig = {
+  env: buildIdentity,
   webpack: (config) => {
     config.resolve = config.resolve ?? {};
     config.resolve.extensionAlias = {

@@ -12,6 +12,7 @@
     "build:contracts": "tsc -p tsconfig.build.json",
     "security-scan": "node scripts/security-scan.mjs",
     "repo:safety:preflight": "node scripts/repo-safety-preflight.mjs",
+    "acceptance:ui-truth": "node scripts/acceptance/ui-truth-scan.mjs",
     "db:migrate": "node scripts/db/migrate.mjs",
     "db:migrate:test": "node scripts/db/migrate.mjs --test",
     "db:migrate:canary": "node scripts/db/migrate.mjs --canary",

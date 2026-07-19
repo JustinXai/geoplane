@@ -3,8 +3,8 @@
  * runtime: typed loaders over the frozen ApiClient, the single organizations read model, audit
  * mapping, and the five-state async renderer. Mirrors src/components/agency-runtime/index.ts.
  */
-export { listAllOrganizations, listOpsAudit, listOpsProjects } from "./ops-api.js";
-export type { OrganizationSummaryV1 } from "./ops-api.js";
+export { getBuildInfo, listAllOrganizations, listOpsAudit, listOpsProjects } from "./ops-api.js";
+export type { BuildInfoV1, OrganizationSummaryV1 } from "./ops-api.js";
 
 export {
   loadOpsOrganizations,
@@ -39,5 +39,6 @@ export { OpsOrganizationDirectoryPage, OpsProjectsPageView } from "./OpsDirector
 export { CapabilityGapScreen } from "./CapabilityGapScreen.js";
 export { OpsKeywordWorkspace } from "./OpsKeywordWorkspace.js";
 export { OpsAccountReadPanel } from "./OpsAccountReadPanel.js";
+export { OpsBuildInfoPanel } from "./OpsBuildInfoPanel.js";
 export { OpsManualProbePage } from "./OpsManualProbePage.js";
 export { OpsPolicyPackPage } from "./OpsPolicyPackPage.js";

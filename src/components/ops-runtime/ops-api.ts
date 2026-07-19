@@ -16,8 +16,16 @@ import type { AuditEventViewV1, ProjectViewV1 } from "../../runtime/api-contract
 // pulled into the client bundle, and this lane never modifies src/runtime/**.
 import type { OrganizationSummaryV1 } from "../../runtime/commands/dto.js";
 import { type ApiClient, defaultApiClient, type Result } from "../../lib/api-client/index.js";
+import type { BuildInfoV1 } from "../../runtime/observability/build-info.js";
 
 export type { OrganizationSummaryV1 };
+export type { BuildInfoV1 };
+
+export function getBuildInfo(
+  client: ApiClient = defaultApiClient,
+): Promise<Result<BuildInfoV1>> {
+  return client.request<BuildInfoV1>("/api/ops/build-info");
+}
 
 /**
  * GET /api/ops/organizations — the platform's organization directory: EVERY organization across all
