@@ -1,0 +1,4 @@
+import {randomUUID} from "node:crypto";import {apiErr} from "../api-contracts/index.js";import {toHttpResponse} from "../auth/http.js";import {requireReadableWorkspaceProject} from "../read-models/http-context.js";import {PgGenericKeywordRepository} from "./pg-repository.js";import {GenericKeywordService} from "./service.js";
+export async function genericKeywordContext(request:Request,projectId:string){const ctx=await requireReadableWorkspaceProject(request,projectId);if("response" in ctx)return{response:ctx.response} as const;const repo=new PgGenericKeywordRepository(ctx.value.runtime.db);return{value:{...ctx.value,repo,service:new GenericKeywordService(repo,{next:()=>randomUUID()},()=>new Date().toISOString())}} as const;}
+export const invalid=(message:string)=>toHttpResponse(apiErr("VALIDATION_FAILED",message));
+export const conflict=(message:string)=>toHttpResponse(apiErr("CONFLICT",message));

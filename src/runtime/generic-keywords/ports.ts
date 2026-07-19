@@ -3,6 +3,7 @@ import type {DemandEvidence,KeywordDataset,KeywordDecisionRecord,KeywordImportBa
 export interface GenericKeywordRepository {
   addDataset(value:KeywordDataset):Promise<void>;
   getDataset(scope:KeywordScope,id:string):Promise<KeywordDataset|undefined>;
+  archiveDataset(scope:KeywordScope,id:string):Promise<boolean>;
   addImportBatch(value:KeywordImportBatch):Promise<void>;
   saveImportedBatch(batch:KeywordImportBatch,records:readonly KeywordRecord[],evidence:readonly DemandEvidence[]):Promise<void>;
   addRecords(values:readonly KeywordRecord[]):Promise<void>;
