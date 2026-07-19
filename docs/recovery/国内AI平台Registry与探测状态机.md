@@ -1,5 +1,7 @@
 # 国内 AI 平台 Registry 与探测状态机
 
+文档级分类：`CURRENT_REBUILD_ADDITION`。本文是恢复目标草案，不是删除前源码或规格；Registry、Adapter、Probe runtime 与指标计算当前均为 `MISSING_REQUIRED_CAPABILITY`。
+
 状态：第一轮事实模型；**不是已实现代码，也不是恢复出的旧 schema**。
 
 基线：`baf550d3fc17589de2b474706560107763176cf1`。
@@ -110,7 +112,7 @@ PENDING | ACQUIRING -> CANCELLED
 
 ## 8. 指标计算门禁
 
-四个核心指标名称和公式尚未恢复，分类为 `MISSING_REQUIRED_CAPABILITY`。状态机应只允许在以下条件同时满足后生成指标快照：
+当前目标冻结四项核心比例指标（品牌曝光率、推荐进入率、已管理信源引用率、竞品声量份额）和两个辅助分析维度（问题覆盖率、引用域名分布）；删除前公式与版本规则尚未恢复，分类为 `MISSING_REQUIRED_CAPABILITY`。状态机应只允许在以下条件同时满足后生成指标快照：
 
 1. ProbeRun 已终态；
 2. 问题集版本、registry 版本、parser version、metric version 固定；
@@ -119,7 +121,7 @@ PENDING | ACQUIRING -> CANCELLED
 5. 每个聚合值可回溯到 RawProbeResult；
 6. 重算生成新版本，不覆盖历史结果。
 
-在四指标正式口径冻结前，系统只能展示“尚未配置指标”，不能展示模拟数字。
+在核心比例和辅助维度的正式计算口径冻结前，系统只能展示“尚未配置指标”，不能展示模拟数字。
 
 ## 9. 与现有 Provider 执行账本的关系
 
@@ -147,7 +149,7 @@ PENDING | ACQUIRING -> CANCELLED
 1. 冻结 registry 与三层身份边界。
 2. 冻结四种接入方式和合规证据策略。
 3. 冻结五个领域对象及不可变/版本化规则。
-4. 冻结四指标公式。
+4. 冻结四项核心比例与两个辅助维度的公式、分母和版本。
 5. 以 `MANUAL_SAMPLE` 脱敏测试数据完成最小闭环。
 6. 通过安全、审计、租户隔离和零真实调用测试后，再单独审批某一产品 adapter。
 

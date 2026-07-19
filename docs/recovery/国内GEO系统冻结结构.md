@@ -1,6 +1,6 @@
 # 国内 GEO 系统冻结结构
 
-阶段：`DOMESTIC_GEO_PARALLEL_RECOVERY_V1`  
+阶段：`DOMESTIC_GEO_PARALLEL_RECOVERY_V1`
 安全基线：`local/closed-pilot-staging-v1@baf550d3fc17589de2b474706560107763176cf1`
 
 ## 1. 恢复性质
@@ -10,13 +10,15 @@
 所有能力只能使用以下分类：
 
 - `RECOVERED_IMPLEMENTED`：删除前存在真实代码、数据、测试或运行证据；
-- `RECOVERED_SPECIFIED_NOT_COMPLETED`：删除前已冻结设计，但没有完成证据；
+- `RECOVERED_SPECIFIED_NOT_COMPLETED`：恢复源能直接证明删除前存在规格或流程意图，但没有完整实现证据；
 - `REBUILT_EQUIVALENT`：原代码缺失，当前重建提供等价能力；
 - `CURRENT_REBUILD_ADDITION`：灾难重建新增，原系统没有明确证据；
-- `MISSING_REQUIRED_CAPABILITY`：原系统要求存在，当前仍缺；
+- `MISSING_REQUIRED_CAPABILITY`：当前冻结目标要求、当前实现仍缺；本标签本身不证明删除前已有实现或规格；
 - `DEFERRED_BY_FROZEN_SCOPE`：明确后置，本轮不开发。
 
 没有直接证据的推测不得标记为 `RECOVERED_IMPLEMENTED`。
+
+事实来源严格分三层：恢复证据（恢复源、partial source、可验证旧对象/运行封存）、灾后所有者重述的目标规格（当前 `docs/architecture/**` 与阶段指令）、当前重建事实（现有代码、Migration、测试和运行报告）。后两层不能单独证明删除前实现或删除前规格。
 
 ## 2. 产品定位
 
@@ -24,7 +26,7 @@
 
 客户价值链：真实企业知识 → 真实需求信号 → 人工确认的问题与机会 → 有信源支撑的内容 → 人工门禁 → 交付 → 国内 AI 平台可见性验证。
 
-底层结果必须能解释品牌曝光、推荐进入、可信引用、竞品声量与问题覆盖，不能用无法解释的总分替代。
+指标口径冻结为四项核心比例：品牌曝光率、推荐进入率、已管理信源引用率、竞品声量份额；问题覆盖率与引用域名分布是辅助分析维度。不能用无法解释的总分替代底层指标。
 
 ## 3. 三层商业结构
 

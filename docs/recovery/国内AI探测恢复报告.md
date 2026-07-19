@@ -98,11 +98,11 @@
 | 腾讯元宝 registry/adapter | `MISSING_REQUIRED_CAPABILITY` | 0 命中 |
 | 四种探测接入方式 | `MISSING_REQUIRED_CAPABILITY` | 0 个探测契约命中 |
 | 五类探测领域实体 | `MISSING_REQUIRED_CAPABILITY` | 代码/测试/migration 均为 0 |
-| 四个核心指标公式 | `MISSING_REQUIRED_CAPABILITY` | 无正式口径和版本规则 |
+| 四项核心比例指标与两个辅助分析维度 | `MISSING_REQUIRED_CAPABILITY` | 名称由当前目标冻结；公式、分母和版本规则未恢复 |
 
-## 7. 四个核心指标事实核对
+## 7. 指标集合事实核对
 
-调查目标提到“四个核心指标”，但本轮证据没有给出可验证的四个正式名称及公式。`Citation` 与 `BrandMention` 只能说明引用、品牌提及是候选解析维度，不能据此推导四项指标。
+当前恢复目标冻结四项核心比例指标：品牌曝光率、推荐进入率、已管理信源引用率、竞品声量份额；问题覆盖率和引用域名分布是两个辅助分析维度。删除前恢复证据没有给出可验证公式、分母或版本规则。`Citation` 与 `BrandMention` 只能说明引用、品牌提及是候选解析维度，不能据此推导指标值。
 
 以下关键口径全部缺失，分类为 `MISSING_REQUIRED_CAPABILITY`：
 

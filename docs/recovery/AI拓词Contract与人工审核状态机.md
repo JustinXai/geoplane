@@ -2,7 +2,7 @@
 
 ## 1. 文档状态
 
-本文冻结 AI 拓词与用户问题生成的 P0 Contract 和审核状态机。精确字段是恢复目标设计，不是原代码逐字恢复，整体分类为 `RECOVERED_SPECIFIED_NOT_COMPLETED`；当前实现状态为 `MISSING_REQUIRED_CAPABILITY`。
+本文冻结 AI 拓词与用户问题生成的 P0 Contract 和审核状态机。按本阶段明确指令，该能力默认分类为 `RECOVERED_SPECIFIED_NOT_COMPLETED`；这不代表找到删除前实现。精确字段草案本身属于 `CURRENT_REBUILD_ADDITION`，当前生产实现仍缺失。
 
 必须维持：
 
@@ -313,4 +313,3 @@ Adapter 只生成候选内容，不能：
 当前判定：`STOP_BEFORE_IMPLEMENTATION`。
 
 在 Agent B 的 `KeywordReferenceSnapshot`、`KeywordFamilyDraft`、`HumanReviewPackage` 与本 Contract 共同评审通过前，不创建迁移、不接真实模型、不向现有 KeywordQuestionMap 写 AI 候选。
-

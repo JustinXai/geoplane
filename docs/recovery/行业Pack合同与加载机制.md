@@ -1,6 +1,6 @@
 # 行业 Pack 合同与加载机制（P0 冻结草案）
 
-本文件冻结恢复边界，不代表删除前源码，也不授权本轮大规模实现。
+本文件是 `CURRENT_REBUILD_ADDITION` 的恢复规格草案，不代表删除前源码或删除前冻结规格，也不授权本轮大规模实现。对应生产 Contract、Registry、Loader 与门禁接线仍为 `MISSING_REQUIRED_CAPABILITY`。
 
 ## 最小 Contract
 

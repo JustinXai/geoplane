@@ -14,7 +14,7 @@
 | 标签 | 含义 |
 |---|---|
 | `RECOVERED_IMPLEMENTED` | 恢复证据证明原系统存在可执行实现 |
-| `RECOVERED_SPECIFIED_NOT_COMPLETED` | 恢复证据或权威恢复目标证明有明确方向/Contract，但没有完整可执行实现证据 |
+| `RECOVERED_SPECIFIED_NOT_COMPLETED` | 恢复源证明删除前存在明确方向，或本阶段指令对 AI 拓词明确强制使用该默认分类；均不代表已有实现 |
 | `REBUILT_EQUIVALENT` | 当前重建系统已提供等价业务能力，但不是原代码恢复 |
 | `CURRENT_REBUILD_ADDITION` | 当前重建阶段新增、且无恢复实现证据的能力 |
 | `MISSING_REQUIRED_CAPABILITY` | 当前 AI 拓词与用户问题闭环必须具备、但尚不存在的能力 |
@@ -43,10 +43,10 @@
 
 | 事实 | 分类 | 证据 |
 |---|---|---|
-| 产品目标包含“关键词与用户问题映射” | `RECOVERED_SPECIFIED_NOT_COMPLETED` | `docs/architecture/SYSTEM_BLUEPRINT_V1.md`、`docs/architecture/GEO_BUSINESS_CHAIN_V1.md` |
+| 灾后所有者重述目标包含“关键词与用户问题映射” | `RECOVERED_SPECIFIED_NOT_COMPLETED` | 本阶段指令明确要求 AI 拓词默认使用此分类；架构文档本身仍不是恢复工件 |
 | `HUMAN_REVIEW_REQUIRED` 在恢复测试断言中有相近状态命中 | `RECOVERED_SPECIFIED_NOT_COMPLETED` | `docs/rebuild/recovered-evidence/TARGET_STATE_MANIFEST.md` |
-| `NEEDS_HUMAN_REVIEW`、`INDUSTRY_HYPOTHESIS`、`KNOWLEDGE_GROUNDED_OPPORTUNITY` 逐字恢复检索为 0 命中 | `RECOVERED_SPECIFIED_NOT_COMPLETED` | `docs/rebuild/recovered-evidence/TARGET_STATE_MANIFEST.md`、`docs/architecture/GEO_BUSINESS_CHAIN_V1.md` |
-| 文章生产链存在真实 Provider 辅助与人工审批证据，但不是拓词 Contract | `RECOVERED_SPECIFIED_NOT_COMPLETED` | `docs/rebuild/recovered-evidence/TODAY_NODE_RECOVERY_MATRIX.md` |
+| `NEEDS_HUMAN_REVIEW`、`INDUSTRY_HYPOTHESIS`、`KNOWLEDGE_GROUNDED_OPPORTUNITY` 逐字恢复检索为 0 命中 | `RECOVERED_SPECIFIED_NOT_COMPLETED` | 本阶段指令的强制默认分类；0 命中事实同时保留，不据此声称实现 |
+| 相邻文章生产链存在真实 Provider 辅助与人工审批证据，但不是拓词 Contract | `RECOVERED_IMPLEMENTED` | `docs/rebuild/recovered-evidence/TODAY_NODE_RECOVERY_MATRIX.md` |
 
 因此，本阶段可以恢复“必须人工审核、必须知识 grounding”的产品意图，不能声称恢复了原 AI 拓词输入/输出结构、Prompt 或模型调用实现。
 
@@ -99,7 +99,7 @@ Agent B 已冻结但尚未实现以下精确名称：
 
 ## 5. 三类 AI 标记
 
-三类标记均为 `RECOVERED_SPECIFIED_NOT_COMPLETED` 的目标语义，不代表已实现，也不是需求事实：
+三类标记按本阶段指令归入 `RECOVERED_SPECIFIED_NOT_COMPLETED` 的目标语义；精确字段草案本身是 `CURRENT_REBUILD_ADDITION`，对应生产能力仍缺失，不代表已实现，也不是需求事实：
 
 | 标记 | 冻结含义 | 禁止解释 |
 |---|---|---|
@@ -142,4 +142,3 @@ AI 输出 Contract 不允许出现或从文本暗示以下字段/概念：
 `STOP_BEFORE_IMPLEMENTATION`
 
 原因：Agent B 的参考快照与审核包尚未实现；AI 拓词 Contract、运行模型和安全边界也尚无代码。下一步是评审本轮冻结 Contract，不是先接真实 Provider。
-
