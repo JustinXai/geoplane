@@ -92,25 +92,34 @@ export async function readAccountCenter(db: Queryable, principal: GeoPrincipal):
     pendingTasks:accounts.reduce((n,x)=>n+x.pendingTaskCount,0), failedTasks:accounts.reduce((n,x)=>n+x.failedTaskCount,0) } };
 }
 
-export interface BaiduKeywordImportView { readonly id:string; readonly fileName:string; readonly format:"CSV"|"XLSX"; readonly status:string; readonly fingerprint:string; readonly parsedCount:number; readonly rejectedCount:number; readonly snapshotVersion:number|null; readonly duplicateRecordCount:null; readonly sealedAt:string|null }
-export interface BaiduKeywordItemView { readonly id:string; readonly rawKeyword:string; readonly normalizedKeyword:string; readonly seedKeyword:string; readonly demandValue:number|null; readonly demandEvidence:"OBSERVED_DEMAND"|null; readonly observedAt:string }
-export interface BaiduKeywordReadModel { readonly imports:readonly BaiduKeywordImportView[]; readonly keywords:readonly BaiduKeywordItemView[]; readonly capabilityGaps:readonly string[] }
+export interface BaiduKeywordImportView { readonly id:string; readonly fileName:string; readonly format:"CSV"|"XLSX"; readonly status:"PENDING"|"VALIDATED"|"COMPLETED"|"FAILED"; readonly parsedCount:number; readonly rejectedCount:number; readonly snapshotVersion:number|null; readonly demandObservationCount:number; readonly sealedAt:string|null }
+export interface BaiduKeywordItemView { readonly id:string; readonly importId:string; readonly rawKeyword:string; readonly normalizedKeyword:string; readonly seedKeyword:string; readonly demandValue:number|null; readonly demandEvidence:"OBSERVED_DEMAND"|null; readonly observedAt:string }
+export interface BaiduKeywordReadModel {
+  readonly imports:readonly BaiduKeywordImportView[];
+  readonly keywords:readonly BaiduKeywordItemView[];
+  readonly totals:{readonly imports:number;readonly keywords:number;readonly withObservedDemand:number;readonly rejectedRows:number};
+  readonly capabilityGaps:readonly string[];
+}
 
 export async function readBaiduKeywordOverview(db: Queryable, clientOrganizationId:string, projectId:string):Promise<BaiduKeywordReadModel>{
-  const imports=await db.query<any>(`SELECT i.id,i.source_file_name,i.source_format,i.status,i.source_manifest_hash,i.parsed_count,i.rejected_count,
-    s.snapshot_version,s.sealed_at
+  const imports=await db.query<any>(`SELECT i.id,i.source_file_name,i.source_format,i.status,i.parsed_count,i.rejected_count,
+    s.snapshot_version,s.demand_observation_count,s.sealed_at
     FROM keyword_reference_source_import i LEFT JOIN keyword_reference_snapshot s ON s.import_id=i.id
     WHERE i.client_organization_id=$1 AND i.project_id=$2 ORDER BY i.started_at DESC,i.id`,[clientOrganizationId,projectId]);
-  const keywords=await db.query<any>(`SELECT r.id,r.raw_keyword,r.seed_keyword,r.observed_at,n.normalized_keyword,d.metric_value,d.evidence_status
+  const keywords=await db.query<any>(`SELECT r.id,r.import_id,r.raw_keyword,r.seed_keyword,r.observed_at,n.normalized_keyword,d.metric_value,d.evidence_status
     FROM keyword_raw_observation r JOIN keyword_normalized_form n ON n.raw_observation_id=r.id
     LEFT JOIN keyword_demand_observation d ON d.raw_observation_id=r.id AND d.normalized_form_id=n.id
     WHERE r.client_organization_id=$1 AND r.project_id=$2 ORDER BY r.observed_at DESC,r.id`,[clientOrganizationId,projectId]);
-  return {imports:imports.rows.map((r:any)=>({id:r.id,fileName:r.source_file_name,format:r.source_format,status:r.status,
-      fingerprint:`…${String(r.source_manifest_hash).slice(-8)}`,parsedCount:Number(r.parsed_count),rejectedCount:Number(r.rejected_count),
-      snapshotVersion:r.snapshot_version===null?null:Number(r.snapshot_version),duplicateRecordCount:null,sealedAt:iso(r.sealed_at)})),
-    keywords:keywords.rows.map((r:any)=>({id:r.id,rawKeyword:r.raw_keyword,normalizedKeyword:r.normalized_keyword,seedKeyword:r.seed_keyword,
-      demandValue:r.metric_value===null?null:Number(r.metric_value),demandEvidence:r.evidence_status??null,observedAt:iso(r.observed_at)!})),
-    capabilityGaps:["历史导入批次未保存重复数量","百度推荐出价尚未接入","百度竞争度尚未接入","地域维度尚未接入"]};
+  const importViews=imports.rows.map((r:any):BaiduKeywordImportView=>({id:r.id,fileName:r.source_file_name,format:r.source_format,status:r.status,
+      parsedCount:Number(r.parsed_count),rejectedCount:Number(r.rejected_count),snapshotVersion:r.snapshot_version===null?null:Number(r.snapshot_version),
+      demandObservationCount:Number(r.demand_observation_count??0),sealedAt:iso(r.sealed_at)}));
+  const keywordViews=keywords.rows.map((r:any):BaiduKeywordItemView=>({id:r.id,importId:r.import_id,rawKeyword:r.raw_keyword,
+      normalizedKeyword:r.normalized_keyword,seedKeyword:r.seed_keyword,demandValue:r.metric_value===null?null:Number(r.metric_value),
+      demandEvidence:r.evidence_status??null,observedAt:iso(r.observed_at)!}));
+  return {imports:importViews,keywords:keywordViews,totals:{imports:importViews.length,keywords:keywordViews.length,
+      withObservedDemand:keywordViews.filter((item)=>item.demandEvidence==="OBSERVED_DEMAND").length,
+      rejectedRows:importViews.reduce((sum,item)=>sum+item.rejectedCount,0)},
+    capabilityGaps:["历史导入批次未保存重复行数量","百度推荐出价尚未接入","百度竞争度尚未接入","地域维度尚未接入"]};
 }
 
 export async function readKeywordExpansionBatches(db:Queryable,clientOrganizationId:string,projectId:string):Promise<readonly KeywordExpansionBatch[]>{

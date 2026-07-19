@@ -50,7 +50,7 @@ export const accountKeywordApi = {
   assignAccount(input: AssignAccountInput, client: ApiClient = defaultApiClient): Promise<Result<AccountAssignment>> {
     return client.request("/api/accounts", { method: "POST", body: { action: "ASSIGN", ...input } });
   },
-  importBaiduKeywords(input: { projectId: string; fileName: string; base64: string; snapshotVersion: number }, client: ApiClient = defaultApiClient): Promise<Result<KeywordImportResult>> {
+  importBaiduKeywords(input: { projectId: string; fileName: string; base64: string }, client: ApiClient = defaultApiClient): Promise<Result<KeywordImportResult>> {
     return client.request("/api/keywords/imports", { method: "POST", body: input });
   },
   previewExpansion(input: { projectId: string; reason: string; groups: readonly ExpansionGroupInput[] }, client: ApiClient = defaultApiClient): Promise<Result<KeywordExpansionBatch>> {

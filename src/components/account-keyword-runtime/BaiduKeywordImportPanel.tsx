@@ -5,9 +5,8 @@ import type { Result } from "../../lib/api-client/http.js";
 import { accountKeywordApi, fileToBase64, type KeywordImportResult } from "./api.js";
 import { ActionFeedback } from "./ActionFeedback.js";
 
-export function BaiduKeywordImportPanel({ projectId, snapshotVersion = 1, onImported }: {
+export function BaiduKeywordImportPanel({ projectId, onImported }: {
   readonly projectId: string;
-  readonly snapshotVersion?: number;
   readonly onImported?: (result: KeywordImportResult) => void;
 }): ReactNode {
   const [file, setFile] = useState<File | null>(null);
@@ -20,7 +19,7 @@ export function BaiduKeywordImportPanel({ projectId, snapshotVersion = 1, onImpo
     setPending(true);
     setResult(null);
     try {
-      const response = await accountKeywordApi.importBaiduKeywords({ projectId, fileName: file.name, base64: await fileToBase64(file), snapshotVersion });
+      const response = await accountKeywordApi.importBaiduKeywords({ projectId, fileName: file.name, base64: await fileToBase64(file) });
       setResult(response);
       if (response.ok) onImported?.(response.data);
     } catch {
@@ -38,7 +37,7 @@ export function BaiduKeywordImportPanel({ projectId, snapshotVersion = 1, onImpo
       </label>
       <p className="cp-placeholder-note">仅接受 CSV 或 XLSX，最大 10 MB。系统只保存本次真实导入的可追溯记录，不会补造历史关键词或需求数据。</p>
       <button className="cp-button cp-button-primary" type="submit" disabled={pending || !file}>导入并校验</button>
-      <ActionFeedback pending={pending} result={result} successText={result?.ok ? `导入完成：有效 ${result.data.parsedCount} 条，未接收 ${result.data.rejectedCount} 条，重复 ${result.data.duplicateRecordCount} 条。` : "导入完成。"} />
+      <ActionFeedback pending={pending} result={result} successText={result?.ok ? (result.data.status === "ALREADY_IMPORTED" ? `该文件已导入，本次未重复写入。现有有效记录 ${result.data.parsedCount} 条。` : `导入完成：有效 ${result.data.parsedCount} 条，未接收 ${result.data.rejectedCount} 条，文件内重复 ${result.data.duplicateRecordCount} 条。`) : "导入完成。"} />
     </form>
   );
 }

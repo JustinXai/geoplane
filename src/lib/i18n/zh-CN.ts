@@ -16,6 +16,7 @@ export const zhCN = {
     EXPIRED: "已失效",
     SUSPENDED: "已暂停",
     COMPLETED: "已完成",
+    VALIDATED: "已校验",
     NOT_STARTED: "未开始",
     WAITING_CLIENT: "等待客户确认",
     BLOCKED: "存在阻塞",

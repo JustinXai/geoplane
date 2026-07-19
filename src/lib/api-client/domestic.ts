@@ -25,7 +25,7 @@ export function getBaiduKeywordOverview(projectId: string, client: ApiClient = d
   return client.request<BaiduKeywordReadModel>(`/api/keywords/projects/${enc(projectId)}/overview`);
 }
 export interface KeywordImportResult { readonly status: "CREATED" | "ALREADY_IMPORTED"; readonly importId: string; readonly snapshotId: string; readonly parsedCount: number; readonly rejectedCount: number; readonly duplicateRecordCount: number }
-export function importBaiduKeywords(input: { projectId: string; fileName: string; base64: string; snapshotVersion: number }, client: ApiClient = defaultApiClient): Promise<Result<KeywordImportResult>> {
+export function importBaiduKeywords(input: { projectId: string; fileName: string; base64: string }, client: ApiClient = defaultApiClient): Promise<Result<KeywordImportResult>> {
   return client.request<KeywordImportResult>("/api/keywords/imports", { method: "POST", body: input });
 }
 export function getKeywordExpansions(projectId: string, client: ApiClient = defaultApiClient): Promise<Result<readonly KeywordExpansionBatch[]>> {
