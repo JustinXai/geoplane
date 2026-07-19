@@ -105,7 +105,7 @@ export function ManualProbeWorkspace({ projectId, questions }: ManualProbeWorksp
           <div className="cp-metric-grid"><div><strong>{summary.sampleCount}</strong><span>样本总数</span></div><div><strong>{summary.answeredCount}</strong><span>获得回答</span></div><div><strong>{summary.failedCount}</strong><span>查询失败</span></div></div>
           <div className="cp-table-wrap"><table className="cp-data-table"><thead><tr><th>平台</th><th>问题</th><th>结果</th><th>查询时间</th></tr></thead><tbody>{[...results].reverse().map((item) => <tr key={item.id}><td>{DOMESTIC_AI_PLATFORMS.find((platform) => platform.code === item.platform)?.name ?? item.platform}</td><td>{item.question}</td><td>{item.outcome === "ANSWERED" ? "已获得回答" : "查询失败"}</td><td>{new Date(item.observedAt).toLocaleString("zh-CN")}</td></tr>)}</tbody></table></div>
         </>}
-        <div className="cp-callout"><strong>能力说明：</strong>账号与样本关联、品牌/竞品/推荐人工确认尚未开放（BACKEND_CAPABILITY_GAP）。已管理信源引用率尚未计算，系统不会自动推断。</div>
+        <div className="cp-callout"><strong>能力说明：</strong>账号与样本关联、品牌/竞品/推荐人工确认尚未开放。已管理信源引用率尚未计算，系统不会自动推断。</div>
         <p className="cp-placeholder-note">Kimi、文心一言暂未启用。</p>
       </section>
     </div>
