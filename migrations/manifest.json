@@ -9,6 +9,8 @@
     { "version": "0006", "filename": "0006_knowledge_content.sql" },
     { "version": "0007", "filename": "0007_provider_ledger.sql" },
     { "version": "0008", "filename": "0008_provider_identity.sql" },
-    { "version": "0009", "filename": "0009_password_credentials.sql" }
+    { "version": "0009", "filename": "0009_password_credentials.sql" },
+    { "version": "0010", "filename": "0010_domestic_account_center.sql" },
+    { "version": "0011", "filename": "0011_baidu_keyword_runtime.sql" }
   ]
 }
