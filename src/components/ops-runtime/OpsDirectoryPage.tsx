@@ -1,31 +1,21 @@
 "use client";
-
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
+import { defaultApiClient } from "../../lib/api-client/index.js";
 import { useAsyncData } from "../runtime/index.js";
 import { OpsAsyncView } from "./OpsAsyncView.js";
 import { OpsPageHeader, opsPageStyles } from "./OpsPage.js";
 import { displayDate, loadPlatformDirectory, type PlatformDirectoryReadModel } from "./platform-read-model.js";
 
-export function OpsOrganizationDirectoryPage({ type, title, description }: { readonly type: "AGENCY"|"CLIENT"; readonly title: string; readonly description: string }) {
-  const { state } = useAsyncData<PlatformDirectoryReadModel>(() => loadPlatformDirectory());
-  const [query, setQuery] = useState("");
-  return <><OpsPageHeader title={title} description={description} /><OpsAsyncView state={state}>{(model) => {
-    const rows = model.organizations.filter((item) => item.type === type && item.displayName.toLocaleLowerCase("zh-CN").includes(query.trim().toLocaleLowerCase("zh-CN")));
-    return <section className={opsPageStyles.panel}>
-      <input className={opsPageStyles.search} type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`搜索${title.replace("管理", "")}`} aria-label={`搜索${title.replace("管理", "")}`} />
-      <div className={opsPageStyles.tableWrap}><table className={opsPageStyles.table}><thead><tr><th>名称</th><th>状态</th><th>建立时间</th></tr></thead><tbody>
-        {rows.map((item) => <tr key={item.id}><td>{item.displayName}</td><td><span className={opsPageStyles.status}>{item.status === "ACTIVE" ? "正常" : item.status === "SUSPENDED" ? "已停用" : "已归档"}</span></td><td>{displayDate(item.createdAt)}</td></tr>)}
-        {rows.length === 0 ? <tr><td colSpan={3} className={opsPageStyles.muted}>暂无匹配记录。</td></tr> : null}
-      </tbody></table></div>
-    </section>;
-  }}</OpsAsyncView></>;
+type Feedback={readonly ok:boolean;readonly message:string};
+
+export function OpsOrganizationDirectoryPage({type,title,description}:{readonly type:"AGENCY"|"CLIENT";readonly title:string;readonly description:string}){
+  const {state,reload}=useAsyncData<PlatformDirectoryReadModel>(()=>loadPlatformDirectory());const [query,setQuery]=useState("");const [name,setName]=useState("");const [saving,setSaving]=useState(false);const [feedback,setFeedback]=useState<Feedback|null>(null);
+  async function submit(event:FormEvent<HTMLFormElement>){event.preventDefault();if(!name.trim())return;setSaving(true);setFeedback(null);const result=await defaultApiClient.request(type==="AGENCY"?"/api/ops/agencies":"/api/ops/clients",{method:"POST",body:{displayName:name.trim(),idempotencyKey:crypto.randomUUID()}});setSaving(false);if(result.ok){setName("");setFeedback({ok:true,message:`${type==="AGENCY"?"代理商":"客户"}已建立。`});reload();}else setFeedback({ok:false,message:result.code==="FORBIDDEN"?"当前账号无权执行此操作。":"操作未完成，请检查名称后重试。"});}
+  return <><OpsPageHeader title={title} description={description}/><OpsAsyncView state={state}>{(model)=>{const rows=model.organizations.filter((item)=>item.type===type&&item.displayName.toLocaleLowerCase("zh-CN").includes(query.trim().toLocaleLowerCase("zh-CN")));return <section className={opsPageStyles.panel}><form className={opsPageStyles.form} onSubmit={submit}><label className={opsPageStyles.field}><span>{type==="AGENCY"?"代理商名称":"客户名称"}</span><input className={opsPageStyles.search} value={name} onChange={(event)=>setName(event.target.value)} maxLength={120} required/></label><button className={opsPageStyles.button} disabled={saving} type="submit">{saving?"提交中…":type==="AGENCY"?"新增代理商":"新增客户"}</button>{feedback?<span className={feedback.ok?opsPageStyles.feedback:opsPageStyles.feedbackError} role="status">{feedback.message}</span>:null}</form><input className={opsPageStyles.search} type="search" value={query} onChange={(event)=>setQuery(event.target.value)} placeholder={`搜索${title.replace("管理","")}`}/><div className={opsPageStyles.tableWrap}><table className={opsPageStyles.table}><thead><tr><th>名称</th><th>状态</th><th>建立时间</th></tr></thead><tbody>{rows.map((item)=><tr key={item.id}><td>{item.displayName}</td><td><span className={opsPageStyles.status}>{item.status==="ACTIVE"?"正常":item.status==="SUSPENDED"?"已停用":"已归档"}</span></td><td>{displayDate(item.createdAt)}</td></tr>)}{rows.length===0?<tr><td colSpan={3} className={opsPageStyles.muted}>暂无匹配记录。</td></tr>:null}</tbody></table></div></section>;}}</OpsAsyncView></>;
 }
 
-export function OpsProjectsPageView() {
-  const { state } = useAsyncData<PlatformDirectoryReadModel>(() => loadPlatformDirectory());
-  const [query, setQuery] = useState("");
-  return <><OpsPageHeader title="项目管理" description="展示平台当前客户项目，项目范围由服务端权限校验。" /><OpsAsyncView state={state}>{(model) => {
-    const rows = model.projects.filter((item) => `${item.name} ${item.clientOrganizationName}`.toLocaleLowerCase("zh-CN").includes(query.trim().toLocaleLowerCase("zh-CN")));
-    return <section className={opsPageStyles.panel}><input className={opsPageStyles.search} type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索项目或客户" aria-label="搜索项目或客户" /><div className={opsPageStyles.tableWrap}><table className={opsPageStyles.table}><thead><tr><th>项目名称</th><th>所属客户</th><th>建立时间</th></tr></thead><tbody>{rows.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.clientOrganizationName}</td><td>{displayDate(item.createdAt)}</td></tr>)}{rows.length === 0 ? <tr><td colSpan={3} className={opsPageStyles.muted}>暂无匹配项目。</td></tr> : null}</tbody></table></div></section>;
-  }}</OpsAsyncView></>;
+export function OpsProjectsPageView(){
+  const {state,reload}=useAsyncData<PlatformDirectoryReadModel>(()=>loadPlatformDirectory());const [query,setQuery]=useState("");const [name,setName]=useState("");const [clientId,setClientId]=useState("");const [saving,setSaving]=useState(false);const [feedback,setFeedback]=useState<Feedback|null>(null);
+  async function submit(event:FormEvent<HTMLFormElement>){event.preventDefault();if(!name.trim()||!clientId)return;setSaving(true);setFeedback(null);const result=await defaultApiClient.request("/api/commands/projects",{method:"POST",body:{name:name.trim(),clientOrganizationId:clientId,idempotencyKey:crypto.randomUUID()}});setSaving(false);if(result.ok){setName("");setFeedback({ok:true,message:"项目已建立。"});reload();}else setFeedback({ok:false,message:result.code==="FORBIDDEN"?"当前账号无权为该客户建立项目。":"项目未建立，请检查信息后重试。"});}
+  return <><OpsPageHeader title="项目管理" description="展示并建立平台客户项目，项目范围由服务端权限校验。"/><OpsAsyncView state={state}>{(model)=>{const rows=model.projects.filter((item)=>`${item.name} ${item.clientOrganizationName}`.toLocaleLowerCase("zh-CN").includes(query.trim().toLocaleLowerCase("zh-CN")));const clients=model.organizations.filter((item)=>item.type==="CLIENT"&&item.status==="ACTIVE");return <section className={opsPageStyles.panel}><form className={opsPageStyles.form} onSubmit={submit}><label className={opsPageStyles.field}><span>所属客户</span><select className={opsPageStyles.search} value={clientId} onChange={(event)=>setClientId(event.target.value)} required><option value="">请选择客户</option>{clients.map((item)=><option value={item.id} key={item.id}>{item.displayName}</option>)}</select></label><label className={opsPageStyles.field}><span>项目名称</span><input className={opsPageStyles.search} value={name} onChange={(event)=>setName(event.target.value)} maxLength={120} required/></label><button className={opsPageStyles.button} disabled={saving||clients.length===0} type="submit">{saving?"提交中…":"新增项目"}</button>{feedback?<span className={feedback.ok?opsPageStyles.feedback:opsPageStyles.feedbackError} role="status">{feedback.message}</span>:null}</form><input className={opsPageStyles.search} type="search" value={query} onChange={(event)=>setQuery(event.target.value)} placeholder="搜索项目或客户"/><div className={opsPageStyles.tableWrap}><table className={opsPageStyles.table}><thead><tr><th>项目名称</th><th>所属客户</th><th>建立时间</th></tr></thead><tbody>{rows.map((item)=><tr key={item.id}><td>{item.name}</td><td>{item.clientOrganizationName}</td><td>{displayDate(item.createdAt)}</td></tr>)}{rows.length===0?<tr><td colSpan={3} className={opsPageStyles.muted}>暂无匹配项目。</td></tr>:null}</tbody></table></div></section>;}}</OpsAsyncView></>;
 }
