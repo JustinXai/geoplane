@@ -26,6 +26,7 @@ import { safeBusinessDisplayName } from "../../runtime/ui-adapters/formatters.js
 import type { BaiduKeywordReadModel, ClientKnowledgeProgressReadModel } from "../../runtime/read-models/domestic-workspaces.js";
 import type { KeywordExpansionBatch } from "../../runtime/keyword-expansion/contract.js";
 import type { RawProbeResult } from "../../runtime/probes/manual-sample.js";
+import type { KnowledgeOpportunityBatch, UserQuestionCandidate } from "../../runtime/knowledge-opportunity/contracts.js";
 
 function enc(segment: string): string {
   return encodeURIComponent(segment);
@@ -159,6 +160,35 @@ export function loadExpansionProgress(projectId:string,client:ApiClient=defaultA
 /** Independent detection prototype loader; intentionally excluded from loadClientOverview. */
 export function loadProbeProgress(projectId:string,client:ApiClient=defaultApiClient):Promise<Result<readonly RawProbeResult[]>>{
   return client.request<readonly RawProbeResult[]>(`/api/probes/projects/${enc(projectId)}/manual-samples`);
+}
+
+export function previewKnowledgeOpportunities(
+  projectId: string,
+  client: ApiClient = defaultApiClient,
+): Promise<Result<KnowledgeOpportunityBatch>> {
+  return client.request<KnowledgeOpportunityBatch>(
+    `/api/projects/${enc(projectId)}/knowledge-opportunities/preview`,
+    { method: "POST", body: {} },
+  );
+}
+
+export function confirmKnowledgeOpportunity(
+  projectId: string,
+  candidate: UserQuestionCandidate,
+  client: ApiClient = defaultApiClient,
+): Promise<Result<{ readonly question: string; readonly status: "CREATED"; readonly opportunityId: string }>> {
+  return client.request(
+    `/api/commands/projects/${enc(projectId)}/knowledge-opportunities`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": `knowledge-first-${candidate.id}` },
+      body: {
+        candidateId: candidate.id,
+        knowledgePackageId: candidate.knowledgePackageId,
+        ...(candidate.seed ? { optionalKeywordSeeds: [{ text: candidate.seed.text, origin: candidate.seed.origin, sourceRef: candidate.seed.sourceRef }] } : {}),
+      },
+    },
+  );
 }
 
 /** Loads only persisted, client-scoped resources used by the overview. */

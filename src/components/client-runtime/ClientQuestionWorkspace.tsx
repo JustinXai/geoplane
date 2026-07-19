@@ -8,6 +8,7 @@ import type { KeywordQuestionViewV1, ProjectViewV1 } from "../../runtime/api-con
 import { AsyncSection } from "./AsyncSection.js";
 import { loadKeywordQuestions, loadProjects } from "./endpoints.js";
 import { selectActiveProject } from "./view-models.js";
+import { KnowledgeFirstQuestionWorkspace } from "./KnowledgeFirstQuestionWorkspace.js";
 
 interface QuestionWorkspaceData {
   readonly project: ProjectViewV1;
@@ -28,6 +29,7 @@ export function ClientQuestionWorkspace() {
   const resource = useAsyncData(loadQuestionWorkspace, { isEmpty: (value) => value === null });
   return <AsyncSection state={resource.state} onRetry={resource.reload} empty={<p className="cp-list-row cp-list-empty">暂无可访问项目。</p>}>
     {(data) => data === null ? null : <div className="cp-stack">
+      <KnowledgeFirstQuestionWorkspace projectId={data.project.id} onConfirmed={resource.reload} />
       <section className="cp-card">
         <div className="cp-actions"><div><h2>待确认的用户问题</h2><p>当前项目：{data.project.name}</p></div><Link className="cp-button" href="/app/keywords">录入扩展词与问题</Link></div>
         <KeywordExpansionHistory projectId={data.project.id} questionsOnly />

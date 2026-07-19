@@ -197,6 +197,9 @@ export class DeterministicKnowledgeOpportunityGenerator
         decisionStage: draft.decisionStage,
         contentOpportunity: draft.contentOpportunity,
         evidenceNeed: draft.evidenceNeed,
+        contentConstraints: cleanList(input.context.forbiddenExpressions).map(
+          (expression) => `不得使用“${expression}”`,
+        ),
         source: draft.source,
         demandClaim: "NOT_ASSERTED",
         ...(seed

@@ -73,6 +73,7 @@ export interface UserQuestionCandidate {
   readonly decisionStage: DecisionStage;
   readonly contentOpportunity: string;
   readonly evidenceNeed: readonly string[];
+  readonly contentConstraints: readonly string[];
   readonly source: KnowledgeOpportunitySource;
   /** This candidate never asserts confirmed demand, even when a seed carries real evidence. */
   readonly demandClaim: "NOT_ASSERTED";
