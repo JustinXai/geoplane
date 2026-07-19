@@ -1,10 +1,9 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { loadDatabaseConfig } from "../../../src/persistence/config.js";
 import type { DatabasePort } from "../../../src/persistence/database-port.js";
 import { createPgDatabase } from "../../../src/persistence/pg/pg-database.js";
+import { applyMigrations } from "../../../src/persistence/pg/migrator.js";
 import { AgencyDeliveryControlService } from "../../../src/runtime/agency-delivery/delivery-control.js";
 import { createAgencyDeliveryRuntime } from "../../../src/runtime/agency-delivery/runtime-context.js";
 
@@ -30,15 +29,7 @@ describe.skipIf(config === null)("agency delivery PostgreSQL tenant scope", () =
     db = createPgDatabase({ connectionString: config!.connectionString, max: 2 });
     await db.query("DROP SCHEMA public CASCADE");
     await db.query("CREATE SCHEMA public");
-    const manifest = JSON.parse(readFileSync("migrations/manifest.json", "utf8")) as {
-      migrations: { filename: string }[];
-    };
-    for (const migration of manifest.migrations) {
-      await db.query(readFileSync(join("migrations", migration.filename), "utf8"));
-    }
-    if (!manifest.migrations.some((migration) => migration.filename === "0017_agency_delivery_scope_hardening.sql")) {
-      await db.query(readFileSync("migrations/0017_agency_delivery_scope_hardening.sql", "utf8"));
-    }
+    await applyMigrations(db, "migrations");
 
     const user = await db.query<{ id: string }>(
       `INSERT INTO "user"(email) VALUES($1) RETURNING id`,
