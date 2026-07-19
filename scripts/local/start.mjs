@@ -5,6 +5,7 @@ import {
   health,
   isProcessAlive,
   localPort,
+  makeManagedLocalChildEnvironment,
   readState,
   repoRoot,
   runPreflight,
@@ -33,16 +34,7 @@ if (!existsSync(join(repoRoot, ".next", "BUILD_ID"))) {
 
 const port = localPort(preflight.environment.resolveValue);
 const nextBin = join(repoRoot, "node_modules", "next", "dist", "bin", "next");
-const childEnv = {
-  ...preflight.environment.merged,
-  NODE_ENV: "production",
-  PORT: String(port),
-  PROVIDER_RUNTIME_ENABLED: "false",
-  LOCAL_ONLY_MODE: "TRUE",
-  REMOTE_WRITE: "FORBIDDEN",
-  LOCAL_APP_HOST: "127.0.0.1",
-  LOCAL_SESSION_COOKIE_SECURE: "false",
-};
+const childEnv = makeManagedLocalChildEnvironment(preflight.environment.merged, port);
 
 const child = spawnManaged(process.execPath, [nextBin, "start", "-H", "127.0.0.1", "-p", String(port)], {
   env: childEnv,

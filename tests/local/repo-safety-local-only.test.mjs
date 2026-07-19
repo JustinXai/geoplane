@@ -11,13 +11,30 @@ describe("repo safety preflight local-only posture", () => {
   it("passes using local facts without exposing or discussing remote state", () => {
     const output = execFileSync(process.execPath, [script], {
       cwd: repoRoot,
-      env: { ...process.env, LOCAL_ONLY_MODE: "true" },
+      env: { ...process.env, LOCAL_ONLY_MODE: "TRUE", REMOTE_WRITE: "FORBIDDEN" },
       encoding: "utf8",
     });
     expect(output).toContain("repo:safety:preflight PASS (local-only)");
     expect(output).not.toMatch(/https?:\/\//i);
     expect(output).not.toMatch(/origin\//i);
     expect(output).not.toMatch(/push/i);
+  });
+
+  it("fails closed when either exact stage gate is overridden", () => {
+    expect(() =>
+      execFileSync(process.execPath, [script], {
+        cwd: repoRoot,
+        env: { ...process.env, LOCAL_ONLY_MODE: "true", REMOTE_WRITE: "FORBIDDEN" },
+        stdio: "pipe",
+      }),
+    ).toThrow();
+    expect(() =>
+      execFileSync(process.execPath, [script], {
+        cwd: repoRoot,
+        env: { ...process.env, LOCAL_ONLY_MODE: "TRUE", REMOTE_WRITE: "ALLOWED" },
+        stdio: "pipe",
+      }),
+    ).toThrow();
   });
 
   it("contains no git operation capable of network access", () => {

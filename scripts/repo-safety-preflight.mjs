@@ -8,7 +8,7 @@
  * filesystem/config/object-database operations. No command here can contact a network service.
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { resolve } from "node:path";
 
 const RECOVERY_SOURCE = process.env.GEO_RECOVERY_SOURCE ?? "E:\\GEO_RECOVERY_SAFE";
@@ -23,10 +23,25 @@ function ok(msg) {
   console.log(`PREFLIGHT OK: ${msg}`);
 }
 
-// LOCAL_ONLY_MODE is fail-closed. No other posture is accepted by this stage's safety gate.
-const localOnly = String(process.env.LOCAL_ONLY_MODE ?? "true").trim().toLowerCase();
-if (!["true", "1"].includes(localOnly)) fail("LOCAL_ONLY_MODE must remain true");
+function localSetting(name) {
+  const fromProcess = process.env[name];
+  if (typeof fromProcess === "string" && fromProcess.trim() !== "") return fromProcess.trim();
+  if (!existsSync(".env.local")) return null;
+  for (const raw of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const equals = line.indexOf("=");
+    if (equals < 1 || line.slice(0, equals).trim() !== name) continue;
+    return line.slice(equals + 1).trim().replace(/^(['"])(.*)\1$/, "$2");
+  }
+  return null;
+}
+
+// Both stage gates are fail-closed. Values may come from the process or the gitignored local file.
+if (localSetting("LOCAL_ONLY_MODE") !== "TRUE") fail("LOCAL_ONLY_MODE must be exactly TRUE");
+if (localSetting("REMOTE_WRITE") !== "FORBIDDEN") fail("REMOTE_WRITE must be exactly FORBIDDEN");
 ok("LOCAL_ONLY_MODE active; remote state is intentionally not inspected");
+ok("REMOTE_WRITE is FORBIDDEN");
 
 // .git accessible using only the local filesystem/object database.
 if (!existsSync(".git") && !existsSync(resolve(".git"))) {

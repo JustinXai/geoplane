@@ -347,6 +347,25 @@ export function spawnManaged(command, args, options = {}) {
   }
 }
 
+export function makeManagedLocalChildEnvironment(environment, port) {
+  const child = {
+    ...environment,
+    NODE_ENV: "production",
+    PORT: String(port),
+    PROVIDER_RUNTIME_ENABLED: "false",
+    LOCAL_ONLY_MODE: "TRUE",
+    REMOTE_WRITE: "FORBIDDEN",
+    LOCAL_APP_HOST: "127.0.0.1",
+    LOCAL_SESSION_COOKIE_SECURE: "false",
+  };
+  for (const name of Object.keys(child)) {
+    if (/^(?:OPENAI|PROVIDER|ANTHROPIC|GEMINI|DEEPSEEK).*?(?:API_KEY|TOKEN|SECRET)$/i.test(name)) {
+      delete child[name];
+    }
+  }
+  return child;
+}
+
 export async function waitFor(predicate, timeoutMs, intervalMs = 250) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {

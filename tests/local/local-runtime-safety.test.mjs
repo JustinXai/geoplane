@@ -5,6 +5,7 @@ import {
   databaseErrorDetail,
   localPort,
   localKeyIsUsable,
+  makeManagedLocalChildEnvironment,
   parseLocalDatabaseUrl,
   providerRuntimeIsExplicitlyOff,
   sanitizedError,
@@ -13,6 +14,25 @@ import {
 const localUrl = (database) => `postgresql://local_user:hidden-value@127.0.0.1:5432/${database}`;
 
 describe("LOCAL_ENVIRONMENT_RUNTIME_V1 safety boundary", () => {
+  it("forces offline local child posture and strips live Provider credentials", () => {
+    const child = makeManagedLocalChildEnvironment(
+      {
+        DEEPSEEK_API_KEY: "hidden-deepseek",
+        PROVIDER_API_KEY: "hidden-provider",
+        OPENAI_TOKEN: "hidden-openai",
+        UNRELATED_VALUE: "kept",
+        PROVIDER_RUNTIME_ENABLED: "true",
+      },
+      3000,
+    );
+    expect(child.DEEPSEEK_API_KEY).toBeUndefined();
+    expect(child.PROVIDER_API_KEY).toBeUndefined();
+    expect(child.OPENAI_TOKEN).toBeUndefined();
+    expect(child.UNRELATED_VALUE).toBe("kept");
+    expect(child.PROVIDER_RUNTIME_ENABLED).toBe("false");
+    expect(child.LOCAL_ONLY_MODE).toBe("TRUE");
+    expect(child.REMOTE_WRITE).toBe("FORBIDDEN");
+  });
   it("accepts only the three exact local-purpose database names", () => {
     for (const [role, definition] of Object.entries(LOCAL_DATABASES)) {
       expect(parseLocalDatabaseUrl(localUrl(definition.name), role).database).toBe(definition.name);
