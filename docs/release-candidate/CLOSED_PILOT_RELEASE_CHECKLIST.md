@@ -5,11 +5,18 @@
 - Date: 2026-07-19
 - Status vocabulary: **PASS** (evidence exists in the tree), **PENDING_REMOTE_CI** (awaits the
   observed GitHub Actions PG16 run — see `POSTGRES16_REMOTE_CI_REPORT.md`), **HUMAN_PENDING**
-  (a named human must act; never auto-closed).
+  (a named human must act; never auto-closed), **APPROVED** (a named human has explicitly closed
+  the item — see `MAINLINE_PROMOTION_APPROVAL.md`).
 - Release decision at baseline: **CLOSED_PILOT_RC_PENDING_PG16**
   (`docs/release-candidate/OVERNIGHT_CLOSED_PILOT_RC_REPORT.md`). Go/no-go requires every
   PENDING_REMOTE_CI item green from an observed run AND every HUMAN_PENDING item explicitly
   closed by its named human. Nothing in this checklist self-closes.
+- **Update 2026-07-19 (mainline promotion approval):** H3 and H4 closed as **APPROVED** by Clara
+  Webster (GEO Control Plane 项目最终决策负责人). Scope of that approval: merge to `main`, create
+  a frozen release tag, and prepare deployment handoff materials ONLY — it does NOT authorize
+  auto-deploy, opening to real customers, further real-provider calls, or any auto-approve/
+  auto-publish step. E3/P3/P4/P5 remain **HUMAN_PENDING** (deployment-time human actions) until
+  completed in the target environment. Full text: `docs/release-candidate/MAINLINE_PROMOTION_APPROVAL.md`.
 
 ---
 
@@ -30,8 +37,8 @@
 | --- | --- | --- | --- |
 | H1 | Article approval semantics: no automatic approval possible (zero `article_approval` rows before the human decision; DB CHECK `ck_article_approval_no_silent_approve`; session-derived human approver) | PASS | `docs/release-candidate/CLOSED_PILOT_OPERATIONS_REPORT.md` (hop 17, invariants); `docs/release-candidate/CLOSED_PILOT_RC_STATUS.md` (invariant 6) |
 | H2 | Human review semantics: review is explicit CONFIRMED only, never silent; system actor refused (route 422 + DB CHECK); opaque review reference only on the client surface | PASS | `docs/release-candidate/CLOSED_PILOT_OPERATIONS_REPORT.md` (hops 13, 20); `docs/pilot/PILOT_READINESS_STATUS_MATRIX.md` (G7–G9); `docs/pilot/AUTH_SECURITY_AUDIT.md` |
-| H3 | Release sign-off: a named human signs the go decision for the closed pilot | HUMAN_PENDING | To be recorded against this checklist; prerequisite: A6 green + H4 executed |
-| H4 | PRESENT FOR HUMAN APPROVAL step: the completed `POSTGRES16_REMOTE_CI_REPORT.md` (observed-run results) and this checklist are presented to the human approver before any pilot go-live | HUMAN_PENDING | Step defined here; blocked behind A6 (report currently all PENDING_REMOTE_CI) |
+| H3 | Release sign-off: a named human signs the go decision for the closed pilot | APPROVED | Clara Webster, 2026-07-19 — `docs/release-candidate/MAINLINE_PROMOTION_APPROVAL.md` |
+| H4 | PRESENT FOR HUMAN APPROVAL step: the completed `POSTGRES16_REMOTE_CI_REPORT.md` (observed-run results) and this checklist are presented to the human approver before any pilot go-live | APPROVED | Clara Webster, 2026-07-19 — `docs/release-candidate/MAINLINE_PROMOTION_APPROVAL.md` |
 
 ## 3. 环境 Gate (Environment)
 
@@ -56,22 +63,28 @@
 
 ## Tally
 
-| Category | Items | PASS | PENDING_REMOTE_CI | HUMAN_PENDING |
-| --- | --- | --- | --- | --- |
-| 自动 Gate (Automated) | 6 | 6 | 0 | 0 |
-| 人工 Gate (Human) | 4 | 2 | 0 | 2 |
-| 环境 Gate (Environment) | 4 | 3 | 0 | 1 |
-| 试点运营 Gate (Pilot Operations) | 5 | 2 | 0 | 3 |
-| **Total** | **19** | **13** | **0** | **6** |
+| Category | Items | PASS | PENDING_REMOTE_CI | APPROVED | HUMAN_PENDING |
+| --- | --- | --- | --- | --- | --- |
+| 自动 Gate (Automated) | 6 | 6 | 0 | 0 | 0 |
+| 人工 Gate (Human) | 4 | 2 | 0 | 2 | 0 |
+| 环境 Gate (Environment) | 4 | 3 | 0 | 0 | 1 |
+| 试点运营 Gate (Pilot Operations) | 5 | 2 | 0 | 0 | 3 |
+| **Total** | **19** | **13** | **0** | **2** | **4** |
 
 Update 2026-07-19 (Agent A): A6 and E1 closed as PASS from observed run 29654550660
 (PostgreSQL 16.14, all three jobs green, 0 real provider calls in CI). All technical gates are
 now complete; the 6 remaining HUMAN_PENDING items are exactly the human sign-off set.
 
+Update 2026-07-19 (mainline promotion): H3 and H4 closed as APPROVED — see
+`MAINLINE_PROMOTION_APPROVAL.md`. The remaining 4 HUMAN_PENDING items (E3, P3, P4, P5) are
+deployment-time operator actions in the target environment, not gates on the main-branch merge.
+
 ## Go/no-go rule
 
 **NO-GO** while any item is PENDING_REMOTE_CI or HUMAN_PENDING. The two PENDING_REMOTE_CI items
 (A6, E1) close ONLY from an observed GitHub Actions run recorded in
-`POSTGRES16_REMOTE_CI_REPORT.md` (NOT_RUN is never recorded as PASS). The six HUMAN_PENDING items
-(H3, H4, E3, P3, P4, P5) close ONLY by explicit, attributable human action. PG18-labelled evidence
-(A5) never substitutes for A6/E1.
+`POSTGRES16_REMOTE_CI_REPORT.md` (NOT_RUN is never recorded as PASS). All six originally
+HUMAN_PENDING items (H3, H4, E3, P3, P4, P5) close ONLY by explicit, attributable human action.
+H3 and H4 are now APPROVED (mainline promotion, 2026-07-19); E3, P3, P4, P5 remain HUMAN_PENDING
+and gate actual pilot deployment, not the main-branch merge. PG18-labelled evidence (A5) never
+substitutes for A6/E1.
