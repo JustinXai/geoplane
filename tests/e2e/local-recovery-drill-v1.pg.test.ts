@@ -73,7 +73,12 @@ async function loginAndGetCookie(email: string): Promise<string> {
   return cookie;
 }
 
-describe.skipIf(testConfig === null)("LOCAL_RECOVERY_DRILL_V1 — local PostgreSQL E2E", () => {
+const preserveExistingRecoveryEvidence =
+  process.env.PRESERVE_EXISTING_LOCAL_RECOVERY_EVIDENCE?.trim().toUpperCase() === "TRUE";
+
+// An explicit preservation switch skips this destructive/exclusive drill when the fixed verify
+// database contains operator evidence. The suite never deletes or replaces that evidence.
+describe.skipIf(testConfig === null || preserveExistingRecoveryEvidence)("LOCAL_RECOVERY_DRILL_V1 — local PostgreSQL E2E", () => {
   beforeAll(async () => {
     const baseUrl = testConfig!.connectionString;
     const parsed = new URL(baseUrl);

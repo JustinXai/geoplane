@@ -59,6 +59,12 @@ const IDENTITY_MIGRATIONS = [
 const CURRENT_MIGRATIONS = [
   ...IDENTITY_MIGRATIONS,
   "0009_password_credentials.sql",
+  "0010_domestic_account_center.sql",
+  "0011_baidu_keyword_runtime.sql",
+  "0012_ai_keyword_expansion.sql",
+  "0013_china_ai_probe_runtime.sql",
+  "0014_vertical_policy_pack.sql",
+  "0015_agency_delivery_runtime.sql",
 ] as const;
 
 let db: DatabasePort;
@@ -136,6 +142,12 @@ describe.skipIf(testConfig === null)(
           expect(second.applied).toEqual([
             "0008_provider_identity.sql",
             "0009_password_credentials.sql",
+            "0010_domestic_account_center.sql",
+            "0011_baidu_keyword_runtime.sql",
+            "0012_ai_keyword_expansion.sql",
+            "0013_china_ai_probe_runtime.sql",
+            "0014_vertical_policy_pack.sql",
+            "0015_agency_delivery_runtime.sql",
           ]);
           expect(second.skipped).toHaveLength(IDENTITY_MIGRATIONS.length - 1);
 
