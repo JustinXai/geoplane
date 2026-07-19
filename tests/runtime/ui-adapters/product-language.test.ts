@@ -6,9 +6,9 @@ import type { Queryable } from "../../../src/persistence/database-port.js";
 
 describe("formal workspace language projection", () => {
   it("relabels local seed identities without changing ordinary business names", () => {
-    expect(safeBusinessDisplayName("Sample Local Agency (Pilot Fixture)")).toBe("本地验收代理商（测试数据）");
-    expect(safeBusinessDisplayName("Sample Local Closed Pilot Project", "项目")).toBe("本地验收项目（测试数据）");
-    expect(safeBusinessDisplayName("Demo Client")).toBe("本地测试组织（测试数据）");
+    expect(safeBusinessDisplayName("Sample Local Agency (Pilot Fixture)")).toBe("本地验收代理商");
+    expect(safeBusinessDisplayName("Sample Local Closed Pilot Project", "项目")).toBe("本地验收项目");
+    expect(safeBusinessDisplayName("Demo Client")).toBe("本地验收组织");
     expect(safeBusinessDisplayName("华东品牌运营中心")).toBe("华东品牌运营中心");
   });
 
