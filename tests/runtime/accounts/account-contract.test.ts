@@ -42,6 +42,16 @@ describe("DOMESTIC_ACCOUNT_CENTER_V1 contract", () => {
     expect(route).toContain("secretReference:_secret");
   });
 
+  it("account workspace exposes real filters, actionable empty state and no automatic platform action", () => {
+    const panel = readFileSync("src/components/ops-runtime/OpsAccountReadPanel.tsx", "utf8");
+    const page = readFileSync("src/app/ops/accounts/page.tsx", "utf8");
+    expect(panel).toContain('type Filter="ALL"|"PLATFORM"|"ATTENTION"|"PENDING"|"FAILED"');
+    expect(panel).toContain('href="#register-account"');
+    expect(panel).toContain("authorizedProjects");
+    expect(panel).toContain("lastCheckedAt");
+    expect(page).toContain("当前不提供自动登录或真实平台调用");
+  });
+
   it("registers the four AI and twelve content account platforms", () => {
     expect(ACCOUNT_PLATFORM_REGISTRY).toHaveLength(16);
     expect(ACCOUNT_PLATFORM_REGISTRY.filter((item) => item.accountType === "AI_PLATFORM_ACCOUNT").map((item) => item.code)).toEqual([

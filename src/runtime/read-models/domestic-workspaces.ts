@@ -21,8 +21,11 @@ export interface AccountCenterItem {
   readonly operationMode: AccountOperationMode;
   readonly authorizationStatus: "PENDING" | "AUTHORIZED" | "REVOKED" | null;
   readonly assignmentCount: number;
+  readonly authorizedProjects: readonly { readonly id: string; readonly name: string }[];
   readonly healthStatus: AccountHealthStatus;
   readonly riskStatus: AccountRiskStatus;
+  readonly lastException: string | null;
+  readonly lastCheckedAt: string | null;
   readonly pendingTaskCount: number;
   readonly failedTaskCount: number;
   readonly lastVerifiedAt: string | null;
@@ -35,9 +38,10 @@ export interface AccountCenterReadModel {
 
 interface AccountRow {
   id: string; platform_code: string; display_label: string; account_type: AccountType; ownership: AccountOwnership;
-  secret_reference: string | null; credential_status: CredentialStatus; status: AccountStatus; operation_mode: AccountOperationMode;
+  credential_status: CredentialStatus; status: AccountStatus; operation_mode: AccountOperationMode;
   authorization_status: AccountCenterItem["authorizationStatus"]; assignment_count: string | number;
-  health_status: AccountHealthStatus | null; risk_status: AccountRiskStatus | null;
+  authorized_projects: unknown; health_status: AccountHealthStatus | null; risk_status: AccountRiskStatus | null;
+  last_exception: string | null; checked_at: Date | string | null;
   pending_task_count: string | number; failed_task_count: string | number; last_verified_at: Date | string | null; updated_at: Date | string;
 }
 
@@ -60,21 +64,25 @@ function accountWhere(principal: GeoPrincipal): { sql: string; params: readonly 
 export async function readAccountCenter(db: Queryable, principal: GeoPrincipal): Promise<AccountCenterReadModel> {
   const scope = accountWhere(principal);
   const result = await db.query<AccountRow>(`SELECT a.id,a.platform_code,a.display_label,a.account_type,a.ownership,
-    a.secret_reference,a.credential_status,a.status,a.operation_mode,a.last_verified_at,a.updated_at,
+    a.credential_status,a.status,a.operation_mode,a.last_verified_at,a.updated_at,
     au.status AS authorization_status,
     (SELECT count(*) FROM account_assignment aa WHERE aa.account_id=a.id AND aa.status='ACTIVE') AS assignment_count,
-    h.health_status,h.risk_status,
+    COALESCE((SELECT jsonb_agg(jsonb_build_object('id',p.id,'name',p.name) ORDER BY p.name,p.id)
+      FROM account_assignment aa JOIN project p ON p.id=aa.project_id
+      WHERE aa.account_id=a.id AND aa.status='ACTIVE'),'[]'::jsonb) AS authorized_projects,
+    h.health_status,h.risk_status,h.last_exception,h.checked_at,
     (SELECT count(*) FROM account_operation_task t WHERE t.account_id=a.id AND t.status IN ('PENDING','IN_PROGRESS')) AS pending_task_count,
     (SELECT count(*) FROM account_operation_task t WHERE t.account_id=a.id AND t.status='FAILED') AS failed_task_count
     FROM platform_account a
     LEFT JOIN LATERAL (SELECT status FROM account_authorization WHERE account_id=a.id ORDER BY created_at DESC,id DESC LIMIT 1) au ON TRUE
-    LEFT JOIN LATERAL (SELECT health_status,risk_status FROM account_health WHERE account_id=a.id ORDER BY checked_at DESC,id DESC LIMIT 1) h ON TRUE
+    LEFT JOIN LATERAL (SELECT health_status,risk_status,last_exception,checked_at FROM account_health WHERE account_id=a.id ORDER BY checked_at DESC,id DESC LIMIT 1) h ON TRUE
     WHERE ${scope.sql} ORDER BY a.updated_at DESC,a.id`, scope.params);
   const accounts = result.rows.map((r): AccountCenterItem => ({
     id:r.id, platformCode:r.platform_code, displayLabel:r.display_label, accountType:r.account_type, ownership:r.ownership,
-    credentialConfigured:r.secret_reference !== null, credentialStatus:r.credential_status, status:r.status, operationMode:r.operation_mode,
-    authorizationStatus:r.authorization_status, assignmentCount:Number(r.assignment_count), healthStatus:r.health_status ?? "UNKNOWN",
-    riskStatus:r.risk_status ?? "UNKNOWN", pendingTaskCount:Number(r.pending_task_count), failedTaskCount:Number(r.failed_task_count),
+    credentialConfigured:r.credential_status !== "NOT_CONFIGURED", credentialStatus:r.credential_status, status:r.status, operationMode:r.operation_mode,
+    authorizationStatus:r.authorization_status, assignmentCount:Number(r.assignment_count),
+    authorizedProjects:Array.isArray(r.authorized_projects)?r.authorized_projects.filter((p):p is {id:string;name:string}=>!!p&&typeof p==="object"&&typeof (p as any).id==="string"&&typeof (p as any).name==="string").map(p=>({id:p.id,name:p.name})):[],
+    healthStatus:r.health_status ?? "UNKNOWN", riskStatus:r.risk_status ?? "UNKNOWN", lastException:r.last_exception??null,lastCheckedAt:r.checked_at?iso(r.checked_at):null, pendingTaskCount:Number(r.pending_task_count), failedTaskCount:Number(r.failed_task_count),
     lastVerifiedAt:iso(r.last_verified_at), updatedAt:iso(r.updated_at)!,
   }));
   return { accounts, totals: { all:accounts.length, platformOwned:accounts.filter(x=>x.ownership==="PLATFORM_OWNED").length,
