@@ -15,13 +15,13 @@
  * organization"). Currently presentation-only - no auth guard.
  */
 import type { ReactNode } from "react";
-import { ClientWorkspaceNav } from "@/components/workspace-nav/client-workspace-nav";
+import { WorkspaceShell } from "@/components/layout/WorkspaceShell";
+import { CLIENT_WORKSPACE_NAV_LINKS } from "@/lib/workspace-nav";
 
 export default function ClientWorkspaceLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="shell">
-      <ClientWorkspaceNav />
-      <div className="band">{children}</div>
-    </div>
+    <WorkspaceShell roleLabel="客户工作台" contextLabel="当前客户组织" nav={CLIENT_WORKSPACE_NAV_LINKS}>
+      {children}
+    </WorkspaceShell>
   );
 }

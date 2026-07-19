@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-const LINKS = [
+export const AGENCY_WORKSPACE_NAV_LINKS = [
   ["代理商总览", "/agency"],
   ["授权客户", "/agency/clients"],
   ["客户项目", "/agency/projects"],
@@ -21,7 +21,7 @@ const LINKS = [
 export function AgencyWorkspaceNav() {
   return (
     <nav className="cp-workspace-nav" aria-label="代理商工作台导航">
-      <ul>{LINKS.map(([label, href]) => <li key={href}><Link href={href}>{label}</Link></li>)}</ul>
+      <ul>{AGENCY_WORKSPACE_NAV_LINKS.map(([label, href]) => <li key={href}><Link href={href}>{label}</Link></li>)}</ul>
     </nav>
   );
 }

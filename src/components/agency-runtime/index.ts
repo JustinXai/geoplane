@@ -42,7 +42,7 @@ export type { ActingContextValue } from "./acting-context-store.js";
 
 export { AgencyAsyncView } from "./AgencyAsyncView.js";
 export type { AgencyAsyncViewProps } from "./AgencyAsyncView.js";
-export { AgencyWorkspaceNav } from "./AgencyWorkspaceNav.js";
+export { AgencyWorkspaceNav, AGENCY_WORKSPACE_NAV_LINKS } from "./AgencyWorkspaceNav.js";
 export { AgencyUnavailable } from "./AgencyUnavailable.js";
 export type { AgencyUnavailableProps } from "./AgencyUnavailable.js";
 export { opportunityStatusLabel, deliveryStatusLabel, dateLabel } from "./display.js";

@@ -23,18 +23,15 @@
  * wildcard access"). Currently presentation-only - no auth guard.
  */
 import type { ReactNode } from "react";
-import { ActingContextProvider, AgencyActingBannerMount, AgencyWorkspaceNav } from "@/components/agency-runtime";
+import { ActingContextProvider, AgencyActingBannerMount, AGENCY_WORKSPACE_NAV_LINKS } from "@/components/agency-runtime";
+import { WorkspaceShell } from "@/components/layout/WorkspaceShell";
 
 export default function AgencyWorkspaceLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="shell">
-      <AgencyWorkspaceNav />
-      <ActingContextProvider>
-        <div className="band">
-          <AgencyActingBannerMount />
-          {children}
-        </div>
-      </ActingContextProvider>
-    </div>
+    <ActingContextProvider>
+      <WorkspaceShell roleLabel="代理商工作台" contextLabel="当前代理商组织" nav={AGENCY_WORKSPACE_NAV_LINKS.map(([label, href]) => ({ label, href }))} notices={<AgencyActingBannerMount />}>
+        {children}
+      </WorkspaceShell>
+    </ActingContextProvider>
   );
 }
