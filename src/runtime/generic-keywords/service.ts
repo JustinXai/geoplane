@@ -11,12 +11,12 @@ export class GenericKeywordService {
     await this.repo.addDataset(value);return value;
   }
   async addManualKeyword(input:KeywordScope&{datasetId:string;keyword:string;category?:string;note?:string;region?:string;periodStart?:string;periodEnd?:string;createdByUserId:string}):Promise<KeywordRecord>{
-    await this.requireDataset(input,input.datasetId);if(!input.keyword.trim())throw new Error("KEYWORD_REQUIRED");
+    const dataset=await this.requireDataset(input,input.datasetId);if(dataset.status!=="ACTIVE")throw new Error("KEYWORD_DATASET_ARCHIVED");if(!input.keyword.trim())throw new Error("KEYWORD_REQUIRED");
     const value:KeywordRecord={...input,id:this.ids.next(),keyword:input.keyword.trim(),normalizedKeyword:normalizeKeyword(input.keyword),source:"MANUAL",createdAt:this.now()};
     await this.repo.addRecords([value]);return value;
   }
   async importFile(input:KeywordScope&{datasetId:string;source:Exclude<KeywordSource,"MANUAL">;fileName:string;parsed:GenericKeywordParsedFile;importedByUserId:string}){
-    const dataset=await this.requireDataset(input,input.datasetId);if(dataset.source!==input.source)throw new Error("DATASET_SOURCE_MISMATCH");
+    const dataset=await this.requireDataset(input,input.datasetId);if(dataset.status!=="ACTIVE")throw new Error("KEYWORD_DATASET_ARCHIVED");if(dataset.source!==input.source)throw new Error("DATASET_SOURCE_MISMATCH");
     const at=this.now(),batchId=this.ids.next();
     const records:KeywordRecord[]=input.parsed.rows.map(row=>({id:this.ids.next(),clientOrganizationId:input.clientOrganizationId,projectId:input.projectId,datasetId:input.datasetId,importBatchId:batchId,keyword:row.keyword.trim(),normalizedKeyword:normalizeKeyword(row.keyword),source:input.source,...(row.category?{category:row.category}:{}),...(row.note?{note:row.note}:{}),...(row.region?{region:row.region}:{}),...(row.periodStart?{periodStart:row.periodStart}:{}),...(row.periodEnd?{periodEnd:row.periodEnd}:{}),createdByUserId:input.importedByUserId,createdAt:at}));
     const evidence:DemandEvidence[]=[];
@@ -25,8 +25,9 @@ export class GenericKeywordService {
     await this.repo.saveImportedBatch(batch,records,evidence);return{batchId,records,evidence,rejectedCount:input.parsed.rejected.length};
   }
   async createReviewPackage(input:KeywordScope&{datasetId:string;keywordRecordIds:readonly string[];version:number;submittedByUserId:string}){
-    if(input.keywordRecordIds.length===0)throw new Error("REVIEW_PACKAGE_REQUIRES_ITEM");const records=await this.repo.listRecords(input,input.datasetId),allowed=new Set(records.map(x=>x.id));if(input.keywordRecordIds.some(x=>!allowed.has(x)))throw new Error("KEYWORD_RECORD_NOT_IN_DATASET");const value={...input,id:this.ids.next(),status:"OPEN" as const,submittedAt:this.now()};await this.repo.addReviewPackage(value);return value;
+    const dataset=await this.requireDataset(input,input.datasetId);if(dataset.status!=="ACTIVE")throw new Error("KEYWORD_DATASET_ARCHIVED");if(input.keywordRecordIds.length===0)throw new Error("REVIEW_PACKAGE_REQUIRES_ITEM");const records=await this.repo.listRecords(input,input.datasetId),allowed=new Set(records.map(x=>x.id));if(input.keywordRecordIds.some(x=>!allowed.has(x)))throw new Error("KEYWORD_RECORD_NOT_IN_DATASET");const value={...input,id:this.ids.next(),status:"OPEN" as const,submittedAt:this.now()};await this.repo.addReviewPackage(value);return value;
   }
   async decide(input:KeywordScope&{reviewPackageId:string;keywordRecordId:string;decision:KeywordDecision;reviewerUserId:string;note?:string}){const pkg=await this.repo.getReviewPackage(input,input.reviewPackageId);if(!pkg?.keywordRecordIds.includes(input.keywordRecordId))throw new Error("REVIEW_ITEM_NOT_FOUND");if(input.decision!=="CONFIRMED"&&!input.note?.trim())throw new Error("REVIEW_NOTE_REQUIRED");const value={...input,id:this.ids.next(),decidedAt:this.now()};await this.repo.addDecision(value);return value;}
+  async archiveDataset(input:KeywordScope&{datasetId:string}){const dataset=await this.requireDataset(input,input.datasetId);if(dataset.status==="ARCHIVED")return dataset;const changed=await this.repo.archiveDataset(input,input.datasetId);if(!changed)throw new Error("KEYWORD_DATASET_ARCHIVE_CONFLICT");return{...dataset,status:"ARCHIVED" as const};}
   private async requireDataset(scope:KeywordScope,id:string){const value=await this.repo.getDataset(scope,id);if(!value)throw new Error("KEYWORD_DATASET_NOT_FOUND");return value;}
 }
