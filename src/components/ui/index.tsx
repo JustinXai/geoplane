@@ -6,8 +6,8 @@ export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?:
   return <header className="page-header"><div>{eyebrow ? <p className="page-eyebrow">{eyebrow}</p> : null}<h1 className="page-title">{title}</h1>{description ? <span className="page-description">{description}</span> : null}</div>{actions}</header>;
 }
 
-export function MetricCard({ label, value, help }: { label: string; value: ReactNode; help?: string }) {
-  return <article className="metric-card"><div className="metric-label">{label}</div><div className="metric-value">{value}</div>{help ? <div className="metric-help">{help}</div> : null}</article>;
+export function MetricCard({ label, value, help, tone = "normal" }: { label: string; value: ReactNode; help?: string; tone?: "normal" | "pending" | "risk" | "error" }) {
+  return <article className="metric-card" data-tone={tone}><div className="metric-label">{label}</div><div className="metric-value">{value}</div>{help ? <div className="metric-help">{help}</div> : null}</article>;
 }
 
 export function SectionCard({ title, description, actions, children }: { title: string; description?: string; actions?: ReactNode; children: ReactNode }) {

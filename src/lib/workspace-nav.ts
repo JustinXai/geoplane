@@ -31,6 +31,7 @@ export type WorkspaceSurface = "app" | "agency" | "ops";
 export interface WorkspaceNavLink {
   readonly label: string;
   readonly href: string;
+  readonly group?: string;
 }
 
 const SURFACE_PATH_PREFIX: Record<WorkspaceSurface, string> = {
@@ -73,12 +74,16 @@ export function assertSurfaceIsolatedLinks(
 // performance validation). Still fixture-only data - assertSurfaceIsolatedLinks below
 // is unchanged from C1 and still enforces that every href stays within /app/*.
 export const CLIENT_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSurfaceIsolatedLinks("app", [
-  { label: "总览", href: "/app" },
-  { label: "知识库", href: "/app/knowledge" },
-  { label: "关键词与用户问题", href: "/app/keywords" },
-  { label: "内容与信源", href: "/app/content" },
-  { label: "交付中心", href: "/app/delivery" },
-  { label: "效果验证", href: "/app/performance" },
+  { group: "工作概览", label: "项目总览", href: "/app" },
+  { group: "企业基础", label: "企业资料", href: "/app/enterprise" },
+  { group: "企业基础", label: "企业知识库", href: "/app/knowledge" },
+  { group: "企业基础", label: "账号授权", href: "/app/accounts" },
+  { group: "内容生产", label: "关键词中心", href: "/app/keywords" },
+  { group: "内容生产", label: "用户问题", href: "/app/questions" },
+  { group: "内容生产", label: "内容与交付", href: "/app/content" },
+  { group: "内容生产", label: "内容审核", href: "/app/content-review" },
+  { group: "检测与交付", label: "国内 AI 检测", href: "/app/ai-results" },
+  { group: "检测与交付", label: "客户报告", href: "/app/delivery" },
 ]);
 
 // Checkpoint C3 update: added the six new "Agency workspace" surfaces built in
@@ -88,15 +93,21 @@ export const CLIENT_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSur
 // now points at (src/app/agency/projects/page.tsx). assertSurfaceIsolatedLinks below
 // is unchanged from C1/C2 and still enforces that every href stays within /agency/*.
 export const AGENCY_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSurfaceIsolatedLinks("agency", [
-  { label: "客户", href: "/agency/clients" },
-  { label: "客户分配", href: "/agency/assignments" },
-  { label: "客户项目", href: "/agency/projects" },
-  { label: "行业模板", href: "/agency/templates" },
-  { label: "批量任务", href: "/agency/batch-tasks" },
-  { label: "审核队列", href: "/agency/review-queue" },
-  { label: "交付包", href: "/agency/deliveries" },
-  { label: "团队与权限", href: "/agency/team" },
-  { label: "品牌白标", href: "/agency/branding" },
+  { group: "工作概览", label: "代理商总览", href: "/agency" },
+  { group: "客户管理", label: "授权客户", href: "/agency/clients" },
+  { group: "客户管理", label: "客户项目", href: "/agency/projects" },
+  { group: "客户管理", label: "待办中心", href: "/agency/todos" },
+  { group: "生产协作", label: "账号中心", href: "/agency/accounts" },
+  { group: "生产协作", label: "企业知识库", href: "/agency/knowledge" },
+  { group: "生产协作", label: "百度关键词", href: "/agency/baidu-keywords" },
+  { group: "生产协作", label: "智能拓词", href: "/agency/ai-expansion" },
+  { group: "生产协作", label: "用户问题", href: "/agency/keyword-questions" },
+  { group: "生产协作", label: "内容生产", href: "/agency/content" },
+  { group: "生产协作", label: "内容审核", href: "/agency/review-queue" },
+  { group: "检测与交付", label: "国内 AI 检测", href: "/agency/manual-probe" },
+  { group: "检测与交付", label: "交付管理", href: "/agency/deliveries" },
+  { group: "检测与交付", label: "客户报告", href: "/agency/reports" },
+  { group: "组织设置", label: "团队与权限", href: "/agency/team" },
 ]);
 
 // Checkpoint C4 update: added the eight new "Platform/Ops workspace" surfaces built in
@@ -108,15 +119,19 @@ export const AGENCY_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSur
 // assertSurfaceIsolatedLinks below is unchanged from C1/C2/C3 and still enforces that
 // every href stays within /ops/*.
 export const OPS_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSurfaceIsolatedLinks("ops", [
-  { label: "组织", href: "/ops/organizations" },
-  { label: "客户分配", href: "/ops/client-assignments" },
-  { label: "邀请", href: "/ops/invitations" },
-  { label: "账户审计", href: "/ops/audit" },
-  { label: "执行记录", href: "/ops/executions" },
-  { label: "Evidence 审计", href: "/ops/evidence-audit" },
-  { label: "审核队列", href: "/ops/review-queue" },
-  { label: "模型与用量", href: "/ops/models-usage" },
-  { label: "规则包", href: "/ops/rule-packs" },
-  { label: "发布连接器", href: "/ops/publisher-connectors" },
-  { label: "系统健康", href: "/ops/system-health" },
+  { group: "工作概览", label: "运营总览", href: "/ops" },
+  { group: "组织与客户", label: "组织管理", href: "/ops/organizations" },
+  { group: "组织与客户", label: "代理商管理", href: "/ops/agencies" },
+  { group: "组织与客户", label: "客户管理", href: "/ops/clients" },
+  { group: "组织与客户", label: "项目管理", href: "/ops/projects" },
+  { group: "组织与客户", label: "客户分配", href: "/ops/client-assignments" },
+  { group: "业务运营", label: "账号中心", href: "/ops/accounts" },
+  { group: "业务运营", label: "关键词中心", href: "/ops/keywords" },
+  { group: "业务运营", label: "智能拓词", href: "/ops/keyword-expansion" },
+  { group: "业务运营", label: "内容审核", href: "/ops/content-review" },
+  { group: "检测与交付", label: "国内 AI 检测", href: "/ops/probes" },
+  { group: "检测与交付", label: "交付与报告", href: "/ops/delivery" },
+  { group: "平台治理", label: "邀请与权限", href: "/ops/invitations" },
+  { group: "平台治理", label: "审计中心", href: "/ops/audit" },
+  { group: "平台治理", label: "系统健康", href: "/ops/system-health" },
 ]);
