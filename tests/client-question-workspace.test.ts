@@ -11,6 +11,7 @@ describe("用户问题工作台闭环", () => {
     const history = readFileSync(resolve(root, "src/components/account-keyword-runtime/KeywordExpansionHistory.tsx"), "utf8");
     expect(page).not.toContain("尚未开放");
     expect(workspace).toContain("KeywordExpansionHistory");
+    expect(workspace).toContain("KnowledgeFirstQuestionWorkspace");
     expect(history).toContain("confirmExpansion");
     expect(history).toContain("removeExpansion");
   });
@@ -19,5 +20,13 @@ describe("用户问题工作台闭环", () => {
     const page = readFileSync(resolve(root, "src/app/agency/keyword-questions/page.tsx"), "utf8");
     expect(page).toContain("AuthorizedProjectWorkspace");
     expect(page).toContain("questionsOnly");
+  });
+
+  it("无关键词时提供基于企业知识生成问题的真实入口", () => {
+    const component = readFileSync(resolve(root, "src/components/client-runtime/KnowledgeFirstQuestionWorkspace.tsx"), "utf8");
+    expect(component).toContain("基于企业知识生成用户问题");
+    expect(component).toContain("关键词数据是可选增强项");
+    expect(component).toContain("previewKnowledgeOpportunities");
+    expect(component).toContain("confirmKnowledgeOpportunity");
   });
 });
