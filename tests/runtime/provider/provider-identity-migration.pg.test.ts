@@ -67,6 +67,7 @@ const CURRENT_MIGRATIONS = [
   "0015_agency_delivery_runtime.sql",
   "0016_account_center_hardening.sql",
   "0017_agency_delivery_scope_hardening.sql",
+  "0018_generic_keyword_core.sql",
 ] as const;
 
 let db: DatabasePort;
@@ -152,6 +153,7 @@ describe.skipIf(testConfig === null)(
             "0015_agency_delivery_runtime.sql",
             "0016_account_center_hardening.sql",
             "0017_agency_delivery_scope_hardening.sql",
+            "0018_generic_keyword_core.sql",
           ]);
           expect(second.skipped).toHaveLength(IDENTITY_MIGRATIONS.length - 1);
 

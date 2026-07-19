@@ -13,7 +13,7 @@ function sha256(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-function parseCsvRecords(text: string): string[][] {
+export function parseCsvRecords(text: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
@@ -81,7 +81,7 @@ function unzipOfficeEntries(bytes: Uint8Array): Map<string, Uint8Array> {
   return entries;
 }
 
-function parseXlsxRecords(bytes: Uint8Array): string[][] {
+export function parseXlsxRecords(bytes: Uint8Array): string[][] {
   const entries = unzipOfficeEntries(bytes);
   const sheet = entries.get("xl/worksheets/sheet1.xml");
   if (!sheet) throw new Error("XLSX_SHEET_NOT_FOUND");

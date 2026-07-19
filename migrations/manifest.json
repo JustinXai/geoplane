@@ -17,6 +17,7 @@
     { "version": "0014", "filename": "0014_vertical_policy_pack.sql" },
     { "version": "0015", "filename": "0015_agency_delivery_runtime.sql" },
     { "version": "0016", "filename": "0016_account_center_hardening.sql" },
-    { "version": "0017", "filename": "0017_agency_delivery_scope_hardening.sql" }
+    { "version": "0017", "filename": "0017_agency_delivery_scope_hardening.sql" },
+    { "version": "0018", "filename": "0018_generic_keyword_core.sql" }
   ]
 }
