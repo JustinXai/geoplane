@@ -115,4 +115,3 @@ export interface AccountOperationResult {
   readonly recordedByUserId: string;
   readonly recordedAt: string;
 }
-

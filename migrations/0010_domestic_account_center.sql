@@ -146,4 +146,3 @@ CREATE TRIGGER trg_account_result_append_only BEFORE UPDATE OR DELETE ON account
   FOR EACH ROW EXECUTE FUNCTION reject_account_ledger_mutation();
 
 COMMIT;
-

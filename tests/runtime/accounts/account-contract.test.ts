@@ -25,4 +25,10 @@ describe("DOMESTIC_ACCOUNT_CENTER_V1 contract", () => {
     expect(sql).toContain("reject_account_ledger_mutation");
     expect(sql).not.toMatch(/\b(password|cookie|api_key|token)\s+TEXT\b/i);
   });
+
+  it("minimal API rejects plaintext credential field names", () => {
+    const route = readFileSync("src/app/api/accounts/route.ts", "utf8");
+    expect(route).toContain('"password","cookie","token","apiKey","api_key"');
+    expect(route).toContain("secretReference:_secret");
+  });
 });

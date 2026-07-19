@@ -23,4 +23,3 @@ export interface AccountRepository {
   findOperationTaskById(id: string): Promise<AccountOperationTask | null>;
   addOperationResult(input: Omit<AccountOperationResult, "id" | "recordedAt">): Promise<AccountOperationResult>;
 }
-

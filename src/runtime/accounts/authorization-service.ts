@@ -23,7 +23,6 @@ export class AccountAuthorizationError extends Error {
     this.name = "AccountAuthorizationError";
   }
 }
-
 export interface RegisterAccountInput {
   readonly platformCode: string;
   readonly accountType: PlatformAccount["accountType"];
@@ -123,4 +122,3 @@ export class AccountAuthorizationService {
     return assignment;
   }
 }
-
