@@ -1,123 +1,43 @@
 "use client";
 
-/**
- * CLIENT_WORKSPACE_RUNTIME_V1 (Agent D) — client workspace 总览 (dashboard), wired to real
- * APIs (replaces the C2 fixtures). Loads the signed-in account (GET /api/account) and the
- * caller's project list (GET /api/projects), lets the user pick the current project (first
- * by default) and shows that project's overview. Both data sections render all five async
- * states via the shared AsyncSection. Only human-facing fields are shown — the account /
- * project UUIDs are stripped by the view-model mappers.
- */
-import { useState } from "react";
 import Link from "next/link";
 import { useAsyncData } from "../../components/runtime/index.js";
 import { AsyncSection } from "../../components/client-runtime/AsyncSection.js";
-import { loadAccount, loadProjects } from "../../components/client-runtime/endpoints.js";
-import {
-  isEmptyArray,
-  selectActiveProject,
-  toAccountSummary,
-  toProjectOptions,
-  toProjectSummary,
-} from "../../components/client-runtime/view-models.js";
+import { loadClientOverview } from "../../components/client-runtime/endpoints.js";
+import { toProjectSummary } from "../../components/client-runtime/view-models.js";
 
 export default function ClientWorkspaceHomePage() {
-  const account = useAsyncData(loadAccount);
-  const projects = useAsyncData(loadProjects, { isEmpty: isEmptyArray });
-  const [activeIndex, setActiveIndex] = useState(0);
-
+  const overview = useAsyncData(loadClientOverview, { isEmpty: (value) => value === null });
   return (
     <>
-      <header className="cp-page-header">
-        <div>
-          <AsyncSection state={account.state} onRetry={account.reload}>
-            {(data) => {
-              const summary = toAccountSummary(data);
-              return (
-                <>
-                  <p className="eyebrow">
-                    {summary.surfaceLabel} · {summary.organizationName}
-                  </p>
-                  <h1>总览</h1>
-                  <span>
-                    {summary.greetingName} · {summary.roleLabel} · {summary.organizationTypeLabel}
-                  </span>
-                </>
-              );
-            }}
-          </AsyncSection>
-        </div>
-      </header>
-
-      <section aria-label="当前项目概况">
-        <AsyncSection
-          state={projects.state}
-          onRetry={projects.reload}
-          empty={<p className="cp-list-row cp-list-empty">暂无项目 - 项目就绪后将在此显示。</p>}
-        >
-          {(list) => {
-            const active = selectActiveProject(list, activeIndex);
-            const options = toProjectOptions(list);
-            if (active === null) {
-              return <p className="cp-list-row cp-list-empty">暂无项目。</p>;
-            }
-            const summary = toProjectSummary(active);
-            return (
-              <>
-                {options.length > 1 ? (
-                  <label className="cp-field">
-                    当前项目：
-                    <select
-                      value={activeIndex < options.length ? activeIndex : 0}
-                      onChange={(event) => setActiveIndex(Number(event.target.value))}
-                    >
-                      {options.map((option) => (
-                        <option key={option.index} value={option.index}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-                <div className="cp-card-grid">
-                  <div className="cp-card">
-                    <p className="cp-card-value">{summary.name}</p>
-                    <p className="cp-card-label">项目</p>
-                  </div>
-                  <div className="cp-card">
-                    <p className="cp-card-value">{summary.clientOrganizationName}</p>
-                    <p className="cp-card-label">所属企业</p>
-                  </div>
-                  <div className="cp-card">
-                    <p className="cp-card-value">{summary.createdAtLabel}</p>
-                    <p className="cp-card-label">创建于</p>
-                  </div>
-                </div>
-              </>
-            );
-          }}
-        </AsyncSection>
-      </section>
-
-      <section aria-label="快捷入口">
-        <ul>
-          <li>
-            <Link href="/app/knowledge">进入知识库</Link>
-          </li>
-          <li>
-            <Link href="/app/keywords">进入关键词与用户问题</Link>
-          </li>
-          <li>
-            <Link href="/app/content">进入内容与信源</Link>
-          </li>
-          <li>
-            <Link href="/app/delivery">进入交付中心</Link>
-          </li>
-          <li>
-            <Link href="/app/performance">进入效果验证</Link>
-          </li>
-        </ul>
-      </section>
+      <header className="cp-page-header"><div><p className="eyebrow">客户工作台</p><h1>项目总览</h1><span>查看当前项目的真实业务进度与下一步操作。</span></div></header>
+      <AsyncSection state={overview.state} onRetry={overview.reload} empty={<p className="cp-list-row cp-list-empty">暂无可访问项目。</p>}>
+        {(data) => {
+          if (data === null) return null;
+          const project = toProjectSummary(data.project);
+          const pendingQuestions = data.opportunities.filter((item) => item.review?.reviewStatus === "PENDING").length;
+          const producing = data.deliveries.filter((item) => item.status === "IN_PRODUCTION").length;
+          const reviewing = data.deliveries.filter((item) => item.status === "IN_REVIEW").length;
+          const delivered = data.deliveries.filter((item) => item.status === "DELIVERED").length;
+          return <>
+            <section><h2>{project.name}</h2><p>{project.clientOrganizationName}</p></section>
+            <section className="cp-card-grid" aria-label="项目业务指标">
+              <div className="cp-card"><p className="cp-card-value">{data.keywords.length}</p><p className="cp-card-label">已整理关键词</p></div>
+              <div className="cp-card"><p className="cp-card-value">{pendingQuestions}</p><p className="cp-card-label">待确认用户问题</p></div>
+              <div className="cp-card"><p className="cp-card-value">{producing}</p><p className="cp-card-label">内容生产中</p></div>
+              <div className="cp-card"><p className="cp-card-value">{reviewing}</p><p className="cp-card-label">待审核内容</p></div>
+              <div className="cp-card"><p className="cp-card-value">{delivered}</p><p className="cp-card-label">已完成交付</p></div>
+            </section>
+            <section aria-label="下一步操作"><h2>下一步操作</h2><ul>
+              {pendingQuestions > 0 ? <li><Link href="/app/questions">确认用户问题与内容方向</Link></li> : null}
+              {reviewing > 0 ? <li><Link href="/app/content-review">处理待审核内容</Link></li> : null}
+              <li><Link href="/app/enterprise">查看企业资料</Link></li>
+              <li><Link href="/app/delivery">查看交付与报告</Link></li>
+            </ul></section>
+            <p className="cp-placeholder-note">企业资料完整度、AI 拓词待确认和待执行查询暂无客户侧汇总接口，因此不显示推测数值。</p>
+          </>;
+        }}
+      </AsyncSection>
     </>
   );
 }

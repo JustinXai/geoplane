@@ -17,7 +17,6 @@ import { AsyncSection } from "../../../components/client-runtime/AsyncSection.js
 import { loadActiveProjectOpportunities } from "../../../components/client-runtime/endpoints.js";
 import { isEmptyArray, toOpportunityRow } from "../../../components/client-runtime/view-models.js";
 import { OpportunityReviewControl } from "../../../components/client-runtime/OpportunityReviewControl.js";
-import { ClientConfirmationControl } from "../_confirmation-control";
 
 export default function ContentSourcingPage() {
   const { state, reload } = useAsyncData(loadActiveProjectOpportunities, {
@@ -61,7 +60,7 @@ export default function ContentSourcingPage() {
                       review={opportunity.review}
                       onReviewed={reload}
                     />
-                    <ClientConfirmationControl subjectLabel="信源类型" />
+                    <p className="cp-placeholder-note">自动信源采集属于独立系统，本页不提供信源确认操作。</p>
                   </div>
                 </li>
               );

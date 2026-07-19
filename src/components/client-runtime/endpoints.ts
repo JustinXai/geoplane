@@ -123,3 +123,30 @@ export function loadActiveProjectOpportunities(
 ): Promise<Result<readonly OpportunityViewV1[]>> {
   return withActiveProject(client, loadOpportunities, []);
 }
+
+export interface ClientOverviewData {
+  readonly project: ProjectViewV1;
+  readonly keywords: readonly KeywordQuestionViewV1[];
+  readonly opportunities: readonly OpportunityViewV1[];
+  readonly deliveries: readonly ArticleDeliveryViewV1[];
+}
+
+/** Loads only persisted, client-scoped resources used by the overview. */
+export async function loadClientOverview(
+  client: ApiClient = defaultApiClient,
+): Promise<Result<ClientOverviewData | null>> {
+  const projects = await loadProjects(client);
+  if (!projects.ok) return projects;
+  const project = selectActiveProject(projects.data);
+  if (project === null) return ok(null);
+
+  const [keywords, opportunities, deliveries] = await Promise.all([
+    loadKeywordQuestions(project.id, client),
+    loadOpportunities(project.id, client),
+    loadDeliveries(project.id, client),
+  ]);
+  if (!keywords.ok) return keywords;
+  if (!opportunities.ok) return opportunities;
+  if (!deliveries.ok) return deliveries;
+  return ok({ project, keywords: keywords.data, opportunities: opportunities.data, deliveries: deliveries.data });
+}
