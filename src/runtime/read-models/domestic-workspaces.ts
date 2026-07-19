@@ -132,6 +132,38 @@ export async function readKeywordExpansionBatches(db:Queryable,clientOrganizatio
 
 export async function readManualProbeSamples(db:Queryable,clientOrganizationId:string,projectId:string):Promise<readonly RawProbeResult[]>{return new PgRawProbeResultRepository(db as any).listByProject(clientOrganizationId,projectId)}
 
+export type ClientKnowledgeProgressStatus = "NOT_STARTED"|"NEEDS_INFORMATION"|"READY_FOR_CONFIRMATION"|"CONFIRMED";
+export interface ClientKnowledgeProgressReadModel {
+  readonly packageCount:number;
+  readonly confirmedPackageCount:number;
+  readonly documentCount:number;
+  readonly openIssueCount:number;
+  readonly missingInformationCount:number;
+  readonly status:ClientKnowledgeProgressStatus;
+  readonly updatedAt:string|null;
+}
+
+/** A project-scoped, client-safe readiness proxy. It deliberately reports facts, not a made-up percentage. */
+export async function readClientKnowledgeProgress(
+  db:Queryable,clientOrganizationId:string,projectId:string,
+):Promise<ClientKnowledgeProgressReadModel>{
+  const result=await db.query<any>(`SELECT
+    (SELECT count(*)::int FROM knowledge_package WHERE client_organization_id=$1 AND project_id=$2) package_count,
+    (SELECT count(*)::int FROM knowledge_package WHERE client_organization_id=$1 AND project_id=$2 AND status='CONFIRMED') confirmed_package_count,
+    (SELECT count(*)::int FROM knowledge_document WHERE client_organization_id=$1 AND project_id=$2) document_count,
+    (SELECT count(*)::int FROM knowledge_issue WHERE client_organization_id=$1 AND project_id=$2 AND resolved=false) open_issue_count,
+    (SELECT count(*)::int FROM knowledge_issue WHERE client_organization_id=$1 AND project_id=$2 AND resolved=false AND kind='MISSING_INFORMATION') missing_information_count,
+    (SELECT max(updated_at) FROM knowledge_package WHERE client_organization_id=$1 AND project_id=$2) updated_at`,
+    [clientOrganizationId,projectId]);
+  const row=result.rows[0]??{};
+  const packageCount=Number(row.package_count??0),confirmedPackageCount=Number(row.confirmed_package_count??0);
+  const openIssueCount=Number(row.open_issue_count??0),missingInformationCount=Number(row.missing_information_count??0);
+  const status:ClientKnowledgeProgressStatus=packageCount===0?"NOT_STARTED":
+    openIssueCount>0?"NEEDS_INFORMATION":confirmedPackageCount===packageCount?"CONFIRMED":"READY_FOR_CONFIRMATION";
+  return {packageCount,confirmedPackageCount,documentCount:Number(row.document_count??0),openIssueCount,
+    missingInformationCount,status,updatedAt:iso(row.updated_at??null)};
+}
+
 export interface ManualProbeQuestionOption { readonly keyword:string; readonly question:string }
 export interface ManualProbeProjectOption { readonly projectId:string; readonly projectName:string; readonly clientName:string; readonly questions:readonly ManualProbeQuestionOption[] }
 export interface ManualProbeEntryOptions { readonly projects:readonly ManualProbeProjectOption[]; readonly platforms:readonly {readonly code:string;readonly displayName:string}[] }

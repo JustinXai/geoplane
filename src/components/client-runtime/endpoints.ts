@@ -23,6 +23,9 @@ import type {
 import { type ApiClient, defaultApiClient, ok, type Result } from "../../lib/api-client/http.js";
 import { selectActiveProject } from "./view-models.js";
 import { safeBusinessDisplayName } from "../../runtime/ui-adapters/formatters.js";
+import type { BaiduKeywordReadModel, ClientKnowledgeProgressReadModel } from "../../runtime/read-models/domestic-workspaces.js";
+import type { KeywordExpansionBatch } from "../../runtime/keyword-expansion/contract.js";
+import type { RawProbeResult } from "../../runtime/probes/manual-sample.js";
 
 function enc(segment: string): string {
   return encodeURIComponent(segment);
@@ -136,6 +139,26 @@ export interface ClientOverviewData {
   readonly keywords: readonly KeywordQuestionViewV1[];
   readonly opportunities: readonly OpportunityViewV1[];
   readonly deliveries: readonly ArticleDeliveryViewV1[];
+  readonly knowledge: ClientKnowledgeProgressReadModel;
+  readonly baidu: BaiduKeywordReadModel;
+  readonly expansionBatches: readonly KeywordExpansionBatch[];
+  readonly probes: readonly RawProbeResult[];
+}
+
+export function loadKnowledgeProgress(projectId:string,client:ApiClient=defaultApiClient):Promise<Result<ClientKnowledgeProgressReadModel>>{
+  return client.request<ClientKnowledgeProgressReadModel>(`/api/projects/${enc(projectId)}/knowledge-progress`);
+}
+
+export function loadBaiduKeywordProgress(projectId:string,client:ApiClient=defaultApiClient):Promise<Result<BaiduKeywordReadModel>>{
+  return client.request<BaiduKeywordReadModel>(`/api/keywords/projects/${enc(projectId)}/overview`);
+}
+
+export function loadExpansionProgress(projectId:string,client:ApiClient=defaultApiClient):Promise<Result<readonly KeywordExpansionBatch[]>>{
+  return client.request<readonly KeywordExpansionBatch[]>(`/api/keyword-expansion/projects/${enc(projectId)}`);
+}
+
+export function loadProbeProgress(projectId:string,client:ApiClient=defaultApiClient):Promise<Result<readonly RawProbeResult[]>>{
+  return client.request<readonly RawProbeResult[]>(`/api/probes/projects/${enc(projectId)}/manual-samples`);
 }
 
 /** Loads only persisted, client-scoped resources used by the overview. */
@@ -147,13 +170,22 @@ export async function loadClientOverview(
   const project = selectActiveProject(projects.data);
   if (project === null) return ok(null);
 
-  const [keywords, opportunities, deliveries] = await Promise.all([
+  const [keywords, opportunities, deliveries, knowledge, baidu, expansionBatches, probes] = await Promise.all([
     loadKeywordQuestions(project.id, client),
     loadOpportunities(project.id, client),
     loadDeliveries(project.id, client),
+    loadKnowledgeProgress(project.id,client),
+    loadBaiduKeywordProgress(project.id,client),
+    loadExpansionProgress(project.id,client),
+    loadProbeProgress(project.id,client),
   ]);
   if (!keywords.ok) return keywords;
   if (!opportunities.ok) return opportunities;
   if (!deliveries.ok) return deliveries;
-  return ok({ project, keywords: keywords.data, opportunities: opportunities.data, deliveries: deliveries.data });
+  if (!knowledge.ok) return knowledge;
+  if (!baidu.ok) return baidu;
+  if (!expansionBatches.ok) return expansionBatches;
+  if (!probes.ok) return probes;
+  return ok({ project, keywords: keywords.data, opportunities: opportunities.data, deliveries: deliveries.data,
+    knowledge:knowledge.data,baidu:baidu.data,expansionBatches:expansionBatches.data,probes:probes.data });
 }

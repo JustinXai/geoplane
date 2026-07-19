@@ -15,6 +15,10 @@ import {
   loadKeywordQuestions,
   loadKnowledgeIssues,
   loadKnowledgePackage,
+  loadKnowledgeProgress,
+  loadBaiduKeywordProgress,
+  loadExpansionProgress,
+  loadProbeProgress,
   loadOpportunities,
   loadProjects,
 } from "../../../src/components/client-runtime/endpoints.js";
@@ -61,6 +65,10 @@ describe("client-workspace loaders build the expected real route (path + GET)", 
       run: (c) => loadOpportunities("proj", c),
       path: "/api/projects/proj/opportunities",
     },
+    { name:"loadKnowledgeProgress",run:(c)=>loadKnowledgeProgress("proj 1",c),path:"/api/projects/proj%201/knowledge-progress" },
+    { name:"loadBaiduKeywordProgress",run:(c)=>loadBaiduKeywordProgress("proj",c),path:"/api/keywords/projects/proj/overview" },
+    { name:"loadExpansionProgress",run:(c)=>loadExpansionProgress("proj",c),path:"/api/keyword-expansion/projects/proj" },
+    { name:"loadProbeProgress",run:(c)=>loadProbeProgress("proj",c),path:"/api/probes/projects/proj/manual-samples" },
   ];
 
   for (const { name, run, path } of cases) {
