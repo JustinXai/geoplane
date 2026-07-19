@@ -7,4 +7,3 @@ export interface VerticalPolicyPackPort {
 export interface IndustryProfilePackSelectionPort {
   find(projectId: string, industryProfileId: string): Promise<IndustryProfilePackSelection | null>;
 }
-

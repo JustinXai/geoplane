@@ -24,6 +24,8 @@ export interface VerticalPolicyPackDefinition {
   readonly version: number;
   readonly effectiveFrom: string;
   readonly mandatoryHumanReview: boolean;
+  /** Exact terms only when frozen evidence provides them; an empty list forbids invention. */
+  readonly riskTerms: readonly string[];
   readonly rules: readonly VerticalRuleDefinition[];
   readonly evidenceReferences: readonly string[];
 }
@@ -55,4 +57,3 @@ export interface VerticalGateResult {
   /** A true value requires a later, separate human-review decision; it never means approved. */
   readonly requiresHumanReview: boolean;
 }
-
