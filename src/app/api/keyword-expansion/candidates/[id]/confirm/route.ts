@@ -1,0 +1,7 @@
+import { apiErr,apiOk } from "../../../../../../runtime/api-contracts/index.js";
+import { readJsonBody,toHttpResponse } from "../../../../../../runtime/auth/http.js";
+import { getGeoRuntime,principalCanReadClientOrganization } from "../../../../../../runtime/geo/runtime-context.js";
+import { KeywordExpansionService } from "../../../../../../runtime/keyword-expansion/offline-runtime.js";
+import { findExpansionScope,PgExpansionRepository } from "../../../../../../runtime/keyword-expansion/pg-repository.js";
+export const runtime="nodejs"; export const dynamic="force-dynamic";
+export async function POST(request:Request,context:{params:Promise<{id:string}>}){const rt=getGeoRuntime();const p=await rt.resolveSession(request.headers.get("cookie"));if(!p)return toHttpResponse(apiErr("UNAUTHENTICATED","Authentication is required."));const {id}=await context.params;const scope=await findExpansionScope(rt.db,id);if(!scope)return toHttpResponse(apiErr("NOT_FOUND","Candidate not found."));if(!principalCanReadClientOrganization(p,scope.clientOrganizationId))return toHttpResponse(apiErr("FORBIDDEN","Candidate access denied."));const b=await readJsonBody(request);try{return toHttpResponse(apiOk(await new KeywordExpansionService(new PgExpansionRepository(rt.db)).confirm(id,p.userId,typeof b.reason==="string"?b.reason:"")));}catch(e){return toHttpResponse(apiErr("CONFLICT",e instanceof Error?e.message:"Review failed."));}}
