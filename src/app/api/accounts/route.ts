@@ -6,10 +6,18 @@ import type { AuthorizationContext } from "../../../contracts/tenancy/entities.j
 import { AccountAuthorizationError, AccountAuthorizationService } from "../../../runtime/accounts/authorization-service.js";
 import { AccountOperationService } from "../../../runtime/accounts/operation-service.js";
 import { PgAccountAuditWriter, PgAccountRepository } from "../../../runtime/accounts/pg-repository.js";
+import { readAccountCenter } from "../../../runtime/read-models/domestic-workspaces.js";
+import { getGeoRuntime } from "../../../runtime/geo/runtime-context.js";
 
 export const runtime="nodejs";export const dynamic="force-dynamic";
 const forbidden=new Set(["password","cookie","token","apiKey","api_key"]);
 const text=(b:Record<string,unknown>,k:string)=>typeof b[k]==="string"&&b[k]!.trim()?String(b[k]).trim():null;
+
+export async function GET(request:Request):Promise<Response>{
+  const rt=getGeoRuntime();const principal=await rt.resolveSession(request.headers.get("cookie"));
+  if(!principal)return toHttpResponse(apiErr("UNAUTHENTICATED","Authentication is required."));
+  return toHttpResponse(apiOk(await readAccountCenter(rt.db,principal)));
+}
 
 export async function POST(request:Request):Promise<Response>{
   const rt=getAuthRuntime();const session=await rt.resolveSession(request.headers.get("cookie"));
