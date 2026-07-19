@@ -15,8 +15,11 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "geoplane",
-  description: "GEO Article Production Control Plane",
+  title: {
+    default: "GEO 内容增长与交付系统",
+    template: "%s｜GEO 内容增长与交付系统",
+  },
+  description: "面向企业、代理商和平台运营人员的国内 GEO 内容生产与交付系统",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
