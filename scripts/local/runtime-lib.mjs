@@ -108,6 +108,21 @@ export function localPort(resolveValue = loadLocalEnvironment().resolveValue) {
   return port;
 }
 
+export function providerRuntimeIsExplicitlyOff(value) {
+  return typeof value === "string" && value.trim().toLowerCase() === "false";
+}
+
+export function localKeyIsUsable(value) {
+  return Boolean(
+    typeof value === "string" &&
+      value.length >= 32 &&
+      value === value.trim() &&
+      !/[\r\n\0]/.test(value) &&
+      !((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) &&
+      !/(change[_-]?me|placeholder|example)/i.test(value),
+  );
+}
+
 export function sanitizedError(error, environment = loadLocalEnvironment()) {
   let message = error instanceof Error ? error.message : String(error);
   message = message.replace(/postgres(?:ql)?:\/\/[^\s'"<>]+/gi, "[REDACTED_DATABASE_URL]");
@@ -193,11 +208,8 @@ async function databaseCheck(role, connectionString) {
       ledger.rows.map((row) => /^(\d{4})/.exec(String(row.filename))?.[1]).filter(Boolean),
     );
     const required = requiredMigrationVersions(migrationsDir);
-    if (
-      required.length !== LOCAL_MIGRATIONS.length ||
-      required.some((version, index) => version !== LOCAL_MIGRATIONS[index])
-    ) {
-      throw new Error("migration manifest does not match the frozen local-stage range 0001-0008");
+    if (LOCAL_MIGRATIONS.some((version) => !required.includes(version))) {
+      throw new Error("migration manifest is missing part of the required local-stage baseline 0001-0008");
     }
     const missing = required.filter((version) => !applied.has(version));
     if (missing.length > 0) throw new Error(`${expected.name} is missing migration(s): ${missing.join(", ")}`);
@@ -251,7 +263,11 @@ export async function runPreflight({ emit = true } = {}) {
     if (!urls[role]) continue;
     try {
       const result = await databaseCheck(role, urls[role]);
-      record(`database-ready:${role}`, true, `connected; migrations 0001-0008 (${result.migrations}/${result.migrations})`);
+      record(
+        `database-ready:${role}`,
+        true,
+        `connected; baseline 0001-0008 complete; current manifest ${result.migrations}/${result.migrations}`,
+      );
     } catch (error) {
       record(`database-ready:${role}`, false, databaseErrorDetail(error, role));
     }
@@ -259,29 +275,27 @@ export async function runPreflight({ emit = true } = {}) {
 
   const sessionKey = environment.resolveValue("SESSION_SIGNING_KEY_CURRENT");
   const reviewKey = environment.resolveValue("REVIEW_REFERENCE_KEY_CURRENT");
-  const usableKey = (value) =>
-    Boolean(value && value.length >= 32 && !/(change[_-]?me|placeholder|example)/i.test(value));
   record(
     "session-signing-key",
-    usableKey(sessionKey),
-    usableKey(sessionKey)
+    localKeyIsUsable(sessionKey),
+    localKeyIsUsable(sessionKey)
       ? "present and usable (value hidden)"
       : "SESSION_SIGNING_KEY_CURRENT is missing, shorter than 32 characters, or a placeholder",
   );
   record(
     "review-reference-key",
-    usableKey(reviewKey),
-    usableKey(reviewKey)
+    localKeyIsUsable(reviewKey),
+    localKeyIsUsable(reviewKey)
       ? "present and usable (value hidden)"
       : "REVIEW_REFERENCE_KEY_CURRENT is missing, shorter than 32 characters, or a placeholder",
   );
   const providerValue = environment.resolveValue("PROVIDER_RUNTIME_ENABLED");
   record(
     "provider-runtime",
-    providerValue?.toLowerCase() === "false",
-    providerValue?.toLowerCase() === "false"
+    providerRuntimeIsExplicitlyOff(providerValue),
+    providerRuntimeIsExplicitlyOff(providerValue)
       ? "explicitly OFF"
-      : "PROVIDER_RUNTIME_ENABLED must be explicitly false",
+      : "BLOCK: PROVIDER_RUNTIME_ENABLED must be explicitly false",
   );
 
   try {

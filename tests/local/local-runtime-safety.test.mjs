@@ -4,7 +4,9 @@ import {
   LOCAL_MIGRATIONS,
   databaseErrorDetail,
   localPort,
+  localKeyIsUsable,
   parseLocalDatabaseUrl,
+  providerRuntimeIsExplicitlyOff,
   sanitizedError,
 } from "../../scripts/local/runtime-lib.mjs";
 
@@ -58,5 +60,28 @@ describe("LOCAL_ENVIRONMENT_RUNTIME_V1 safety boundary", () => {
   it("accepts only an unprivileged valid local application port", () => {
     expect(localPort((name) => (name === "LOCAL_APP_PORT" ? "3010" : null))).toBe(3010);
     expect(() => localPort(() => "80")).toThrow("1024 through 65535");
+  });
+
+  it("blocks every provider flag value except explicit false", () => {
+    expect(providerRuntimeIsExplicitlyOff("false")).toBe(true);
+    expect(providerRuntimeIsExplicitlyOff(" FALSE ")).toBe(true);
+    for (const value of [null, undefined, "", "0", "off", "true", "1"]) {
+      expect(providerRuntimeIsExplicitlyOff(value)).toBe(false);
+    }
+  });
+
+  it("rejects weak or placeholder local keys", () => {
+    expect(localKeyIsUsable("a-secure-local-key-000000000000000000")).toBe(true);
+    expect(localKeyIsUsable("CHANGE_ME_000000000000000000000000")).toBe(false);
+    expect(localKeyIsUsable("too-short")).toBe(false);
+  });
+
+  it("keeps runtime and test reset targets mutually exclusive", () => {
+    expect(() => parseLocalDatabaseUrl(localUrl("geoplane_local_runtime"), "test")).toThrow(
+      "must target exactly geoplane_local_test",
+    );
+    expect(() => parseLocalDatabaseUrl(localUrl("geoplane_local_test"), "runtime")).toThrow(
+      "must target exactly geoplane_local_runtime",
+    );
   });
 });

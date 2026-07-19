@@ -9,6 +9,7 @@ import {
   LOCAL_DATABASES,
   loadLocalEnvironment,
   parseLocalDatabaseUrl,
+  providerRuntimeIsExplicitlyOff,
   sanitizedError,
 } from "./runtime-lib.mjs";
 
@@ -21,7 +22,7 @@ if (confirmation !== LOCAL_DATABASES.runtime.name) {
 }
 
 const environment = loadLocalEnvironment();
-if (environment.resolveValue("PROVIDER_RUNTIME_ENABLED")?.toLowerCase() !== "false") {
+if (!providerRuntimeIsExplicitlyOff(environment.resolveValue("PROVIDER_RUNTIME_ENABLED"))) {
   console.error("local:reset: PROVIDER_RUNTIME_ENABLED must be explicitly false.");
   process.exit(1);
 }

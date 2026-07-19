@@ -42,6 +42,8 @@ export function databaseEnvVarName(role: DatabaseEnvironmentRole): string {
 
 const RUNTIME_ENV_VAR = ENV_VAR_BY_ROLE.runtime;
 const TEST_ENV_VAR = ENV_VAR_BY_ROLE.test;
+const LOCAL_TEST_DATABASE_NAME = "geoplane_local_test";
+const LOCAL_DATABASE_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
 /** Repo root = two levels up from src/persistence. */
 function repoRoot(): string {
@@ -79,11 +81,38 @@ function resolveVar(name: string): string | null {
 }
 
 /**
+ * LOCAL_ENVIRONMENT_RUNTIME_V1 destructive-test boundary.
+ *
+ * Every DB-backed test resolves its connection through loadDatabaseConfig({ test: true }) before
+ * it creates a Pool. Refusing here guarantees a mispointed test URL cannot reach the first SQL
+ * statement (especially TRUNCATE). Error text intentionally excludes the URL and credential.
+ */
+export function assertSafeLocalTestDatabaseUrl(connectionString: string): void {
+  let parsed: URL;
+  try {
+    parsed = new URL(connectionString);
+  } catch {
+    throw new Error("GEO_TEST_DATABASE_URL is not a valid PostgreSQL URL");
+  }
+  if (!/^postgres(ql)?:$/.test(parsed.protocol)) {
+    throw new Error("GEO_TEST_DATABASE_URL must use the PostgreSQL protocol");
+  }
+  if (!LOCAL_DATABASE_HOSTS.has(parsed.hostname.toLowerCase())) {
+    throw new Error("GEO_TEST_DATABASE_URL must use a loopback host in LOCAL_ONLY_MODE");
+  }
+  const database = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
+  if (database !== LOCAL_TEST_DATABASE_NAME) {
+    throw new Error(`GEO_TEST_DATABASE_URL must target exactly ${LOCAL_TEST_DATABASE_NAME}`);
+  }
+}
+
+/**
  * @param opts.test  when true, resolves the TEST database URL (GEO_TEST_DATABASE_URL),
  *                    which must point at a throwaway database - callers TRUNCATE it freely.
  */
 export function loadDatabaseConfig(opts: { test?: boolean } = {}): DatabaseConfig | null {
   const url = resolveVar(opts.test ? TEST_ENV_VAR : RUNTIME_ENV_VAR);
+  if (url && opts.test) assertSafeLocalTestDatabaseUrl(url);
   return url ? { connectionString: url } : null;
 }
 
@@ -94,5 +123,6 @@ export function loadDatabaseConfig(opts: { test?: boolean } = {}): DatabaseConfi
  */
 export function loadDatabaseConfigForRole(role: DatabaseEnvironmentRole): DatabaseConfig | null {
   const url = resolveVar(ENV_VAR_BY_ROLE[role]);
+  if (url && role === "test") assertSafeLocalTestDatabaseUrl(url);
   return url ? { connectionString: url } : null;
 }

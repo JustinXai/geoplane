@@ -14,8 +14,15 @@ setting `PROVIDER_RUNTIME_ENABLED=false` belong in the gitignored `.env.local`. 
 values into logs, reports, source files, or shell history. The canary database is retained only for
 purpose isolation in this stage; no provider canary is run.
 
+When those values already exist in the current process environment, run
+`node scripts/local/configure.mjs`. It validates exact loopback targets, rejects placeholder or weak
+keys, requires distinct signing/review keys and Provider OFF, then atomically writes `.env.local`
+with restrictive permissions where supported. `--check` performs the same validation without
+writing a file. Output contains variable names and states only, never values.
+
 The local preflight verifies Node 20.9 or newer, installed dependencies, exact loopback database
-targets, connectivity, migrations 0001 through 0008 on every database, required keys, Provider OFF,
+targets, connectivity, the 0001—0008 baseline plus every current manifest migration on each
+database, required keys, Provider OFF,
 the application port, and at least 1 GiB of free disk space.
 
 After Agent A adds the package shortcuts, the normal sequence is `npm run local:preflight`,
