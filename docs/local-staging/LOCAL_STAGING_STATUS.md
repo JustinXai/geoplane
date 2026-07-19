@@ -1,8 +1,8 @@
 # LOCAL CLOSED-PILOT STAGING STATUS — FINAL SUPERVISOR REVIEW
 
-Reviewed integration SHA: `ccc2f89f436b46a2bc7f09b82f4e6de7aba04c34`
+Reviewed integration SHA: `21c38b2d37f9b3e41e17983cd1a32da2be0eeb70`
 
-Supervisor decision: **PASS_WITH_CHANGES**
+Supervisor decision: **PASS**
 
 `REMOTE_WRITE_ATTEMPTS = 0`
 
@@ -32,8 +32,9 @@ Supervisor decision: **PASS_WITH_CHANGES**
 | Build | PASS |
 | Security scan | PASS |
 | Repo safety | PASS — remote-independent, no upstream |
-| Final safe stop | NOT_YET_VERIFIED |
-| Post-stop port release/data persistence/Provider OFF | NOT_YET_VERIFIED |
+| Final safe stop | PASS — managed state absent and status STOPPED |
+| Post-stop port release | PASS — zero listeners and no Next server process |
+| Post-stop data persistence / Provider OFF | PASS — secret-safe aggregate readback and preflight evidence |
 
 ## Security disposition
 
@@ -50,11 +51,19 @@ The four-flag insecure-cookie exception is accepted only through the managed lau
 `127.0.0.1`; do not reuse it with a direct or non-loopback start. The previously identified repo
 safety and Provider child-environment defense gaps are closed at this reviewed SHA.
 
+## Final post-stop evidence
+
+- Managed state file: absent.
+- `local:status`: STOPPED with no managed process state.
+- Port 3000 listeners: 0.
+- Next start/dev processes: 0.
+- Post-stop local preflight: PASS; Provider explicitly OFF.
+- Runtime aggregates: users 3, organizations 3, memberships 3, projects 1, Provider rows 0.
+- Restore-verification aggregates: users 3, projects 1, Provider rows 0.
+
 ## Exact next single action
 
-Run the managed safe stop, then verify process exit, port release, runtime-data persistence, and
-Provider runtime still OFF. If those checks pass, update the final staging report and create the
-final local bundle. Do not merge to `main`, push, contact GitHub, call a real Provider, or deploy.
+**PRESENT LOCAL CLOSED-PILOT ENVIRONMENT FOR HUMAN FUNCTIONAL REVIEW.**
 
-Current decision remains `PASS_WITH_CHANGES` solely because the required final stop and post-stop
-checks had not occurred at audit time. No unknown item is represented as PASS.
+Do not merge to `main`, push, contact GitHub, call a real Provider, deploy, or begin unrelated work.
+No unknown item is represented as PASS.

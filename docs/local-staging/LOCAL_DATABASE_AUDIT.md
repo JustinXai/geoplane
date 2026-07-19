@@ -1,8 +1,8 @@
 # LOCAL DATABASE AUDIT — FINAL FIXED-SHA REVIEW
 
-Reviewed integration SHA: `ccc2f89f436b46a2bc7f09b82f4e6de7aba04c34`
+Reviewed integration SHA: `21c38b2d37f9b3e41e17983cd1a32da2be0eeb70`
 
-Decision: **PASS_WITH_CHANGES**
+Decision: **PASS**
 
 `REMOTE_WRITE_ATTEMPTS = 0`
 
@@ -22,7 +22,7 @@ Decision: **PASS_WITH_CHANGES**
 | Restore target | PASS | Fixed fresh `geoplane_local_restore_verify`; URL/db/dump/checksum/force overrides refused by wrapper |
 | Runtime non-clearing | PASS | Generic restore allowlist excludes runtime/test/canary and rejects `--force`; existing target is refused |
 | Restore readback | PASS | Supplied 3/3 recovery evidence and matching hashed business summary; verification DB remains present |
-| Post-stop persistence | NOT_YET_VERIFIED | App still running at audit time |
+| Post-stop persistence | PASS | Runtime: users 3, organizations 3, memberships 3, projects 1, Provider 0; restore verify: users 3, projects 1, Provider 0 |
 
 ## Static safety assessment
 
@@ -40,8 +40,9 @@ The initial critical destructive-target findings are closed:
 No database connection or query was made by the Supervisor. Exact role/migration/connectivity and
 restore existence are based on Agent A's supplied local gate evidence at the fixed SHA.
 
-## Remaining change
+## Final post-stop result
 
-After `npm run local:stop`, confirm the port is released and runtime data remains readable without
-dropping or reusing `geoplane_local_restore_verify`. Until then post-stop persistence is
-**NOT_YET_VERIFIED**, producing the overall `PASS_WITH_CHANGES` decision.
+The Supervisor independently verified the stopped managed-process/port state. Agent A supplied
+secret-safe aggregate readback after stop: runtime users 3, organizations 3, memberships 3,
+projects 1, Provider rows 0; `geoplane_local_restore_verify` users 3, projects 1, Provider rows 0.
+Post-stop preflight remained PASS with Provider OFF. Database decision: **PASS**.

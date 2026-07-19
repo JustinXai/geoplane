@@ -1,8 +1,8 @@
 # LOCAL FUNCTIONAL AUDIT — FINAL FIXED-SHA REVIEW
 
-Reviewed integration SHA: `ccc2f89f436b46a2bc7f09b82f4e6de7aba04c34`
+Reviewed integration SHA: `21c38b2d37f9b3e41e17983cd1a32da2be0eeb70`
 
-Decision: **PASS_WITH_CHANGES**
+Decision: **PASS**
 
 `REMOTE_WRITE_ATTEMPTS = 0`
 
@@ -29,7 +29,7 @@ Decision: **PASS_WITH_CHANGES**
 | Real customer data | PASS | Supplied evidence: zero |
 | Restart/session rotation | PASS | Supplied recovery suite: 3/3 |
 | Backup/restore readback | PASS | Supplied recovery suite: 3/3 |
-| Live server stop | NOT_YET_VERIFIED | Managed loopback app still running at review time |
+| Live server stop | PASS | Managed state absent, status STOPPED, port 3000 released, no Next server process |
 
 ## Assessment
 
@@ -45,8 +45,9 @@ receipt actor IDs are no longer accepted from the request body and are persisted
 Full-test evidence reports 951 PASS with exactly one intentional skip: the forbidden real Provider
 micro-canary. The Supervisor did not rerun these dynamic tests.
 
-## Remaining change
+## Final disposition
 
-The final safe stop and post-stop persistence checks remain outstanding. Functional readiness is
-therefore `PASS_WITH_CHANGES`; it becomes eligible for final local functional review only after the
-managed app stops, the port releases, runtime data remains, and Provider OFF is reconfirmed.
+The managed app stopped safely, port 3000 released, runtime aggregate data remained present, the
+restore verification database remained readable, and Provider rows stayed zero. Functional
+decision: **PASS**. The environment is ready to be presented for human functional review; it should
+be restarted only through the managed local launcher when that review begins.

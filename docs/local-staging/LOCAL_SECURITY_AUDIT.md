@@ -1,10 +1,10 @@
 # LOCAL SECURITY AUDIT — FINAL FIXED-SHA REVIEW
 
-Reviewed integration SHA: `ccc2f89f436b46a2bc7f09b82f4e6de7aba04c34`
+Reviewed integration SHA: `21c38b2d37f9b3e41e17983cd1a32da2be0eeb70`
 
 Review date: 2026-07-19 (Asia/Shanghai)
 
-Decision: **PASS_WITH_CHANGES**
+Decision: **PASS**
 
 `REMOTE_WRITE_ATTEMPTS = 0`
 
@@ -77,8 +77,12 @@ false. The functional runner additionally refuses the canary flag and requires z
 `provider_execution` rows. Supplied execution evidence records zero calls this stage, the only
 micro-canary test skipped, and the focused offline hardening tests PASS.
 
-## Remaining operational change
+## Final stop and post-stop evidence — PASS
 
-The managed app was still running on loopback at review time. Final safe stop, port-release check,
-runtime-data persistence check, and post-stop Provider-OFF confirmation are **NOT_YET_VERIFIED**.
-This outstanding required operation is why the decision is `PASS_WITH_CHANGES`, not `PASS`.
+The Supervisor independently confirmed that the managed state file is absent, the committed
+`local:status` command reports `STOPPED (no managed process state)`, port 3000 has zero listeners,
+and no Next start/dev process is present. Agent A's secret-safe post-stop output reports local
+preflight PASS with Provider OFF, runtime aggregate counts unchanged, and zero Provider rows in
+both runtime and restore verification databases. No secret or complete database URL was read.
+
+No security blocker remains for local human functional review.
