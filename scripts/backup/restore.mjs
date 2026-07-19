@@ -26,6 +26,7 @@ import {
   pgToolsAvailable,
   resolveConnection,
   runProcess,
+  verifyFileSha256,
   withDatabase,
 } from "./pg-lib.mjs";
 
@@ -83,6 +84,14 @@ async function main() {
   if (!existsSync(dumpFile)) {
     console.error(`restore: dump file not found: ${dumpFile}`);
     process.exit(2);
+  }
+
+  // A supplied checksum is verified before connection resolution and before ANY database access.
+  // The generic restore CLI keeps this optional for backwards compatibility; the dedicated local
+  // recovery drill always supplies it.
+  if (typeof flags.checksum === "string") {
+    const verified = await verifyFileSha256(dumpFile, flags.checksum);
+    console.log(`CHECKSUM_VERIFIED sha256 ${verified}`);
   }
 
   const target = resolveConnection(flags);
