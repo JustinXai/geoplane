@@ -42,3 +42,5 @@ export { OpsAccountReadPanel } from "./OpsAccountReadPanel.js";
 export { OpsBuildInfoPanel } from "./OpsBuildInfoPanel.js";
 export { OpsManualProbePage } from "./OpsManualProbePage.js";
 export { OpsPolicyPackPage } from "./OpsPolicyPackPage.js";
+export { loadPlatformOpsOverview, loadPlatformOpsHome } from "./ops-overview.js";
+export type { PlatformOpsOverviewReadModel, PlatformOverviewQueueItem, PlatformOpsHomeReadModel } from "./ops-overview.js";
