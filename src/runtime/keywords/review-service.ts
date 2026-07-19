@@ -4,6 +4,17 @@ import type { KeywordRuntimeRepository } from "./ports.js";
 
 export class KeywordReviewService {
   constructor(private readonly repo:KeywordRuntimeRepository,private readonly ids:KeywordIdFactory,private readonly now:()=>string){}
+  async createSubmittedFamily(input:KeywordScope&{snapshotId:string;normalizedFormIds:readonly string[];label:string;rationale:string;createdByUserId:string;version:number}):Promise<import("./contracts.js").KeywordFamilyDraft>{
+    if(!input.label.trim()||!input.rationale.trim())throw new Error("FAMILY_DETAILS_REQUIRED");
+    if(!input.createdByUserId.trim())throw new Error("FAMILY_AUTHOR_REQUIRED");
+    if(input.normalizedFormIds.length===0)throw new Error("FAMILY_DRAFT_REQUIRES_MEMBER");
+    if(new Set(input.normalizedFormIds).size!==input.normalizedFormIds.length)throw new Error("DUPLICATE_FAMILY_MEMBER");
+    const snapshot=await this.repo.getSnapshot(input,input.snapshotId);if(!snapshot)throw new Error("SNAPSHOT_NOT_FOUND");
+    const allowed=new Set(await this.repo.listNormalizedFormIdsForSnapshot(input,input.snapshotId));
+    if(input.normalizedFormIds.some(id=>!allowed.has(id)))throw new Error("NORMALIZED_FORM_NOT_IN_SNAPSHOT");
+    const value={...input,id:this.ids.next(),label:input.label.trim(),rationale:input.rationale.trim(),status:"SUBMITTED" as const,createdAt:this.now()};
+    await this.repo.addFamilyDraft(value);return value;
+  }
   async createPackage(input:KeywordScope&{snapshotId:string;familyDraftIds:readonly string[];submittedByUserId:string;packageVersion:number}):Promise<HumanReviewPackage>{
     if(input.familyDraftIds.length===0)throw new Error("REVIEW_PACKAGE_REQUIRES_ITEM");
     if(!input.submittedByUserId.trim())throw new Error("SUBMITTER_REQUIRED");

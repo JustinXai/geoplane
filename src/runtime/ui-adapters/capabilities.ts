@@ -16,6 +16,7 @@ export const DOMESTIC_GEO_UI_CAPABILITIES:readonly UiCapability[]=Object.freeze(
   gap("account.credential-ui","在页面配置账号凭证"),
   available("baidu.import","导入百度关键词文件","POST /api/keywords/imports"),
   available("baidu.read","查看百度真实需求数据","GET /api/keywords/projects/:projectId/overview"),
+  available("baidu.review","整理关键词组并记录人工决定","POST /api/keywords/family-drafts + review-packages + decisions"),
   gap("baidu.duplicate-history","查看历史导入批次重复数量"),
   gap("baidu.bid","查看百度推荐出价"),gap("baidu.competition","查看百度竞争度"),gap("baidu.region","查看百度地域维度"),
   available("expansion.preview","生成离线拓词预览","POST /api/keyword-expansion/preview"),

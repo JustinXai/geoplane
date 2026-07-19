@@ -62,6 +62,15 @@ export class PgKeywordRuntimeRepository implements KeywordRuntimeRepository {
     await this.db.transaction(async (tx) => { for (const value of values) await insertRaw(tx, value); });
   }
   async addSnapshot(value: KeywordReferenceSnapshot): Promise<void> { await insertSnapshot(this.db, value); }
+  async getSnapshot(scope: KeywordScope,id:string):Promise<KeywordReferenceSnapshot|undefined>{
+    const result=await this.db.query<SnapshotRow>(`SELECT * FROM keyword_reference_snapshot WHERE id=$1 AND client_organization_id=$2 AND project_id=$3`,[id,scope.clientOrganizationId,scope.projectId]);
+    const row=result.rows[0];
+    return row?{id:row.id,clientOrganizationId:row.client_organization_id,projectId:row.project_id,importId:row.import_id,snapshotVersion:row.snapshot_version,manifestHash:row.manifest_hash,rawObservationCount:row.raw_observation_count,normalizedFormCount:row.normalized_form_count,demandObservationCount:row.demand_observation_count,sealedAt:row.sealed_at.toISOString()}:undefined;
+  }
+  async listNormalizedFormIdsForSnapshot(scope:KeywordScope,snapshotId:string):Promise<readonly string[]>{
+    const result=await this.db.query<{id:string}>(`SELECT n.id FROM keyword_normalized_form n JOIN keyword_raw_observation r ON r.id=n.raw_observation_id JOIN keyword_reference_snapshot s ON s.import_id=r.import_id WHERE s.id=$1 AND n.client_organization_id=$2 AND n.project_id=$3 ORDER BY n.id`,[snapshotId,scope.clientOrganizationId,scope.projectId]);
+    return result.rows.map(row=>row.id);
+  }
 
   async addFamilyDraft(value: KeywordFamilyDraft): Promise<void> {
     if (value.normalizedFormIds.length === 0) throw new Error("FAMILY_DRAFT_REQUIRES_MEMBER");
@@ -106,6 +115,7 @@ interface ImportRow {id:string;client_organization_id:string;project_id:string;s
 interface FamilyRow{id:string;client_organization_id:string;project_id:string;snapshot_id:string;version:number;label:string;rationale:string;status:"DRAFT"|"SUBMITTED";created_by_user_id:string;created_at:Date}
 interface PackageRow{id:string;client_organization_id:string;project_id:string;snapshot_id:string;package_version:number;status:"OPEN"|"IN_REVIEW"|"COMPLETED";submitted_by_user_id:string;submitted_at:Date}
 interface ReviewRow{id:string;client_organization_id:string;project_id:string;review_package_id:string;family_draft_id:string;decision:"CONFIRMED"|"CHANGES_REQUESTED"|"REJECTED";reviewer_user_id:string;decided_at:Date;note:string|null}
+interface SnapshotRow{id:string;client_organization_id:string;project_id:string;import_id:string;snapshot_version:number;manifest_hash:string;raw_observation_count:number;normalized_form_count:number;demand_observation_count:number;sealed_at:Date}
 function mapImport(row:ImportRow):KeywordReferenceSourceImport{return{id:row.id,clientOrganizationId:row.client_organization_id,projectId:row.project_id,sourceKind:row.source_kind,format:row.source_format,sourceFileName:row.source_file_name,sourceManifestHash:row.source_manifest_hash,status:row.status,startedAt:row.started_at.toISOString(),...(row.completed_at?{completedAt:row.completed_at.toISOString()}:{}),parsedCount:row.parsed_count,rejectedCount:row.rejected_count};}
 async function insertImport(db:Queryable,v:KeywordReferenceSourceImport){await db.query(`INSERT INTO keyword_reference_source_import (id,client_organization_id,project_id,source_kind,source_format,source_file_name,source_manifest_hash,status,started_at,completed_at,parsed_count,rejected_count) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,[v.id,v.clientOrganizationId,v.projectId,v.sourceKind,v.format,v.sourceFileName,v.sourceManifestHash,v.status,v.startedAt,v.completedAt??null,v.parsedCount,v.rejectedCount]);}
 async function insertRaw(db:Queryable,v:KeywordRawObservation){await db.query(`INSERT INTO keyword_raw_observation (id,client_organization_id,project_id,import_id,source_locator,seed_keyword,raw_keyword,demand_value,observed_at,raw_record_hash) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,[v.id,v.clientOrganizationId,v.projectId,v.importId,v.sourceLocator,v.seedKeyword,v.rawKeyword,v.demandValue??null,v.observedAt,v.rawRecordHash]);}

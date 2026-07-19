@@ -6,6 +6,7 @@ import { statusText } from "../../lib/i18n/zh-CN.js";
 import type { BaiduKeywordReadModel } from "../../runtime/read-models/domestic-workspaces.js";
 import { useAsyncData } from "../runtime/index.js";
 import { BaiduKeywordImportPanel } from "./BaiduKeywordImportPanel.js";
+import { BaiduKeywordReviewPanel } from "./BaiduKeywordReviewPanel.js";
 
 type DemandFilter = "ALL" | "OBSERVED" | "MISSING";
 
@@ -58,7 +59,7 @@ export function BaiduKeywordProjectPanel({ projectId }: { readonly projectId: st
     {resource.state.status === "loading" ? <section className="cp-section" role="status"><p>正在读取关键词数据…</p></section> : null}
     {resource.state.status === "forbidden" ? <section className="cp-section" role="alert"><h2>无法访问该项目</h2><p>当前账号没有查看该项目关键词的权限。</p></section> : null}
     {resource.state.status === "error" ? <section className="cp-section" role="alert"><h2>关键词数据加载失败</h2><p>{resource.state.message}</p><button className="cp-button" type="button" onClick={resource.reload}>重新加载</button></section> : null}
-    {resource.state.status === "success" ? <KeywordOverview data={resource.state.data} /> : null}
+    {resource.state.status === "success" ? <><KeywordOverview data={resource.state.data} /><BaiduKeywordReviewPanel projectId={projectId} data={resource.state.data} onChanged={resource.reload}/></> : null}
     <section className="cp-section"><h2>导入百度关键词文件</h2><BaiduKeywordImportPanel projectId={projectId} onImported={resource.reload} /></section>
   </div>;
 }

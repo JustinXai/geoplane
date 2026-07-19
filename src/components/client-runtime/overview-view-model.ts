@@ -32,6 +32,7 @@ export function buildClientOverview(data:ClientOverviewData):ClientOverviewVM{
   const metrics:ClientOverviewMetricVM[]=[
     {label:"企业资料状态",value:knowledgeStatusLabel[data.knowledge.status],source:`来源：知识包、资料文件与未解决问题`,href:"#knowledge-progress"},
     {label:"百度关键词已入库",value:String(data.baidu.totals.keywords),source:"来源：已完成的百度关键词导入记录",href:"#keyword-progress"},
+    {label:"已确认关键词组",value:String(data.baidu.totals.confirmed),source:"来源：关键词人工审核决定记录",href:"/app/keywords"},
     {label:"已确认用户问题",value:String(confirmedQuestions),source:"来源：已建立的问题关系与人工确认记录（去重）",href:"#question-progress"},
     {label:"待确认用户问题",value:String(pendingQuestions),source:"来源：尚未作出人工决定的用户问题",href:"#question-progress"},
     {label:"内容生产中",value:String(producing),source:"来源：已保存的内容进度记录",href:"#content-progress"},
@@ -47,6 +48,7 @@ export function buildClientOverview(data:ClientOverviewData):ClientOverviewVM{
   const actions:ClientOverviewActionVM[]=[];
   if(data.knowledge.status==="NOT_STARTED"||data.knowledge.status==="NEEDS_INFORMATION")actions.push({label:"补齐企业资料",reason:data.knowledge.status==="NOT_STARTED"?"尚未建立知识包":"存在未解决的资料缺口",href:"/app/enterprise"});
   if(data.baidu.totals.keywords===0)actions.push({label:"导入百度关键词",reason:"当前项目尚无百度关键词记录",href:"/app/keywords"});
+  else if(data.baidu.totals.pendingReview>0)actions.push({label:"确认关键词组",reason:`有 ${data.baidu.totals.pendingReview} 个关键词组等待人工决定`,href:"/app/keywords"});
   if(pendingQuestions>0)actions.push({label:"确认用户问题",reason:`有 ${pendingQuestions} 个用户问题等待人工决定`,href:"/app/questions"});
   if(reviewing>0)actions.push({label:"审核内容",reason:`有 ${reviewing} 篇内容处于审核中`,href:"/app/content-review"});
   if(confirmedQuestions>0&&data.probes.length===0)actions.push({label:"登记国内 AI 检测",reason:"已有确认问题，但尚未登记检测样本",href:"/app/ai-results"});
@@ -60,8 +62,5 @@ export function buildClientOverview(data:ClientOverviewData):ClientOverviewVM{
   const latestDelivery=[...data.deliveries].filter(item=>item.deliveredAt!==null).sort((a,b)=>(a.deliveredAt??"").localeCompare(b.deliveredAt??"")).at(-1);
   if(latestDelivery?.deliveredAt)activities.push({label:"内容交付",detail:latestDelivery.title,occurredAt:latestDelivery.deliveredAt});
   activities.sort((a,b)=>b.occurredAt.localeCompare(a.occurredAt));
-  return {metrics,risks,actions,activities,confirmedQuestions,pendingQuestions,failedProbeCount,gaps:[
-    {priority:"P0",title:"百度关键词独立确认状态",reason:"当前只保存真实导入与入库记录，没有可审计的逐条确认状态，因此首页不把入库数量写成“已确认”。"},
-    {priority:"P1",title:"客户报告记录",reason:"当前系统尚未建立独立的客户报告记录；首页只展示真实交付记录，不生成模拟报告或报告数量。"},
-  ]};
+  return {metrics,risks,actions,activities,confirmedQuestions,pendingQuestions,failedProbeCount,gaps:[{priority:"P1",title:"客户报告记录",reason:"当前系统尚未建立独立的客户报告记录；首页只展示真实交付记录，不生成模拟报告或报告数量。"}]};
 }

@@ -5,6 +5,7 @@ import type { KeywordExpansionBatch, KeywordExpansionCandidate, KeywordExpansion
 import type { ManualProbeSampleInput, RawProbeResult } from "../../runtime/probes/manual-sample.js";
 import type { KnowledgeIssueViewV1,KnowledgePackageViewV1 } from "../../runtime/api-contracts/index.js";
 import type { AccountCenterReadModel, BaiduKeywordReadModel, ManualProbeEntryOptions, PolicyPackReadModel } from "../../runtime/read-models/domestic-workspaces.js";
+import type { HumanReviewPackage,KeywordFamilyDraft,KeywordReviewDecision,KeywordReviewRecord } from "../../runtime/keywords/contracts.js";
 import { type ApiClient, defaultApiClient, type Result } from "./http.js";
 
 const enc = encodeURIComponent;
@@ -28,6 +29,9 @@ export interface KeywordImportResult { readonly status: "CREATED" | "ALREADY_IMP
 export function importBaiduKeywords(input: { projectId: string; fileName: string; base64: string }, client: ApiClient = defaultApiClient): Promise<Result<KeywordImportResult>> {
   return client.request<KeywordImportResult>("/api/keywords/imports", { method: "POST", body: input });
 }
+export function createKeywordReviewFamily(input:{projectId:string;snapshotId:string;normalizedFormIds:readonly string[];label:string;rationale:string;version:number},client:ApiClient=defaultApiClient):Promise<Result<KeywordFamilyDraft>>{return client.request<KeywordFamilyDraft>("/api/keywords/family-drafts",{method:"POST",body:input})}
+export function createKeywordReviewPackage(input:{projectId:string;snapshotId:string;familyDraftIds:readonly string[];packageVersion:number},client:ApiClient=defaultApiClient):Promise<Result<HumanReviewPackage>>{return client.request<HumanReviewPackage>("/api/keywords/review-packages",{method:"POST",body:input})}
+export function decideKeywordReview(input:{projectId:string;reviewPackageId:string;familyDraftId:string;decision:KeywordReviewDecision;note?:string},client:ApiClient=defaultApiClient):Promise<Result<KeywordReviewRecord>>{return client.request<KeywordReviewRecord>(`/api/keywords/review-packages/${enc(input.reviewPackageId)}/decisions`,{method:"POST",body:{projectId:input.projectId,familyDraftId:input.familyDraftId,decision:input.decision,...(input.note?{note:input.note}:{})}})}
 export function getKeywordExpansions(projectId: string, client: ApiClient = defaultApiClient): Promise<Result<readonly KeywordExpansionBatch[]>> {
   return client.request<readonly KeywordExpansionBatch[]>(`/api/keyword-expansion/projects/${enc(projectId)}`);
 }

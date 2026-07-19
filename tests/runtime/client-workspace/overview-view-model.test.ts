@@ -6,7 +6,7 @@ const base:ClientOverviewData={
   project:{id:"p",name:"项目",clientOrganizationId:"c",clientOrganizationName:"企业",createdAt:"2026-07-01T00:00:00.000Z"},
   keywords:[],opportunities:[],deliveries:[],
   knowledge:{packageCount:1,confirmedPackageCount:0,documentCount:2,openIssueCount:2,missingInformationCount:1,status:"NEEDS_INFORMATION",updatedAt:"2026-07-18T01:00:00.000Z"},
-  baidu:{imports:[],keywords:[],totals:{imports:0,keywords:0,withObservedDemand:0,rejectedRows:0},capabilityGaps:[]},
+  baidu:{imports:[],keywords:[],reviewFamilies:[],totals:{imports:0,keywords:0,withObservedDemand:0,rejectedRows:0,pendingReview:0,confirmed:0,changesRequested:0,rejected:0},nextPackageVersion:1,capabilityGaps:[]},
   expansionBatches:[],probes:[],
 };
 
@@ -16,7 +16,8 @@ describe("客户首页验收展示模型",()=>{
     expect(model.metrics.find(item=>item.label==="企业资料状态")?.value).toBe("资料待补齐");
     expect(model.metrics.find(item=>item.label==="百度关键词已入库")?.value).toBe("0");
     expect(model.metrics.some(item=>item.label.includes("已确认百度"))).toBe(false);
-    expect(model.gaps).toContainEqual(expect.objectContaining({priority:"P0",title:"百度关键词独立确认状态"}));
+    expect(model.gaps).not.toContainEqual(expect.objectContaining({title:"百度关键词独立确认状态"}));
+    expect(model.metrics.find(item=>item.label==="已确认关键词组")?.value).toBe("0");
   });
 
   it("只把人工确认的有问题文本结果计入已确认用户问题",()=>{

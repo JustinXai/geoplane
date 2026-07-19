@@ -16,6 +16,8 @@ export interface KeywordRuntimeRepository {
   findCompletedImportByManifest(scope: KeywordScope, manifestHash: string): Promise<KeywordReferenceSourceImport | undefined>;
   addRawObservations(values: readonly KeywordRawObservation[]): Promise<void>;
   addSnapshot(value: KeywordReferenceSnapshot): Promise<void>;
+  getSnapshot(scope: KeywordScope, id: string): Promise<KeywordReferenceSnapshot | undefined>;
+  listNormalizedFormIdsForSnapshot(scope: KeywordScope, snapshotId: string): Promise<readonly string[]>;
   addFamilyDraft(value: KeywordFamilyDraft): Promise<void>;
   getFamilyDraft(scope: KeywordScope, id: string): Promise<KeywordFamilyDraft | undefined>;
   addReviewPackage(value: HumanReviewPackage): Promise<void>;

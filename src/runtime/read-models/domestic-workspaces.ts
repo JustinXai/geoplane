@@ -93,11 +93,14 @@ export async function readAccountCenter(db: Queryable, principal: GeoPrincipal):
 }
 
 export interface BaiduKeywordImportView { readonly id:string; readonly fileName:string; readonly format:"CSV"|"XLSX"; readonly status:"PENDING"|"VALIDATED"|"COMPLETED"|"FAILED"; readonly parsedCount:number; readonly rejectedCount:number; readonly snapshotVersion:number|null; readonly demandObservationCount:number; readonly sealedAt:string|null }
-export interface BaiduKeywordItemView { readonly id:string; readonly importId:string; readonly rawKeyword:string; readonly normalizedKeyword:string; readonly seedKeyword:string; readonly demandValue:number|null; readonly demandEvidence:"OBSERVED_DEMAND"|null; readonly observedAt:string }
+export interface BaiduKeywordItemView { readonly id:string; readonly normalizedFormId:string; readonly importId:string; readonly snapshotId:string; readonly snapshotVersion:number; readonly rawKeyword:string; readonly normalizedKeyword:string; readonly seedKeyword:string; readonly demandValue:number|null; readonly demandEvidence:"OBSERVED_DEMAND"|null; readonly observedAt:string }
+export interface BaiduKeywordReviewFamilyView { readonly id:string;readonly snapshotId:string;readonly snapshotVersion:number;readonly label:string;readonly rationale:string;readonly keywords:readonly string[];readonly reviewPackageId:string|null;readonly decision:"CONFIRMED"|"CHANGES_REQUESTED"|"REJECTED"|null;readonly note:string|null;readonly decidedAt:string|null;readonly createdAt:string }
 export interface BaiduKeywordReadModel {
   readonly imports:readonly BaiduKeywordImportView[];
   readonly keywords:readonly BaiduKeywordItemView[];
-  readonly totals:{readonly imports:number;readonly keywords:number;readonly withObservedDemand:number;readonly rejectedRows:number};
+  readonly reviewFamilies:readonly BaiduKeywordReviewFamilyView[];
+  readonly totals:{readonly imports:number;readonly keywords:number;readonly withObservedDemand:number;readonly rejectedRows:number;readonly pendingReview:number;readonly confirmed:number;readonly changesRequested:number;readonly rejected:number};
+  readonly nextPackageVersion:number;
   readonly capabilityGaps:readonly string[];
 }
 
@@ -106,19 +109,29 @@ export async function readBaiduKeywordOverview(db: Queryable, clientOrganization
     s.snapshot_version,s.demand_observation_count,s.sealed_at
     FROM keyword_reference_source_import i LEFT JOIN keyword_reference_snapshot s ON s.import_id=i.id
     WHERE i.client_organization_id=$1 AND i.project_id=$2 ORDER BY i.started_at DESC,i.id`,[clientOrganizationId,projectId]);
-  const keywords=await db.query<any>(`SELECT r.id,r.import_id,r.raw_keyword,r.seed_keyword,r.observed_at,n.normalized_keyword,d.metric_value,d.evidence_status
+  const keywords=await db.query<any>(`SELECT r.id,r.import_id,r.raw_keyword,r.seed_keyword,r.observed_at,n.id AS normalized_form_id,n.normalized_keyword,d.metric_value,d.evidence_status,s.id AS snapshot_id,s.snapshot_version
     FROM keyword_raw_observation r JOIN keyword_normalized_form n ON n.raw_observation_id=r.id
+    JOIN keyword_reference_snapshot s ON s.import_id=r.import_id
     LEFT JOIN keyword_demand_observation d ON d.raw_observation_id=r.id AND d.normalized_form_id=n.id
     WHERE r.client_organization_id=$1 AND r.project_id=$2 ORDER BY r.observed_at DESC,r.id`,[clientOrganizationId,projectId]);
+  const families=await db.query<any>(`SELECT f.id,f.snapshot_id,s.snapshot_version,f.label,f.rationale,f.created_at,
+    COALESCE((SELECT jsonb_agg(n.normalized_keyword ORDER BY m.position) FROM keyword_family_draft_member m JOIN keyword_normalized_form n ON n.id=m.normalized_form_id WHERE m.family_draft_id=f.id),'[]'::jsonb) AS keywords,
+    p.id AS review_package_id,review.decision,review.note,review.decided_at
+    FROM keyword_family_draft f JOIN keyword_reference_snapshot s ON s.id=f.snapshot_id
+    LEFT JOIN LATERAL (SELECT p.id FROM keyword_human_review_package p JOIN keyword_human_review_package_item i ON i.review_package_id=p.id WHERE i.family_draft_id=f.id AND p.client_organization_id=$1 AND p.project_id=$2 ORDER BY p.package_version DESC,p.id DESC LIMIT 1) p ON TRUE
+    LEFT JOIN LATERAL (SELECT r.decision,r.note,r.decided_at FROM keyword_human_review_record r WHERE r.review_package_id=p.id AND r.family_draft_id=f.id ORDER BY r.decided_at DESC,r.id DESC LIMIT 1) review ON TRUE
+    WHERE f.client_organization_id=$1 AND f.project_id=$2 ORDER BY f.created_at DESC,f.id`,[clientOrganizationId,projectId]);
+  const packageVersion=await db.query<{version:number|string|null}>(`SELECT max(package_version) AS version FROM keyword_human_review_package WHERE client_organization_id=$1 AND project_id=$2`,[clientOrganizationId,projectId]);
   const importViews=imports.rows.map((r:any):BaiduKeywordImportView=>({id:r.id,fileName:r.source_file_name,format:r.source_format,status:r.status,
       parsedCount:Number(r.parsed_count),rejectedCount:Number(r.rejected_count),snapshotVersion:r.snapshot_version===null?null:Number(r.snapshot_version),
       demandObservationCount:Number(r.demand_observation_count??0),sealedAt:iso(r.sealed_at)}));
-  const keywordViews=keywords.rows.map((r:any):BaiduKeywordItemView=>({id:r.id,importId:r.import_id,rawKeyword:r.raw_keyword,
+  const keywordViews=keywords.rows.map((r:any):BaiduKeywordItemView=>({id:r.id,normalizedFormId:r.normalized_form_id,importId:r.import_id,snapshotId:r.snapshot_id,snapshotVersion:Number(r.snapshot_version),rawKeyword:r.raw_keyword,
       normalizedKeyword:r.normalized_keyword,seedKeyword:r.seed_keyword,demandValue:r.metric_value===null?null:Number(r.metric_value),
       demandEvidence:r.evidence_status??null,observedAt:iso(r.observed_at)!}));
-  return {imports:importViews,keywords:keywordViews,totals:{imports:importViews.length,keywords:keywordViews.length,
+  const reviewFamilies=families.rows.map((r:any):BaiduKeywordReviewFamilyView=>({id:r.id,snapshotId:r.snapshot_id,snapshotVersion:Number(r.snapshot_version),label:r.label,rationale:r.rationale,keywords:Array.isArray(r.keywords)?r.keywords.filter((x:unknown):x is string=>typeof x==="string"):[],reviewPackageId:r.review_package_id??null,decision:r.decision??null,note:r.note??null,decidedAt:iso(r.decided_at),createdAt:iso(r.created_at)!}));
+  return {imports:importViews,keywords:keywordViews,reviewFamilies,totals:{imports:importViews.length,keywords:keywordViews.length,
       withObservedDemand:keywordViews.filter((item)=>item.demandEvidence==="OBSERVED_DEMAND").length,
-      rejectedRows:importViews.reduce((sum,item)=>sum+item.rejectedCount,0)},
+      rejectedRows:importViews.reduce((sum,item)=>sum+item.rejectedCount,0),pendingReview:reviewFamilies.filter(item=>item.reviewPackageId!==null&&item.decision===null).length,confirmed:reviewFamilies.filter(item=>item.decision==="CONFIRMED").length,changesRequested:reviewFamilies.filter(item=>item.decision==="CHANGES_REQUESTED").length,rejected:reviewFamilies.filter(item=>item.decision==="REJECTED").length},nextPackageVersion:Number(packageVersion.rows[0]?.version??0)+1,
     capabilityGaps:["历史导入批次未保存重复行数量","百度推荐出价尚未接入","百度竞争度尚未接入","地域维度尚未接入"]};
 }
 
