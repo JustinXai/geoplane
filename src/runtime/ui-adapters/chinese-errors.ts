@@ -6,5 +6,5 @@ export function chineseApiError(code:ApiErrorCodeV1,serverMessage?:string):strin
 export function chineseTransportError(error:unknown):string{if(error instanceof ApiClientError)return error.kind==="NETWORK"?"网络连接失败，请检查本地服务是否已启动。":"服务返回了无法识别的数据，请稍后重试。";return "系统暂时无法处理，请稍后重试。"}
 
 export const BACKEND_CAPABILITY_GAP="BACKEND_CAPABILITY_GAP" as const;
-export interface BackendCapabilityGap {readonly code:typeof BACKEND_CAPABILITY_GAP;readonly title:string;readonly message:"该功能尚未开放"}
-export function backendCapabilityGap(title:string):BackendCapabilityGap{return{code:BACKEND_CAPABILITY_GAP,title,message:"该功能尚未开放"}}
+export interface BackendCapabilityGap {readonly code:typeof BACKEND_CAPABILITY_GAP;readonly title:string;readonly message:"当前暂无可用数据"}
+export function backendCapabilityGap(title:string):BackendCapabilityGap{return{code:BACKEND_CAPABILITY_GAP,title,message:"当前暂无可用数据"}}
