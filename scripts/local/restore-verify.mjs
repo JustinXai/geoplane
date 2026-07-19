@@ -25,6 +25,7 @@ import {
   outsideRepoDirectory,
   providerCredentialFreeEnv,
   readBusinessSummary,
+  resolveLocalVar,
   repoRoot,
   summariesEqual,
   withDatabase,
@@ -64,7 +65,7 @@ function assertArtifactOutsideRepo(path) {
 
 function latestBackupManifest() {
   const directory = outsideRepoDirectory(
-    process.env.LOCAL_BACKUP_DIR?.trim() || defaultLocalEvidenceDir(tmpdir()),
+    resolveLocalVar("LOCAL_BACKUP_DIR") || defaultLocalEvidenceDir(tmpdir()),
   );
   const manifests = readdirSync(directory)
     .filter((name) => name.endsWith(".dump.manifest.json"))

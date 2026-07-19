@@ -22,6 +22,7 @@ import {
   outsideRepoDirectory,
   providerCredentialFreeEnv,
   readBusinessSummary,
+  resolveLocalVar,
   repoRoot,
   summariesEqual,
 } from "./local-lib.mjs";
@@ -42,7 +43,7 @@ export async function runLocalRuntimeBackup(argv = process.argv.slice(2)) {
   const outDir = outsideRepoDirectory(
     typeof flags.out === "string"
       ? flags.out
-      : process.env.LOCAL_BACKUP_DIR?.trim() || defaultLocalEvidenceDir(tmpdir()),
+      : resolveLocalVar("LOCAL_BACKUP_DIR") || defaultLocalEvidenceDir(tmpdir()),
   );
   const before = await readBusinessSummary(source);
   const backup = await runProcess(process.execPath, [genericBackup, "--out", outDir], {

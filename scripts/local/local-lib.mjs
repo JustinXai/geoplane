@@ -4,7 +4,7 @@ import { mkdirSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Pool } from "pg";
-import { formatPgUrl } from "../backup/pg-lib.mjs";
+import { formatPgUrl, resolveVar } from "../backup/pg-lib.mjs";
 
 export const LOCAL_RUNTIME_DB = "geoplane_local_runtime";
 export const LOCAL_RESTORE_VERIFY_DB = "geoplane_local_restore_verify";
@@ -30,12 +30,16 @@ const BUSINESS_TABLES = [
 ];
 
 export function assertLocalOnlyMode() {
-  if (process.env.LOCAL_ONLY_MODE?.trim() !== "TRUE") {
+  if (resolveVar("LOCAL_ONLY_MODE") !== "TRUE") {
     throw new Error("LOCAL_ONLY_MODE must be exactly TRUE");
   }
-  if (process.env.REMOTE_WRITE?.trim() !== "FORBIDDEN") {
+  if (resolveVar("REMOTE_WRITE") !== "FORBIDDEN") {
     throw new Error("REMOTE_WRITE must be exactly FORBIDDEN");
   }
+}
+
+export function resolveLocalVar(name) {
+  return resolveVar(name);
 }
 
 export function assertLoopback(parts) {
