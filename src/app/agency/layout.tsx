@@ -23,8 +23,7 @@
  * wildcard access"). Currently presentation-only - no auth guard.
  */
 import type { ReactNode } from "react";
-import { AgencyWorkspaceNav } from "@/components/workspace-nav/agency-workspace-nav";
-import { ActingContextProvider, AgencyActingBannerMount } from "@/components/agency-runtime";
+import { ActingContextProvider, AgencyActingBannerMount, AgencyWorkspaceNav } from "@/components/agency-runtime";
 
 export default function AgencyWorkspaceLayout({ children }: { children: ReactNode }) {
   return (
