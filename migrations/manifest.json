@@ -11,6 +11,7 @@
     { "version": "0008", "filename": "0008_provider_identity.sql" },
     { "version": "0009", "filename": "0009_password_credentials.sql" },
     { "version": "0010", "filename": "0010_domestic_account_center.sql" },
-    { "version": "0011", "filename": "0011_baidu_keyword_runtime.sql" }
+    { "version": "0011", "filename": "0011_baidu_keyword_runtime.sql" },
+    { "version": "0013", "filename": "0013_china_ai_probe_runtime.sql" }
   ]
 }
