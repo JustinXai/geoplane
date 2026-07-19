@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { PlatformAccount } from "../../../src/runtime/accounts/entities.js";
 import { readFileSync } from "node:fs";
+import { ACCOUNT_PLATFORM_REGISTRY } from "../../../src/runtime/accounts/platform-registry.js";
 
 describe("DOMESTIC_ACCOUNT_CENTER_V1 contract", () => {
   it("defaults the first release contract to manual operation without secret values", () => {
@@ -30,5 +31,13 @@ describe("DOMESTIC_ACCOUNT_CENTER_V1 contract", () => {
     const route = readFileSync("src/app/api/accounts/route.ts", "utf8");
     expect(route).toContain('"password","cookie","token","apiKey","api_key"');
     expect(route).toContain("secretReference:_secret");
+  });
+
+  it("registers the four AI and twelve content account platforms", () => {
+    expect(ACCOUNT_PLATFORM_REGISTRY).toHaveLength(16);
+    expect(ACCOUNT_PLATFORM_REGISTRY.filter((item) => item.accountType === "AI_PLATFORM_ACCOUNT").map((item) => item.code)).toEqual([
+      "DOUBAO", "QWEN", "DEEPSEEK", "YUANBAO",
+    ]);
+    expect(ACCOUNT_PLATFORM_REGISTRY.filter((item) => item.accountType === "CONTENT_PLATFORM_ACCOUNT")).toHaveLength(12);
   });
 });

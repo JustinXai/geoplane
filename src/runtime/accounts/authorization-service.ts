@@ -2,6 +2,7 @@ import { canAccessClientOrganization } from "../../contracts/tenancy/authorizati
 import type { AuthorizationContext } from "../../contracts/tenancy/entities.js";
 import type { AccountAssignment, AccountAuthorization, PlatformAccount } from "./entities.js";
 import type { AccountRepository } from "./ports.js";
+import { getAccountPlatform } from "./platform-registry.js";
 
 export interface AccountAuditEntry {
   readonly action: string;
@@ -78,9 +79,13 @@ export class AccountAuthorizationService {
         : !!agencyId && !clientId && (isPlatform(ctx) || (isAgency(ctx) && ctx.organizationId === agencyId));
     if (!allowed) return this.deny(ctx, "account.register", clientId, null, null);
     if (!input.platformCode.trim() || !input.displayLabel.trim()) throw new Error("platformCode and displayLabel are required");
+    const platform = getAccountPlatform(input.platformCode);
+    if (!platform || platform.accountType !== input.accountType) {
+      throw new Error("platformCode is not registered for the selected accountType");
+    }
 
     const account = await this.repo.createAccount({
-      platformCode: input.platformCode.trim().toUpperCase(), accountType: input.accountType,
+      platformCode: platform.code, accountType: input.accountType,
       ownership: input.ownership, agencyOrganizationId: agencyId, clientOrganizationId: clientId,
       displayLabel: input.displayLabel.trim(), secretReference: input.secretReference?.trim() || null,
       credentialStatus: input.secretReference ? "UNVERIFIED" : "NOT_CONFIGURED", lastVerifiedAt: null,
