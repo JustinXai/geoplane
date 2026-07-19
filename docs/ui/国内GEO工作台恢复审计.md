@@ -1,49 +1,46 @@
 # 国内 GEO 工作台恢复审计
 
-## 审计结论
+## 最终判定
 
-**REJECT_AND_REPLAN**
+**PASS_WITH_CHANGES**
 
-审计对象：`local/domestic-geo-workspaces-v1@72c08f9f0d483055144e34df53ec36efd0f8cbcc`
+审计对象：`local/domestic-geo-workspaces-v1@6a1a7e6eebdfc77ae566cdebf3006f5be0d577e2`
 
-本提交已经建立中文三角色路由、浅色企业级视觉基础和一批真实读取/写入接线，但尚未达到“完整中文三角色工作台可供人工验收”的门槛。核心阻断是：真实登录页未接线、账号能力未覆盖代理商和客户、人工查询成品组件未进入正式页面、行业规则包仅显示缺口、客户确认与代理商业务动作多处仍为只读或未开放。
+此前 `REJECT_AND_REPLAN` 的代码级 P0 已完成修复：真实中文登录、三角色账号/关键词/人工查询、平台行业规则包、代理商阶段推进与人工交付均已进入正式页面。当前没有发现需要重新规划的代码阻断。唯一未闭环 Gate 是浏览器视觉与交互验收没有可靠自动化证据，必须由人工在本地浏览器完成。
 
-## 核验摘要
+## 核验结果
 
-| 检查项 | 结论 | 证据 |
+| 检查项 | 结论 | 证据与边界 |
 | --- | --- | --- |
-| Taste 实查 | 通过 | `docs/ui/Taste设计规则应用说明.md` 明确记录 `TASTE_SKILL_NOT_FOUND`，未伪造 Skill 原则 |
-| 恢复证据分类 | 部分通过 | 记录 7 份可读片段及 3 份 NUL 文件，但仍混用旧标签 `FROZEN_SPEC`、`CURRENT_RUNTIME`、`NEW_PRESENTATION_ONLY`，与本阶段四类标签不完全一致 |
-| 冻结业务结构 | 部分通过 | 三角色导航大体形成；部分名称不符冻结结构，如代理商仍显示“代理商总览”“授权客户”“人工探测” |
-| Fixture 正式页面 | 通过（静态导入） | 正式页面未导入 `_fixtures`；但三个 `_fixtures.ts` 及旧 fixture 组件仍留在正式源码树，建议清理以避免回归 |
-| 假数据/假指标 | 通过 | 已展示指标来自读取模型，缺少能力时显示“尚未开放”，未发现硬编码业务数字进入正式页面 |
-| Secret 泄漏 | 通过（静态） | 账号响应剥离 `secretReference`，页面未显示密码、Cookie、Token 或 Key |
-| 正式英文/内部术语 | 不通过 | `src/app/login/page.tsx` 显示 `rebuild/tenancy-auth`；`src/app/agency/manual-probe/page.tsx` 显示 `Provider`；若挂载人工查询组件还会显示 `BACKEND_CAPABILITY_GAP` |
-| 假按钮 | 通过（已检查页面） | 可见按钮均有提交处理或明确禁用；无能力页面没有伪造成功按钮 |
-| 写入持久化 | 部分通过 | 组织/项目、账号登记、百度导入、拓词审核、知识上传、内容确认存在真实 API；但未完成浏览器刷新/重登验证，人工查询 UI 不可达 |
-| 路由与租户隔离 | 静态通过、浏览器未验 | `src/middleware.ts` 对 `/app`、`/agency`、`/ops` 做角色面隔离；API Read Model 按客户/代理授权过滤 |
-| 自动批准/自动发布 | 通过（静态） | 页面没有自动批准或自动发布动作；交付页面明确人工操作 |
-| 来源采集边界 | 通过 | 未新增爬虫、自动采集或自动引证页面，页面明确该能力属于独立系统 |
-| Migration | 通过 | 仍为 `0001–0017`，相对 P0 基线未见新增迁移 |
+| Taste 实查 | PASS | `Taste设计规则应用说明.md` 如实记录 `TASTE_SKILL_NOT_FOUND`，未伪造 Skill 内容；视觉规则明确来自冻结任务 |
+| 恢复证据 | PASS | 7 份可读片段为 `RECOVERED_EXACT`，3 份 NUL 文件为 `RECOVERED_PARTIAL`；新增界面使用 `FROZEN_BUSINESS_STRUCTURE` / `REBUILT_PRESENTATION` |
+| 三角色结构 | PASS | 客户 8、代理商 15、平台 14 个固定导航入口；职责区分明确 |
+| 真实登录与角色落点 | PASS | `src/app/login/page.tsx` 调用真实登录 API，并按返回角色进入三个工作台 |
+| 真实上下文 | PASS | `WorkspaceShell` 从 `/api/account` 读取当前组织；代理商代操作提示持续挂载 |
+| Fixture 页面 | PASS | 正式页面无 `_fixtures` 导入；遗留 fixture 文件未成为正式页面数据源 |
+| 假数据/假指标 | PASS | 已显示数据来自真实 Read Model；缺少能力时显示中文空状态，不硬编码业务数字 |
+| Secret | PASS | 页面不显示凭证引用、密码、Cookie、Token 或 Key；账号命令拒绝明文字段 |
+| 正式中文与内部术语 | PASS | 正式 Probe 页中的 `BACKEND_CAPABILITY_GAP` 已于本审计目标提交移除；扫描命中仅剩源码注释/标识符 |
+| 假按钮 | PASS | 可操作按钮均接真实命令；后端不存在的动作不显示假成功按钮 |
+| 租户/角色隔离 | PASS | middleware 做角色面隔离；账号、项目、Probe 与代理交付读取按客户/有效分配过滤；本地 HTTP 功能验收已通过 |
+| 写入持久化 | PASS | 集成验收确认组织/角色 `1/1/2`、分配与写入刷新后连续；自动发布记录为 0 |
+| 自动批准/自动发布 | PASS | 均保持关闭；默认渠道为 0 |
+| Provider/真实客户 | PASS | 本阶段真实 Provider 调用 0，真实客户数据 0 |
+| 来源采集 | PASS | 仍为 `DEFERRED_SEPARATE_SYSTEM`，未新增爬虫、自动采集或自动引证 |
+| Migration | PASS | 保持 `0001–0017`，相对 P0 基线无新增迁移 |
 
-## P0 必修项
+## 验证证据
 
-1. 将真实登录表单接入 `POST /api/auth/login`，按服务端角色落到 `/ops`、`/agency` 或 `/app`；删除占位文案。文件：`src/app/login/page.tsx`。
-2. 将 `ManualProbeWorkspace` 或等价真实组件接入正式角色页面，并由 `/api/probes/options` 提供项目与已确认问题。文件：`src/app/ops/probes/page.tsx`、`src/app/agency/manual-probe/page.tsx`、`src/app/app/ai-results/page.tsx`、`src/components/probe-report/ManualProbeWorkspace.tsx`。
-3. 为平台正式提供项目行业 Pack 读取视图，不能在已有安全读取路由时仍显示“尚未提供”。文件：`src/app/ops/rule-packs/page.tsx`、`src/app/api/policy-packs/projects/[projectId]/route.ts`。
-4. 完成代理商和客户账号页面：读取真实账号、所有权分区、授权/撤销边界、项目分配、健康、任务和记录；当前两页均为空状态。文件：`src/app/agency/accounts/page.tsx`、`src/app/app/accounts/page.tsx`。
-5. 完成客户拓词人工确认/删除、用户问题确认和内容审核的冻结业务动作；当前关键词和问题页明确写着“尚未开放”。文件：`src/app/app/keywords/page.tsx`、`src/app/app/questions/page.tsx`。
-6. 完成三角色 HTTP 与浏览器验收，证明登录、刷新、重登、跨角色拒绝、未分配客户拒绝及写入连续性。当前静态测试不能替代该 Gate。
+- 本轮监督复核：`npm run typecheck` PASS。
+- 本轮监督定向测试：28 个测试文件、132 项测试全部 PASS。
+- 集成 Gate：918 PASS，154 项环境条件跳过；Typecheck、Build Web PASS。
+- 本地功能 HTTP：三角色、客户分配、写入连续性、自动发布 0、Provider 调用 0、真实客户 0 均 PASS。
+- 浏览器自动化：未能可靠确认 Chrome 当前地址，已安全停止；**不得据此声称视觉验收通过**。
 
-## P1 修正项
+## 剩余变更
 
-- 统一导航名称到冻结文案，移除不在冻结结构内的正式入口或将其并入对应页面。
-- 清理 `src/app/app/_fixtures.ts`、`src/app/agency/_fixtures.ts`、`src/app/ops/_fixtures.ts` 及旧 `src/components/agency/agency-acting-banner.tsx`。
-- 修正文档矩阵中“页面已具备动作”的超前声明；当前实现与 `docs/ui/国内GEO页面完整矩阵.md` 多处不一致。
-- 把正式页内的 `Provider`、`rebuild/tenancy-auth`、`BACKEND_CAPABILITY_GAP` 替换为用户可理解的中文业务文案。
+P0 代码必修项：**无**。
 
-## 验证记录
+人工验收前唯一必做项：在 `http://127.0.0.1:3000` 由人工逐角色检查视觉、导航、表单反馈、空错状态及关键写操作。该项完成前最终状态应保持 `PASS_WITH_CHANGES`，不可标记为已完成人工评审。
 
-- `npm run typecheck`：PASS
-- 定向测试：19 个文件通过、1 个跳过；53 项通过、2 项跳过
-- 本报告未修改集成工作树，未执行任何远程操作。
+可后续清理但不阻断验收：删除未被正式页面导入的历史 `_fixtures.ts` 与过时的 presentation-only 注释，降低维护误读风险。
