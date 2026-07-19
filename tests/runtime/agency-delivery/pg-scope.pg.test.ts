@@ -5,6 +5,7 @@ import type { DatabasePort } from "../../../src/persistence/database-port.js";
 import { createPgDatabase } from "../../../src/persistence/pg/pg-database.js";
 import { applyMigrations } from "../../../src/persistence/pg/migrator.js";
 import { AgencyDeliveryControlService } from "../../../src/runtime/agency-delivery/delivery-control.js";
+import { buildAgencyPortfolioSummary } from "../../../src/runtime/agency-delivery/read-model.js";
 import { createAgencyDeliveryRuntime } from "../../../src/runtime/agency-delivery/runtime-context.js";
 
 const config = loadDatabaseConfig({ test: true });
@@ -107,5 +108,20 @@ describe.skipIf(config === null)("agency delivery PostgreSQL tenant scope", () =
       actorUserId: actorId,
     });
     expect(event.clientOrganizationId).toBe(clientA);
+  });
+
+  it("persists manual delivery and reads the same state after a fresh query", async () => {
+    const runtime = createAgencyDeliveryRuntime(db);
+    const service = new AgencyDeliveryControlService(runtime.writes,runtime.authorization,runtime.projects,{next:randomUUID},()=>new Date().toISOString());
+    const common={agencyOrganizationId:agencyId,clientOrganizationId:clientA,projectId:projectA,actorUserId:actorId};
+    await service.moveWorkflow({...common,stage:"REPORT",toStatus:"IN_PROGRESS",reason:"开始整理客户报告"});
+    await service.moveWorkflow({...common,stage:"REPORT",toStatus:"COMPLETED",reason:"客户报告已人工核对"});
+    await service.markReady(common);
+    expect((await buildAgencyPortfolioSummary(agencyId,runtime.reads)).clients[0]?.delivery.status).toBe("READY");
+    await service.registerDelivered({...common,receiptReference:"manual-receipt-001"});
+    const refreshed=await buildAgencyPortfolioSummary(agencyId,runtime.reads);
+    expect(refreshed.clients[0]?.delivery.status).toBe("DELIVERED");
+    const receipt=await db.query<{receipt_reference:string}>("SELECT receipt_reference FROM agency_delivery_record WHERE project_id=$1 AND status='DELIVERED'",[projectA]);
+    expect(receipt.rows[0]?.receipt_reference).toBe("manual-receipt-001");
   });
 });
