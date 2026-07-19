@@ -152,6 +152,26 @@ export function assertSafeDbIdentifier(name) {
   }
 }
 
+/** Validate a caller-supplied SHA-256 before it is used as restore evidence. */
+export function assertSha256(value) {
+  if (!/^[a-f0-9]{64}$/i.test(String(value ?? ""))) {
+    throw new Error("invalid sha256 checksum: expected exactly 64 hexadecimal characters");
+  }
+}
+
+/**
+ * Verify a dump before any restore connection is opened. The expected digest is deliberately
+ * passed as a plain checksum (not read from an untrusted artifact-side metadata file).
+ */
+export async function verifyFileSha256(path, expected) {
+  assertSha256(expected);
+  const actual = await sha256File(path);
+  if (actual.toLowerCase() !== String(expected).toLowerCase()) {
+    throw new Error(`dump checksum mismatch: expected ${expected}, got ${actual}`);
+  }
+  return actual;
+}
+
 // --- pg client-tool location + invocation ---------------------------------------------------
 
 /** Locate the directory holding pg_dump/pg_restore/psql, or null to fall back to PATH. */
@@ -200,7 +220,7 @@ export function baseConnArgs(parts) {
  */
 export function runProcess(cmd, args, opts = {}) {
   return new Promise((resolvePromise, reject) => {
-    const env = { ...process.env };
+    const env = opts.env ? { ...opts.env } : { ...process.env };
     if (opts.password != null) env.PGPASSWORD = opts.password;
     const child = spawn(cmd, args, { cwd: opts.cwd, env, windowsHide: true });
     let stdout = "";

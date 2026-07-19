@@ -23,6 +23,9 @@ node scripts/backup/backup.mjs --test --db <src> --user postgres --out <dir>
 # Restore into a FRESH target (the script CREATEs it); refuses a populated target without --force.
 node scripts/backup/restore.mjs --test --db <target> --user postgres --dump <file.dump>
 
+# Optional integrity gate: verify the dump before any restore connection is opened.
+node scripts/backup/restore.mjs --test --db <target> --user postgres --dump <file.dump> --checksum <sha256>
+
 # Canonical Postgres verification (PG16 attempt + equivalent run).
 node scripts/backup/pg-verify.mjs --test
 ```
@@ -41,6 +44,8 @@ Notes:
   pattern (`prod`, `production`, `prd`, `live`, `recover*` as a `_`/`-`-delimited segment). Verified:
   `geoplane_production_canary` is refused with a non-zero exit (also asserted in the E2E).
 - `restore.mjs` refuses to restore over an already-populated database unless `--force` is given.
+- When `--checksum` is supplied, `restore.mjs` rejects an invalid or mismatched SHA-256 before
+  resolving or opening a database connection. `LOCAL_RECOVERY_DRILL_V1` always supplies it.
 - Every throwaway database name is unique per run (`geoplane_bkp_src_<suffix>` /
   `geoplane_bkp_dst_<suffix>` / `geoplane_pgverify_<suffix>`) and is dropped at the end. Production
   and recovery-source databases are never touched.
