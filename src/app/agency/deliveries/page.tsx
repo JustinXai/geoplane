@@ -27,7 +27,7 @@ export default function AgencyDeliveryPackagesPage() {
   const { state } = useAsyncData<AgencyPortfolioSummary>(() => getAgencyPortfolio());
   return <><header className="cp-page-header"><div><p className="eyebrow">代理商工作台</p><h1>交付中心</h1><span>推进授权客户项目，并登记真实人工交付；系统不会自动发布。</span></div></header>
     <AgencyAsyncView state={state} empty={<p className="cp-empty-state">当前没有可交付的授权客户项目。</p>}>
-      {(portfolio) => <div className="cp-stack">{portfolio.clients.map((item) => <section className="cp-card" key={item.projectId}><div className="cp-section-header"><div><h2>{item.projectName}</h2><p>{item.clientName} · 当前阶段：{stageLabel[item.currentStage] ?? "待确认"} · 交付状态：{deliveryLabel[item.delivery.status]}</p></div></div><AgencyDeliveryActions agencyOrganizationId={portfolio.agencyOrganizationId} clientOrganizationId={item.clientOrganizationId} projectId={item.projectId} currentStage={item.currentStage} canMarkReady={item.delivery.status === "NOT_READY"} canRegisterDelivered={item.delivery.status === "READY"}/></section>)}</div>}
+      {(portfolio) => <div className="cp-stack">{portfolio.clients.map((item) => <section className="cp-stack" key={item.projectId}><div className="cp-section"><div className="cp-section-header"><div><h2>{item.projectName}</h2><p>{item.clientName} · 当前阶段：{stageLabel[item.currentStage] ?? "待确认"} · 交付状态：{deliveryLabel[item.delivery.status]}</p></div></div></div><AgencyDeliveryActions agencyOrganizationId={portfolio.agencyOrganizationId} clientOrganizationId={item.clientOrganizationId} projectId={item.projectId} currentStage={item.currentStage} canMarkReady={item.delivery.status === "NOT_READY"} canRegisterDelivered={item.delivery.status === "READY"}/></section>)}</div>}
     </AgencyAsyncView>
   </>;
 }
