@@ -50,4 +50,4 @@ export function operationModeText(value: string): string {
   return (zhCN.operationMode as Record<string, string>)[value] ?? "操作方式待确认";
 }
 
-export const capabilityGapText = "该功能尚未开放";
+export const capabilityGapText = "当前暂无可用数据";

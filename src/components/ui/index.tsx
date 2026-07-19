@@ -6,8 +6,20 @@ export function PageHeader({ eyebrow, title, description, actions }: { eyebrow?:
   return <header className="page-header"><div>{eyebrow ? <p className="page-eyebrow">{eyebrow}</p> : null}<h1 className="page-title">{title}</h1>{description ? <span className="page-description">{description}</span> : null}</div>{actions}</header>;
 }
 
-export function MetricCard({ label, value, help, tone = "normal" }: { label: string; value: ReactNode; help?: string; tone?: "normal" | "pending" | "risk" | "error" }) {
-  return <article className="metric-card" data-tone={tone}><div className="metric-label">{label}</div><div className="metric-value">{value}</div>{help ? <div className="metric-help">{help}</div> : null}</article>;
+export function MetricCard({ label, value, help, tone = "normal", source }: { label: string; value: ReactNode; help?: string; tone?: "normal" | "pending" | "risk" | "error"; source?: { readonly label: string; readonly href?: string } }) {
+  return <article className="metric-card" data-tone={tone}><div className="metric-label">{label}</div><div className="metric-value">{value}</div>{help ? <div className="metric-help">{help}</div> : null}{source ? <div className="metric-source"><span>数据来源</span>{source.href ? <Link href={source.href}>{source.label}</Link> : <strong>{source.label}</strong>}</div> : null}</article>;
+}
+
+export function DataSourceNote({ label, detail, href }: { label: string; detail?: string; href?: string }) {
+  return <aside className="data-source-note" aria-label="数据来源"><span>数据来源</span>{href ? <Link href={href}>{label}</Link> : <strong>{label}</strong>}{detail ? <small>{detail}</small> : null}</aside>;
+}
+
+export function FilterBar({ children, resultSummary, resetHref }: { children: ReactNode; resultSummary?: string; resetHref?: string }) {
+  return <section className="filter-bar" aria-label="筛选条件"><div className="filter-controls">{children}</div><div className="filter-summary">{resultSummary ? <span aria-live="polite">{resultSummary}</span> : null}{resetHref ? <Link className="filter-reset" href={resetHref}>清除筛选</Link> : null}</div></section>;
+}
+
+export function EmptyState({ title, reason, condition, action }: { title: string; reason: string; condition: string; action: { readonly label: string; readonly href: string } }) {
+  return <section className="state-panel empty-state" data-state="empty" role="status"><div><h2>{title}</h2><dl className="empty-state-details"><div><dt>当前原因</dt><dd>{reason}</dd></div><div><dt>显示条件</dt><dd>{condition}</dd></div></dl><Link className="button button-primary" href={action.href}>{action.label}</Link></div></section>;
 }
 
 export function SectionCard({ title, description, actions, children }: { title: string; description?: string; actions?: ReactNode; children: ReactNode }) {
