@@ -10,7 +10,7 @@ const stageLabel: Record<string, string> = {
   PROJECT_PROFILE: "项目资料",
   ENTERPRISE_KNOWLEDGE: "企业知识",
   ACCOUNT_AUTHORIZATION: "账号授权",
-  BAIDU_KEYWORDS: "百度关键词",
+  BAIDU_KEYWORDS: "关键词与需求数据（可选）",
   AI_EXPANSION: "AI 拓词",
   USER_QUESTION_CONFIRMATION: "用户问题确认",
   CONTENT_TASK: "内容任务",

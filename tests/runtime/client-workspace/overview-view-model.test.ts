@@ -6,18 +6,32 @@ const base:ClientOverviewData={
   project:{id:"p",name:"项目",clientOrganizationId:"c",clientOrganizationName:"企业",createdAt:"2026-07-01T00:00:00.000Z"},
   keywords:[],opportunities:[],deliveries:[],
   knowledge:{packageCount:1,confirmedPackageCount:0,documentCount:2,openIssueCount:2,missingInformationCount:1,status:"NEEDS_INFORMATION",updatedAt:"2026-07-18T01:00:00.000Z"},
-  baidu:{imports:[],keywords:[],reviewFamilies:[],totals:{imports:0,keywords:0,withObservedDemand:0,rejectedRows:0,pendingReview:0,confirmed:0,changesRequested:0,rejected:0},nextPackageVersion:1,capabilityGaps:[]},
+  keywordData:{projectId:"p",datasets:[],records:[],imports:[],evidence:[],reviewPackages:[],decisions:[],capabilities:{createDataset:true,manualAdd:true,genericCsvXlsxImport:true,humanReview:true,archive:true,legacyBaiduReadOnly:true}},
   expansionBatches:[],
 };
 
 describe("客户首页验收展示模型",()=>{
-  it("用可核验代理呈现资料状态，且不把百度入库冒充已确认",()=>{
+  it("用可核验代理呈现资料状态，并将零关键词数据集明确为可选",()=>{
     const model=buildClientOverview(base);
     expect(model.metrics.find(item=>item.label==="企业资料状态")?.value).toBe("资料待补齐");
-    expect(model.metrics.find(item=>item.label==="百度关键词已入库")?.value).toBe("0");
-    expect(model.metrics.some(item=>item.label.includes("已确认百度"))).toBe(false);
-    expect(model.gaps).not.toContainEqual(expect.objectContaining({title:"百度关键词独立确认状态"}));
-    expect(model.metrics.find(item=>item.label==="已确认关键词组")?.value).toBe("0");
+    expect(model.metrics.find(item=>item.label==="关键词资料")?.value).toBe("0");
+    expect(model.metrics.some(item=>item.label.includes("百度"))).toBe(false);
+    expect(model.metrics.find(item=>item.label==="已确认关键词")?.value).toBe("0");
+    expect(model.actions).toContainEqual(expect.objectContaining({label:"补充关键词资料（可选）",href:"/app/keywords#keyword-input"}));
+  });
+
+  it("按通用数据的真实来源、记录、证据和人工决定统计",()=>{
+    const model=buildClientOverview({...base,keywordData:{...base.keywordData,
+      datasets:[{id:"manual",name:"人工词",source:"MANUAL",status:"ACTIVE",createdAt:"2026-07-19T00:00:00Z"},{id:"history",name:"历史需求",source:"CUSTOMER_HISTORY",status:"ACTIVE",createdAt:"2026-07-19T00:00:00Z"}],
+      records:[{id:"r1",datasetId:"manual",keyword:"GEO",normalizedKeyword:"geo",source:"MANUAL",createdAt:"2026-07-19T00:00:00Z"},{id:"r2",datasetId:"history",keyword:"内容增长",normalizedKeyword:"内容增长",source:"CUSTOMER_HISTORY",createdAt:"2026-07-19T00:00:00Z"}],
+      imports:[{id:"i1",datasetId:"history",fileName:"history.csv",source:"CUSTOMER_HISTORY",status:"COMPLETED",acceptedCount:1,rejectedCount:0,importedAt:"2026-07-19T01:00:00Z"}],
+      evidence:[{id:"e1",keywordRecordId:"r2",source:"CUSTOMER_HISTORY",metricKind:"SEARCH_COUNT",metricValue:12,sourceReference:"crm",observedAt:"2026-07-18T00:00:00Z"}],
+      decisions:[{id:"d1",reviewPackageId:"p1",keywordRecordId:"r1",decision:"CONFIRMED",decidedAt:"2026-07-19T02:00:00Z"}],
+    }});
+    expect(model.metrics.find(item=>item.label==="关键词资料")).toMatchObject({value:"2",source:"来源：2 类真实数据来源"});
+    expect(model.metrics.find(item=>item.label==="已确认关键词")?.value).toBe("1");
+    expect(model.actions).toContainEqual(expect.objectContaining({label:"确认关键词资料"}));
+    expect(model.activities).toContainEqual(expect.objectContaining({label:"关键词资料入库"}));
   });
 
   it("只把人工确认的有问题文本结果计入已确认用户问题",()=>{

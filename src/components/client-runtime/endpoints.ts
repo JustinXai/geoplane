@@ -24,6 +24,7 @@ import { type ApiClient, defaultApiClient, ok, type Result } from "../../lib/api
 import { selectActiveProject } from "./view-models.js";
 import { safeBusinessDisplayName } from "../../runtime/ui-adapters/formatters.js";
 import type { BaiduKeywordReadModel, ClientKnowledgeProgressReadModel } from "../../runtime/read-models/domestic-workspaces.js";
+import type { GenericKeywordWorkspaceView } from "../../lib/api-client/generic-keywords/contracts.js";
 import type { KeywordExpansionBatch } from "../../runtime/keyword-expansion/contract.js";
 import type { RawProbeResult } from "../../runtime/probes/manual-sample.js";
 import type { KnowledgeOpportunityBatch, UserQuestionCandidate } from "../../runtime/knowledge-opportunity/contracts.js";
@@ -141,7 +142,7 @@ export interface ClientOverviewData {
   readonly opportunities: readonly OpportunityViewV1[];
   readonly deliveries: readonly ArticleDeliveryViewV1[];
   readonly knowledge: ClientKnowledgeProgressReadModel;
-  readonly baidu: BaiduKeywordReadModel;
+  readonly keywordData: GenericKeywordWorkspaceView;
   readonly expansionBatches: readonly KeywordExpansionBatch[];
 }
 
@@ -151,6 +152,10 @@ export function loadKnowledgeProgress(projectId:string,client:ApiClient=defaultA
 
 export function loadBaiduKeywordProgress(projectId:string,client:ApiClient=defaultApiClient):Promise<Result<BaiduKeywordReadModel>>{
   return client.request<BaiduKeywordReadModel>(`/api/keywords/projects/${enc(projectId)}/overview`);
+}
+
+export function loadGenericKeywordProgress(projectId:string,client:ApiClient=defaultApiClient):Promise<Result<GenericKeywordWorkspaceView>>{
+  return client.request<GenericKeywordWorkspaceView>(`/api/generic-keywords/projects/${enc(projectId)}`);
 }
 
 export function loadExpansionProgress(projectId:string,client:ApiClient=defaultApiClient):Promise<Result<readonly KeywordExpansionBatch[]>>{
@@ -200,20 +205,20 @@ export async function loadClientOverview(
   const project = selectActiveProject(projects.data);
   if (project === null) return ok(null);
 
-  const [keywords, opportunities, deliveries, knowledge, baidu, expansionBatches] = await Promise.all([
+  const [keywords, opportunities, deliveries, knowledge, keywordData, expansionBatches] = await Promise.all([
     loadKeywordQuestions(project.id, client),
     loadOpportunities(project.id, client),
     loadDeliveries(project.id, client),
     loadKnowledgeProgress(project.id,client),
-    loadBaiduKeywordProgress(project.id,client),
+    loadGenericKeywordProgress(project.id,client),
     loadExpansionProgress(project.id,client),
   ]);
   if (!keywords.ok) return keywords;
   if (!opportunities.ok) return opportunities;
   if (!deliveries.ok) return deliveries;
   if (!knowledge.ok) return knowledge;
-  if (!baidu.ok) return baidu;
+  if (!keywordData.ok) return keywordData;
   if (!expansionBatches.ok) return expansionBatches;
   return ok({ project, keywords: keywords.data, opportunities: opportunities.data, deliveries: deliveries.data,
-    knowledge:knowledge.data,baidu:baidu.data,expansionBatches:expansionBatches.data });
+    knowledge:knowledge.data,keywordData:keywordData.data,expansionBatches:expansionBatches.data });
 }
