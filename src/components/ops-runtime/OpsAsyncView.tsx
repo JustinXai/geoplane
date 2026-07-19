@@ -34,7 +34,7 @@ export function OpsAsyncView<T>(props: OpsAsyncViewProps<T>): ReactNode {
       return (
         props.renderForbidden?.({ code: state.code, message: state.message }) ?? (
           <p className="cp-callout" role="alert">
-            无访问权限：{state.message}
+            当前账号无权访问此页面。
           </p>
         )
       );
@@ -42,7 +42,7 @@ export function OpsAsyncView<T>(props: OpsAsyncViewProps<T>): ReactNode {
       return (
         props.renderError?.({ code: state.code, message: state.message }) ?? (
           <p className="cp-callout" role="alert">
-            加载失败：{state.message}
+            数据加载失败，请稍后重试。
           </p>
         )
       );

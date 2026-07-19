@@ -45,6 +45,30 @@ export function toOpsAuditRow(event: AuditEventViewV1): OpsAuditRowView {
   };
 }
 
+/** Platform UI mapping: translates actions and deliberately omits internal identifiers. */
+export function toSafeOpsAuditRow(event: AuditEventViewV1): OpsAuditRowView {
+  const ACTION_LABELS: Readonly<Record<string, string>> = {
+    "ops.agency.create": "新增代理商",
+    "ops.client.create": "新增客户",
+    "ops.assignment.create": "分配客户",
+    "project.invitation.create": "发起邀请",
+    "account.operation.create": "创建账号操作任务",
+    "account.operation.result": "登记账号操作结果",
+  };
+  const targetParts: string[] = [];
+  if (event.clientOrganizationId !== null) targetParts.push("客户记录");
+  if (event.projectId !== null) targetParts.push("项目记录");
+  if (targetParts.length === 0 && event.targetType !== null) targetParts.push("业务记录");
+
+  return {
+    id: event.id,
+    action: ACTION_LABELS[event.action] ?? "业务操作",
+    actorLabel: event.actorDisplayName ?? "系统",
+    targetLabel: targetParts.length > 0 ? targetParts.join(" · ") : NONE,
+    occurredAt: event.occurredAt,
+  };
+}
+
 /** True when there are no audit events (drives the Empty state). */
 export function isAuditEmpty(events: readonly AuditEventViewV1[]): boolean {
   return events.length === 0;

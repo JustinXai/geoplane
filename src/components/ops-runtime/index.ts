@@ -23,6 +23,7 @@ export {
   OPS_ASSIGNMENT_ACTIONS,
   OPS_INVITATION_ACTIONS,
   toOpsAuditRow,
+  toSafeOpsAuditRow,
   isAuditEmpty,
   filterAuditByActions,
 } from "./ops-audit.js";
@@ -30,3 +31,9 @@ export type { OpsAuditRowView } from "./ops-audit.js";
 
 export { OpsAsyncView } from "./OpsAsyncView.js";
 export type { OpsAsyncViewProps } from "./OpsAsyncView.js";
+export { OpsWorkspaceShell } from "./OpsWorkspaceShell.js";
+export { OpsPageHeader, CapabilityGap, PlatformState, opsPageStyles } from "./OpsPage.js";
+export { loadPlatformDirectory, organizationCount, activeProjectCount, recentBusinessProgress, displayDate } from "./platform-read-model.js";
+export type { PlatformDirectoryReadModel } from "./platform-read-model.js";
+export { OpsOrganizationDirectoryPage, OpsProjectsPageView } from "./OpsDirectoryPage.js";
+export { CapabilityGapScreen } from "./CapabilityGapScreen.js";
