@@ -3,6 +3,7 @@ node_modules/
 dist/
 build/
 coverage/
+.runtime/
 # CI gate evidence output (scripts/ci/*) — generated JSON, never committed
 artifacts/
 .pnpm-store/
@@ -20,4 +21,3 @@ artifacts/
 *.dump
 .DS_Store
 Thumbs.db
-
