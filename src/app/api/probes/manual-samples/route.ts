@@ -9,24 +9,40 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request): Promise<Response> {
+async function requestContext(request: Request, projectId: string) {
   const rt = getGeoRuntime();
   const principal = await rt.resolveSession(request.headers.get("cookie"));
-  if (!principal) return toHttpResponse(apiErr("UNAUTHENTICATED", "Authentication is required."));
+  if (!principal) return { response: toHttpResponse(apiErr("UNAUTHENTICATED", "请先登录后再操作。")) } as const;
+  const project = await rt.tenancy.projects.findById(projectId);
+  if (!project) return { response: toHttpResponse(apiErr("NOT_FOUND", "未找到该项目。")) } as const;
+  if (!principalCanReadClientOrganization(principal, project.clientOrganizationId)) {
+    return { response: toHttpResponse(apiErr("FORBIDDEN", "你无权访问该项目的人工查询记录。")) } as const;
+  }
+  return { rt, principal, project } as const;
+}
+
+export async function GET(request: Request): Promise<Response> {
+  const projectId = new URL(request.url).searchParams.get("projectId")?.trim() ?? "";
+  if (!projectId) return toHttpResponse(apiErr("VALIDATION_FAILED", "请选择项目。"));
+  const context = await requestContext(request, projectId);
+  if ("response" in context && context.response) return context.response;
+  const repository = new PgRawProbeResultRepository(context.rt.db);
+  return toHttpResponse(apiOk(await repository.listByProject(context.project.clientOrganizationId, projectId)));
+}
+
+export async function POST(request: Request): Promise<Response> {
   const body = await readJsonBody(request);
   const projectId = typeof body.projectId === "string" ? body.projectId : "";
-  const project = await rt.tenancy.projects.findById(projectId);
-  if (!project) return toHttpResponse(apiErr("NOT_FOUND", "Project not found."));
-  if (!principalCanReadClientOrganization(principal, project.clientOrganizationId)) {
-    return toHttpResponse(apiErr("FORBIDDEN", "You are not authorized to record this project."));
-  }
+  if (!projectId) return toHttpResponse(apiErr("VALIDATION_FAILED", "请选择项目。"));
+  const context = await requestContext(request, projectId);
+  if ("response" in context && context.response) return context.response;
   try {
-    const input = { ...body, projectId: project.id, clientOrganizationId: project.clientOrganizationId } as unknown as ManualProbeSampleInput;
-    const service = new ManualProbeService(new PgRawProbeResultRepository(rt.db));
-    return toHttpResponse(apiOk(await service.record(input, principal.userId)), { okStatus: 201 });
+    const input = { ...body, projectId: context.project.id, clientOrganizationId: context.project.clientOrganizationId } as unknown as ManualProbeSampleInput;
+    const service = new ManualProbeService(new PgRawProbeResultRepository(context.rt.db));
+    return toHttpResponse(apiOk(await service.record(input, context.principal.userId)), { okStatus: 201 });
   } catch (error) {
     if (error instanceof ProbeValidationError) {
-      return toHttpResponse(apiErr("VALIDATION_FAILED", error.message));
+      return toHttpResponse(apiErr("VALIDATION_FAILED", "人工查询样本信息不完整或不符合要求。"));
     }
     throw error;
   }
