@@ -18,6 +18,8 @@
 
 没有直接证据的推测不得标记为 `RECOVERED_IMPLEMENTED`。
 
+唯一政策例外：本阶段指令要求 AI 拓词默认标记为 `RECOVERED_SPECIFIED_NOT_COMPLETED`。该标签只表达所有者冻结的恢复目标，不表示已经找到删除前规格或生产实现；精确字段草案仍属 `CURRENT_REBUILD_ADDITION`，生产 Contract/runtime 仍属 `MISSING_REQUIRED_CAPABILITY`。
+
 事实来源严格分三层：恢复证据（恢复源、partial source、可验证旧对象/运行封存）、灾后所有者重述的目标规格（当前 `docs/architecture/**` 与阶段指令）、当前重建事实（现有代码、Migration、测试和运行报告）。后两层不能单独证明删除前实现或删除前规格。
 
 ## 2. 产品定位
@@ -53,7 +55,7 @@
 
 Core 保持跨行业：KnowledgePackage、IndustryProfile、BusinessCapabilityGraph、KeywordContext、Opportunity、Source、Citation、Article、Publication、Probe、Metric。行业差异全部进入版本化 `VerticalPolicyPack`。
 
-首个 Pack 为 `MEDICAL_AESTHETICS_V1`，但本轮只冻结 Contract、加载机制和能被历史证据支持的规则类别；不得把医美、医院、医生、疗效或资质写死进 Core，也不得同时开发全部行业 Pack。
+首个 Pack 为 `MEDICAL_AESTHETICS_V1`，但本轮只冻结 Contract、加载机制和当前目标规则类别；恢复源未证明删除前医美规则规格或实现。不得把医美、医院、医生、疗效或资质写死进 Core，也不得同时开发全部行业 Pack。
 
 ## 6. 门禁
 
@@ -65,7 +67,7 @@ Core 保持跨行业：KnowledgePackage、IndustryProfile、BusinessCapabilityGr
 - `SOURCE_GROUNDING_GATE`；
 - `HUMAN_REVIEW_GATE`。
 
-当前重建已有等价的 Quality/Platform/Vertical Gate 和 Article Approval；独立信源门禁及 Pack 驱动规则仍需恢复。Human Review 与 Article Approval 永不自动通过。
+当前 Core Quality Gate 可按恢复目标语义判定为 `REBUILT_EQUIVALENT`；当前 Platform/Vertical Gate 是 `CURRENT_REBUILD_ADDITION`，只能作为未来 Pack 规则的结果载体。Article Approval 可按人工批准语义判定为 `REBUILT_EQUIVALENT`。独立信源门禁及 Pack 驱动规则仍需恢复。Human Review 与 Article Approval 永不自动通过。
 
 ## 7. 冻结边界
 
