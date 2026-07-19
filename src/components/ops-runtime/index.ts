@@ -38,3 +38,6 @@ export type { PlatformDirectoryReadModel } from "./platform-read-model.js";
 export { OpsOrganizationDirectoryPage, OpsProjectsPageView } from "./OpsDirectoryPage.js";
 export { CapabilityGapScreen } from "./CapabilityGapScreen.js";
 export { OpsKeywordWorkspace } from "./OpsKeywordWorkspace.js";
+export { OpsAccountReadPanel } from "./OpsAccountReadPanel.js";
+export { OpsManualProbePage } from "./OpsManualProbePage.js";
+export { OpsPolicyPackPage } from "./OpsPolicyPackPage.js";
