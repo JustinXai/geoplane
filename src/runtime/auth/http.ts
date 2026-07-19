@@ -24,6 +24,12 @@ function secureAttribute(): string {
   // Widened to string: deployments may run with NODE_ENV="staging" (outside the built-in literal
   // union), and that is still an HTTPS-served, Secure-cookie environment.
   const env: string = process.env.NODE_ENV ?? "";
+  const containedLocalHttp =
+    process.env.LOCAL_ONLY_MODE === "TRUE" &&
+    process.env.REMOTE_WRITE === "FORBIDDEN" &&
+    process.env.LOCAL_APP_HOST === "127.0.0.1" &&
+    process.env.LOCAL_SESSION_COOKIE_SECURE === "false";
+  if (containedLocalHttp) return "";
   return env === "production" || env === "staging" ? "; Secure" : "";
 }
 

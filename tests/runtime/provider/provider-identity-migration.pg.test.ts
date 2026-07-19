@@ -15,8 +15,8 @@
  *   2. PgProviderLedger reads a backfilled row back as a valid
  *      ProviderIdentity with gatewayVendor 'UNKNOWN_LEGACY'.
  *   3. FRESH DATABASE — scripts/db/migrate.mjs (the real CLI, spawned) applies
- *      0001→0008 cleanly against GEO_TEST_DATABASE_URL from an empty schema,
- *      and records all 8 files in schema_migrations.
+ *      the complete current migration manifest cleanly against GEO_TEST_DATABASE_URL from an
+ *      empty schema, including migrations that follow the 0008 identity migration.
  *
  * The staged (0001→0007, insert, then →0008) replay uses byte-identical copies
  * of the migration files in a scratch directory, so the checksum ledger accepts
@@ -45,8 +45,8 @@ const testConfig = loadDatabaseConfig({ test: true });
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const migrationsDir = join(repoRoot, "migrations");
 
-/** Every migration file, in order. 0008 is the identity migration under test. */
-const ALL_MIGRATIONS = [
+/** The migration prefix through 0008; 0008 is the identity migration under test. */
+const IDENTITY_MIGRATIONS = [
   "0001_tenancy_foundation.sql",
   "0002_knowledge_runtime.sql",
   "0003_geo_runtime.sql",
@@ -55,6 +55,10 @@ const ALL_MIGRATIONS = [
   "0006_knowledge_content.sql",
   "0007_provider_ledger.sql",
   "0008_provider_identity.sql",
+] as const;
+const CURRENT_MIGRATIONS = [
+  ...IDENTITY_MIGRATIONS,
+  "0009_password_credentials.sql",
 ] as const;
 
 let db: DatabasePort;
@@ -109,12 +113,12 @@ describe.skipIf(testConfig === null)(
         // copies, so the checksum ledger later accepts them as already applied).
         const stagedDir = mkdtempSync(join(tmpdir(), "geo-mig-0007-"));
         try {
-          for (const f of ALL_MIGRATIONS.slice(0, -1)) {
+          for (const f of IDENTITY_MIGRATIONS.slice(0, -1)) {
             copyFileSync(join(migrationsDir, f), join(stagedDir, f));
           }
           await resetSchema();
           const first = await applyMigrations(db, stagedDir);
-          expect(first.applied).toHaveLength(ALL_MIGRATIONS.length - 1);
+          expect(first.applied).toHaveLength(IDENTITY_MIGRATIONS.length - 1);
 
           // Stage 2: a LEGACY row, written under the 0007 shape (no identity columns).
           const { projectId, orgId } = await seedProject();
@@ -133,7 +137,7 @@ describe.skipIf(testConfig === null)(
             "0008_provider_identity.sql",
             "0009_password_credentials.sql",
           ]);
-          expect(second.skipped).toHaveLength(ALL_MIGRATIONS.length - 1);
+          expect(second.skipped).toHaveLength(IDENTITY_MIGRATIONS.length - 1);
 
           // The legacy row was backfilled by the DDL default (a row UPDATE would
           // have raised the append-only trigger and aborted the migration).
@@ -179,7 +183,7 @@ describe.skipIf(testConfig === null)(
     );
 
     it(
-      "fresh database: scripts/db/migrate.mjs applies 0001→0008 cleanly against GEO_TEST_DATABASE_URL",
+      "fresh database: scripts/db/migrate.mjs applies the current manifest cleanly against GEO_TEST_DATABASE_URL",
       async () => {
         await resetSchema();
 
@@ -191,15 +195,15 @@ describe.skipIf(testConfig === null)(
           encoding: "utf8",
         });
         expect(res.status).toBe(0);
-        for (const f of ALL_MIGRATIONS) {
+        for (const f of CURRENT_MIGRATIONS) {
           expect(res.stdout).toContain(`apply  ${f}`);
         }
 
-        // All 8 files recorded, and the identity columns exist with their CHECKs.
+        // Every current file is recorded, and the identity columns exist with their CHECKs.
         const ledgerRows = await db.query<{ filename: string }>(
           `SELECT filename FROM schema_migrations ORDER BY filename`,
         );
-        expect(ledgerRows.rows.map((r) => r.filename)).toEqual([...ALL_MIGRATIONS]);
+        expect(ledgerRows.rows.map((r) => r.filename)).toEqual([...CURRENT_MIGRATIONS]);
 
         const cols = await db.query<{ column_name: string; is_nullable: string; column_default: string | null }>(
           `SELECT column_name, is_nullable, column_default FROM information_schema.columns

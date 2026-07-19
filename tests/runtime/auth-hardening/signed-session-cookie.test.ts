@@ -112,6 +112,32 @@ describe("SIGNED_SESSION_COOKIE_V1 — Set-Cookie attributes", () => {
     expect(sessionSetCookie("geo_acceptance_session", value)).toContain("Secure");
   });
 
+  it("omits Secure in production only for the exact managed loopback-only posture", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("LOCAL_ONLY_MODE", "TRUE");
+    vi.stubEnv("REMOTE_WRITE", "FORBIDDEN");
+    vi.stubEnv("LOCAL_APP_HOST", "127.0.0.1");
+    vi.stubEnv("LOCAL_SESSION_COOKIE_SECURE", "false");
+    const value = "signed-cookie-value";
+    expect(sessionSetCookie("geo_acceptance_session", value)).not.toContain("; Secure");
+    expect(sessionSetCookie("geo_acceptance_session", value)).toContain("HttpOnly");
+    expect(sessionSetCookie("geo_acceptance_session", value)).toContain("SameSite=Lax");
+
+    for (const [name, changed] of [
+      ["LOCAL_ONLY_MODE", "true"],
+      ["REMOTE_WRITE", "ALLOWED"],
+      ["LOCAL_APP_HOST", "0.0.0.0"],
+      ["LOCAL_SESSION_COOKIE_SECURE", "true"],
+    ] as const) {
+      vi.stubEnv("LOCAL_ONLY_MODE", "TRUE");
+      vi.stubEnv("REMOTE_WRITE", "FORBIDDEN");
+      vi.stubEnv("LOCAL_APP_HOST", "127.0.0.1");
+      vi.stubEnv("LOCAL_SESSION_COOKIE_SECURE", "false");
+      vi.stubEnv(name, changed);
+      expect(sessionSetCookie("geo_acceptance_session", value)).toContain("; Secure");
+    }
+  });
+
   it("sessionClearCookie clears with Max-Age=0 and the same hardened attributes", () => {
     vi.stubEnv("NODE_ENV", "development");
     const cleared = sessionClearCookie("geo_acceptance_session");

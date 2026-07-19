@@ -12,6 +12,9 @@ Scope: `LOCAL_CLOSED_PILOT_STAGING_V1`. This guide operates only on the local ma
 - Automatic human review, article approval, and publication remain disabled.
 - Default selected distribution-channel count is zero.
 - Only sanitized pilot accounts and documents are permitted.
+- The managed launcher serves plain HTTP only on `127.0.0.1`. Its session cookie keeps `HttpOnly`
+  and `SameSite=Lax` but omits `Secure` only when all local-only containment flags and the exact
+  loopback host are present. Every ordinary production/staging process remains `Secure`-only.
 
 ## One-time local inputs
 

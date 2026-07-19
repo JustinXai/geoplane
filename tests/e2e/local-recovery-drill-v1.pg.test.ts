@@ -25,6 +25,10 @@ import {
   type AuthRuntime,
 } from "../../src/runtime/auth/runtime-context.js";
 import { __setSessionSigningKeysForTests } from "../../src/lib/session-signing.js";
+import {
+  TEST_LOGIN_PASSWORD,
+  TEST_LOGIN_PASSWORD_HASH,
+} from "../helpers/auth-credentials.js";
 
 const testConfig = loadDatabaseConfig({ test: true });
 const repoRoot = join(import.meta.dirname, "..", "..");
@@ -60,7 +64,7 @@ async function loginAndGetCookie(email: string): Promise<string> {
     new Request("http://local.test/api/auth/login", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, password: TEST_LOGIN_PASSWORD }),
     }),
   );
   expect(response.status).toBe(200);
@@ -99,8 +103,8 @@ describe.skipIf(testConfig === null)("LOCAL_RECOVERY_DRILL_V1 — local PostgreS
     try {
       await applyMigrations(db1, migrationsDir);
       const user = await db1.query<{ id: string }>(
-        `INSERT INTO "user" (email) VALUES ($1) RETURNING id`,
-        [EMAIL],
+        `INSERT INTO "user" (email, password_hash) VALUES ($1, $2) RETURNING id`,
+        [EMAIL, TEST_LOGIN_PASSWORD_HASH],
       );
       userId = user.rows[0]?.id ?? "";
       if (!userId) throw new Error("local drill user insert returned no id");
