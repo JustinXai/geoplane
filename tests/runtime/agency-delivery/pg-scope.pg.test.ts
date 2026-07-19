@@ -36,7 +36,9 @@ describe.skipIf(config === null)("agency delivery PostgreSQL tenant scope", () =
     for (const migration of manifest.migrations) {
       await db.query(readFileSync(join("migrations", migration.filename), "utf8"));
     }
-    await db.query(readFileSync("migrations/0017_agency_delivery_scope_hardening.sql", "utf8"));
+    if (!manifest.migrations.some((migration) => migration.filename === "0017_agency_delivery_scope_hardening.sql")) {
+      await db.query(readFileSync("migrations/0017_agency_delivery_scope_hardening.sql", "utf8"));
+    }
 
     const user = await db.query<{ id: string }>(
       `INSERT INTO "user"(email) VALUES($1) RETURNING id`,

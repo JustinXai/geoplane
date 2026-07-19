@@ -15,6 +15,8 @@
     { "version": "0012", "filename": "0012_ai_keyword_expansion.sql" },
     { "version": "0013", "filename": "0013_china_ai_probe_runtime.sql" },
     { "version": "0014", "filename": "0014_vertical_policy_pack.sql" },
-    { "version": "0015", "filename": "0015_agency_delivery_runtime.sql" }
+    { "version": "0015", "filename": "0015_agency_delivery_runtime.sql" },
+    { "version": "0016", "filename": "0016_account_center_hardening.sql" },
+    { "version": "0017", "filename": "0017_agency_delivery_scope_hardening.sql" }
   ]
 }

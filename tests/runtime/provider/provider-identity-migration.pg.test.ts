@@ -65,6 +65,8 @@ const CURRENT_MIGRATIONS = [
   "0013_china_ai_probe_runtime.sql",
   "0014_vertical_policy_pack.sql",
   "0015_agency_delivery_runtime.sql",
+  "0016_account_center_hardening.sql",
+  "0017_agency_delivery_scope_hardening.sql",
 ] as const;
 
 let db: DatabasePort;
@@ -148,6 +150,8 @@ describe.skipIf(testConfig === null)(
             "0013_china_ai_probe_runtime.sql",
             "0014_vertical_policy_pack.sql",
             "0015_agency_delivery_runtime.sql",
+            "0016_account_center_hardening.sql",
+            "0017_agency_delivery_scope_hardening.sql",
           ]);
           expect(second.skipped).toHaveLength(IDENTITY_MIGRATIONS.length - 1);
 
