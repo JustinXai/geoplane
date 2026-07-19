@@ -1,9 +1,10 @@
 /** Current reconstruction; classification remains RECOVERED_SPECIFIED_NOT_COMPLETED. */
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import type {
   ExpansionGroupInput, ExpansionGroupType, KeywordExpansionBatch,
   KeywordExpansionCandidate, KeywordExpansionRequest,
 } from "./contract.js";
+import { buildExpansionCombinations } from "./combination.js";
 
 export const OFFLINE_EXPANSION_VERSION = "DETERMINISTIC_OFFLINE_V1";
 
@@ -23,14 +24,6 @@ function normalizeGroups(groups: readonly ExpansionGroupInput[]): ExpansionGroup
   }).filter((group) => group.values.length > 0);
 }
 
-function cartesian(groups: readonly ExpansionGroupInput[]): string[][] {
-  if (groups.length === 0) return [];
-  return groups.reduce<string[][]>((rows, group) => {
-    if (rows.length === 0) return group.values.map((value) => [value]);
-    return rows.flatMap((row) => group.values.map((value) => [...row, value]));
-  }, []);
-}
-
 function stableId(prefix: string, value: string): string {
   const hex = createHash("sha256").update(value).digest("hex").slice(0, 24);
   return `${prefix}_${hex}`;
@@ -42,8 +35,6 @@ export class DeterministicOfflineExpansionAdapter {
     const main = groups.find((group) => group.type === "MAIN");
     if (!main?.values.length) throw new Error("MAIN group requires at least one value");
     if (!request.reason.trim()) throw new Error("generation reason is required");
-    const ordered = (["REGION", "PREFIX", "MAIN", "SUFFIX", "RECOMMENDATION"] as const)
-      .map((type) => groups.find((group) => group.type === type)).filter((v): v is ExpansionGroupInput => Boolean(v));
     const snapshot = { groups, reason: request.reason.trim() };
     const fingerprint = JSON.stringify({ projectId: request.projectId, snapshot, version: OFFLINE_EXPANSION_VERSION });
     const batchId = stableId("exp", fingerprint);
@@ -51,10 +42,9 @@ export class DeterministicOfflineExpansionAdapter {
       generator: "DETERMINISTIC_OFFLINE" as const, generatorVersion: OFFLINE_EXPANSION_VERSION,
       generatedAt, requestedByUserId: request.requestedByUserId, inputSnapshot: snapshot,
     };
-    const candidates = cartesian(ordered).map((parts, index): KeywordExpansionCandidate => {
-      const keyword = parts.join(" ");
+    const candidates = buildExpansionCombinations(groups).map(({ keyword, question }, index): KeywordExpansionCandidate => {
       return {
-        id: stableId("kw", `${batchId}:${index}:${keyword}`), batchId, keyword, question: null,
+        id: stableId("kw", `${batchId}:${index}:${keyword}:${question ?? ""}`), batchId, keyword, question,
         reason: request.reason.trim(), confidence: 1, status: "NEEDS_HUMAN_REVIEW", provenance,
       };
     });
