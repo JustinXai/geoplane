@@ -42,7 +42,16 @@ export function databaseEnvVarName(role: DatabaseEnvironmentRole): string {
 
 const RUNTIME_ENV_VAR = ENV_VAR_BY_ROLE.runtime;
 const TEST_ENV_VAR = ENV_VAR_BY_ROLE.test;
-const LOCAL_TEST_DATABASE_NAME = "geoplane_local_test";
+const ALLOWED_LOCAL_TEST_DATABASE_NAMES = new Set([
+  "geoplane_local_test",
+  "geoplane_p0_account_test",
+  "geoplane_p0_keyword_test",
+  "geoplane_p0_expansion_test",
+  "geoplane_p0_probe_test",
+  "geoplane_p0_policy_test",
+  "geoplane_p0_agency_test",
+  "geoplane_p0_integration_test",
+]);
 const LOCAL_DATABASE_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
 
 /** Repo root = two levels up from src/persistence. */
@@ -101,8 +110,8 @@ export function assertSafeLocalTestDatabaseUrl(connectionString: string): void {
     throw new Error("GEO_TEST_DATABASE_URL must use a loopback host in LOCAL_ONLY_MODE");
   }
   const database = decodeURIComponent(parsed.pathname.replace(/^\//, ""));
-  if (database !== LOCAL_TEST_DATABASE_NAME) {
-    throw new Error(`GEO_TEST_DATABASE_URL must target exactly ${LOCAL_TEST_DATABASE_NAME}`);
+  if (!ALLOWED_LOCAL_TEST_DATABASE_NAMES.has(database)) {
+    throw new Error("GEO_TEST_DATABASE_URL must target an explicitly allowlisted local test database");
   }
 }
 

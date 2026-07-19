@@ -10,12 +10,19 @@ function localUrl(database: string, host = "127.0.0.1"): string {
 }
 
 describe("local destructive-test database boundary", () => {
-  it("allows only the exact loopback geoplane_local_test database", () => {
-    expect(() =>
-      assertSafeLocalTestDatabaseUrl(
-        localUrl("geoplane_local_test"),
-      ),
-    ).not.toThrow();
+  it("allows the legacy local test database and the frozen P0 lane databases", () => {
+    for (const database of [
+      "geoplane_local_test",
+      "geoplane_p0_account_test",
+      "geoplane_p0_keyword_test",
+      "geoplane_p0_expansion_test",
+      "geoplane_p0_probe_test",
+      "geoplane_p0_policy_test",
+      "geoplane_p0_agency_test",
+      "geoplane_p0_integration_test",
+    ]) {
+      expect(() => assertSafeLocalTestDatabaseUrl(localUrl(database))).not.toThrow();
+    }
   });
 
   it("refuses the local runtime database before a caller can construct a Pool", () => {
@@ -23,7 +30,7 @@ describe("local destructive-test database boundary", () => {
       assertSafeLocalTestDatabaseUrl(
         localUrl("geoplane_local_runtime"),
       ),
-    ).toThrow("must target exactly geoplane_local_test");
+    ).toThrow("must target an explicitly allowlisted local test database");
   });
 
   it("enforces the guard at both shared test-config entry points", () => {
@@ -31,8 +38,8 @@ describe("local destructive-test database boundary", () => {
     process.env.GEO_TEST_DATABASE_URL =
       localUrl("geoplane_local_runtime");
     try {
-      expect(() => loadDatabaseConfig({ test: true })).toThrow("must target exactly geoplane_local_test");
-      expect(() => loadDatabaseConfigForRole("test")).toThrow("must target exactly geoplane_local_test");
+      expect(() => loadDatabaseConfig({ test: true })).toThrow("must target an explicitly allowlisted local test database");
+      expect(() => loadDatabaseConfigForRole("test")).toThrow("must target an explicitly allowlisted local test database");
     } finally {
       if (previous === undefined) delete process.env.GEO_TEST_DATABASE_URL;
       else process.env.GEO_TEST_DATABASE_URL = previous;
@@ -44,7 +51,7 @@ describe("local destructive-test database boundary", () => {
       assertSafeLocalTestDatabaseUrl(
         localUrl("geoplane_local_test_copy"),
       ),
-    ).toThrow("must target exactly geoplane_local_test");
+    ).toThrow("must target an explicitly allowlisted local test database");
     expect(() =>
       assertSafeLocalTestDatabaseUrl(
         localUrl("geoplane_local_test", "database.example.test"),
