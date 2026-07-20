@@ -74,6 +74,20 @@ interface DeliveryJoinRow {
   published_at: Date;
 }
 
+/**
+ * A publication receipt with its associated delivery details for read views.
+ */
+export interface DeliveryReceiptReadModel {
+  readonly id: string;
+  readonly clientOrganizationId: string;
+  readonly projectId: string;
+  readonly distributionPlanId: string;
+  readonly channelId: string;
+  readonly publishedByActorId: string;
+  readonly publishedAt: string;
+  readonly deliveredAt: string;
+}
+
 export class GeoReadRepository {
   constructor(private readonly db: Queryable) {}
 
@@ -178,5 +192,43 @@ export class GeoReadRepository {
         publicationRegisteredAt: delivered ? delivered.publishedAt : null,
       };
     });
+  }
+
+  /**
+   * Lists all delivery receipts for a scope, including delivery details.
+   * Returns receipts ordered by publication date (newest first).
+   */
+  async listDeliveryReceiptsByScope(
+    scope: TenantScope,
+  ): Promise<DeliveryReceiptReadModel[]> {
+    const res = await this.db.query<{
+      id: string;
+      client_organization_id: string;
+      project_id: string;
+      distribution_plan_id: string;
+      channel_id: string;
+      published_by_actor_id: string;
+      published_at: Date;
+      delivered_at: Date;
+    }>(
+      `SELECT pr.id, pr.client_organization_id, pr.project_id, pr.distribution_plan_id,
+              pr.channel_id, pr.published_by_actor_id, pr.published_at, d.delivered_at
+         FROM publication_receipt pr
+         JOIN delivery d ON d.publication_receipt_id = pr.id
+        WHERE pr.client_organization_id = $1 AND pr.project_id = $2
+        ORDER BY pr.published_at DESC, pr.id DESC`,
+      [scope.clientOrganizationId, scope.projectId],
+    );
+
+    return res.rows.map((row) => ({
+      id: row.id,
+      clientOrganizationId: row.client_organization_id,
+      projectId: row.project_id,
+      distributionPlanId: row.distribution_plan_id,
+      channelId: row.channel_id,
+      publishedByActorId: row.published_by_actor_id,
+      publishedAt: row.published_at.toISOString(),
+      deliveredAt: row.delivered_at.toISOString(),
+    }));
   }
 }
