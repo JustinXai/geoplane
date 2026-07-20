@@ -99,7 +99,7 @@ describe("OfflineDraftGenerator", () => {
       const { draft } = await harness.offline.generateDraft(actor, { brief });
 
       // Verify draft can be retrieved from repository
-      const retrieved = await harness.pipeline["drafts"].getById(draft.id);
+      const retrieved = await harness.articleDraftRepo.getById(draft.id);
       expect(retrieved).toBeDefined();
       expect(retrieved!.id).toBe(draft.id);
       expect(retrieved!.status).toBe("DRAFT");
@@ -122,7 +122,7 @@ describe("OfflineDraftGenerator", () => {
       expect(providerContent.projectId).toBe(PROJECT_ID);
 
       // Verify provider content exists in the list
-      const allContents = await harness.pipeline["providerContents"].listByArticleBrief(brief.id);
+      const allContents = await harness.providerContentRepo.listByArticleBrief(brief.id);
       expect(allContents.some(c => c.id === providerContent.id)).toBe(true);
     });
 
@@ -190,8 +190,8 @@ describe("OfflineDraftGenerator", () => {
 
       // Check audit intents were recorded
       expect(harness.infra.audit.intents).toHaveLength(2);
-      expect(harness.infra.audit.intents[0].action).toBe("provider_article_content.ingested.offline");
-      expect(harness.infra.audit.intents[1].action).toBe("article_draft.compiled.offline");
+      expect(harness.infra.audit.intents[0]!.action).toBe("provider_article_content.ingested.offline");
+      expect(harness.infra.audit.intents[1]!.action).toBe("article_draft.compiled.offline");
     });
   });
 

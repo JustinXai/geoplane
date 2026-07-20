@@ -16,29 +16,14 @@
  * Server-side tenant resolution from the draft's persisted client_organization_id.
  * Cross-tenant -> 403 + DENIED. Idempotency-Key replays.
  */
-import { apiErr, apiOk } from "../../../../../../runtime/api-contracts/index.js";
-import { readJsonBody, toHttpResponse } from "../../../../../../runtime/auth/http.js";
-import { getAuthRuntime } from "../../../../../../runtime/auth/runtime-context.js";
-import type {
-  DraftReviewDecisionResult,
-  DraftReviewDecisionStatus,
-} from "../../../../../../runtime/geo/services/draft-review-service.js";
-import {
-  buildGeoAuthorizationContext,
-  createGeoCommandRuntime,
-  invokeDomain,
-} from "../../../../../../runtime/commands/geo-command-runtime.js";
-import {
-  denyIfCrossTenant,
-  isResponse,
-  requireSession,
-} from "../../../../../../runtime/commands/geo-command-http.js";
-import { readString } from "../../../../../../runtime/commands/geo-command-input.js";
-import {
-  CommandAbortError,
-  readIdempotencyKey,
-  runWriteCommand,
-} from "../../../../../../runtime/commands/runtime-context.js";
+import { apiErr, apiOk } from "@/runtime/api-contracts/index.js";
+import { readJsonBody, toHttpResponse } from "@/runtime/auth/http.js";
+import { getAuthRuntime } from "@/runtime/auth/runtime-context.js";
+import { buildGeoAuthorizationContext, createGeoCommandRuntime, invokeDomain } from "@/runtime/commands/geo-command-runtime.js";
+import { denyIfCrossTenant, isResponse, requireSession } from "@/runtime/commands/geo-command-http.js";
+import { readString } from "@/runtime/commands/geo-command-input.js";
+import { CommandAbortError, readIdempotencyKey, runWriteCommand } from "@/runtime/commands/runtime-context.js";
+import type { DraftReviewDecisionResult, DraftReviewDecisionStatus } from "@/runtime/geo/index.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -114,7 +99,7 @@ export async function POST(
   const idempotencyKey = readIdempotencyKey(request, body);
 
   try {
-    const { dto, audit } = await runWriteCommand<DraftReviewDecisionViewV1>({
+    const { dto } = await runWriteCommand<DraftReviewDecisionViewV1>({
       db: rt.db,
       actor,
       action: ACTION,
@@ -135,7 +120,7 @@ export async function POST(
 
         // Import and use the DraftReviewService
         const { DraftReviewService } = await import(
-          "../../../../../../runtime/geo/services/draft-review-service.js"
+          "../../../../../../../runtime/geo/services/draft-review-service.js"
         );
         const reviewService = new DraftReviewService(
           geo.repos.humanReviews,
@@ -143,7 +128,7 @@ export async function POST(
           geo.infra,
         );
 
-        const result = await invokeDomain(() =>
+        const result: DraftReviewDecisionResult = await invokeDomain(() =>
           reviewService.decide(authContext, draft, {
             articleDraftId: draftId,
             decision: decision as DraftReviewDecisionStatus,
@@ -161,73 +146,66 @@ export async function POST(
             throw new CommandAbortError("NOT_FOUND", "Article brief for this draft no longer exists.");
           }
 
-          // Get the industry profile for gate evaluation
-          // For now, use the project's default industry profile
-          const profiles = await geo.repos.industryProfiles.getById(draft.projectId);
-
           // Evaluate quality gates
           const qualityGate = await invokeDomain(() =>
             geo.services.gates.evaluateQuality(authContext, draft, brief),
           );
 
-          // For APPROVED decisions, we assume gates pass (or will be evaluated separately)
-          // In a full implementation, this would require gate evaluation
-          // For now, we record the human review decision and let the approval flow handle gates
-
-          // Create ArticleApproval (simplified - in production, gates must pass first)
-          const industryProfileId = profiles?.id || "default";
-
-          // Get industry profile properly for gate evaluation
+          // Get industry profile for gate evaluation
+          const industryProfileId = draft.projectId;
           const industryProfile = await geo.repos.industryProfiles.getById(industryProfileId);
 
-          let qualityGateId = qualityGate.id;
-          let platformGateId = "pending";
-          let verticalGateId = "pending";
+          let platformGate = null;
+          let verticalGate = null;
 
           if (industryProfile) {
-            const platformGate = await invokeDomain(() =>
+            platformGate = await invokeDomain(() =>
               geo.services.gates.evaluatePlatformGate(authContext, draft, industryProfile),
             );
-            const verticalGate = await invokeDomain(() =>
+            verticalGate = await invokeDomain(() =>
               geo.services.gates.evaluateVerticalGate(authContext, draft, industryProfile),
             );
-
-            platformGateId = platformGate.id;
-            verticalGateId = verticalGate.id;
-
-            // Check if all gates passed
-            const allPassed =
-              qualityGate.status === "PASSED" &&
-              platformGate.status === "PASSED" &&
-              verticalGate.status === "PASSED";
-
-            if (!allPassed) {
-              const failureReasons: string[] = [];
-              if (qualityGate.status === "FAILED") failureReasons.push(...qualityGate.failureReasons);
-              if (platformGate.status === "FAILED") failureReasons.push(...platformGate.failureReasons);
-              if (verticalGate.status === "FAILED") failureReasons.push(...verticalGate.failureReasons);
-
-              throw new CommandAbortError(
-                "VALIDATION_FAILED",
-                "Article draft did not pass all publication gates for approval.",
-                { failureReasons },
-              );
-            }
           }
 
-          // Create ArticleApproval
-          const { PassedQualityGate, PassedPlatformGate, PassedVerticalGate } = await import(
-            "../../../../../../contracts/geo-business/entities.js"
-          );
+          // Check if all gates passed
+          const allPassed =
+            qualityGate.status === "PASSED" &&
+            (!platformGate || platformGate.status === "PASSED") &&
+            (!verticalGate || verticalGate.status === "PASSED");
+
+          if (!allPassed) {
+            const failureReasons: string[] = [];
+            if (qualityGate.status === "FAILED") failureReasons.push(...qualityGate.failureReasons);
+            if (platformGate && platformGate.status === "FAILED") {
+              failureReasons.push(...platformGate.failureReasons);
+            }
+            if (verticalGate && verticalGate.status === "FAILED") {
+              failureReasons.push(...verticalGate.failureReasons);
+            }
+
+            throw new CommandAbortError(
+              "VALIDATION_FAILED",
+              "Article draft did not pass all publication gates for approval.",
+              { failureReasons },
+            );
+          }
+
+          // Create ArticleApproval - use type assertions since we verified gates passed
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const passedQualityGate = qualityGate as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const passedPlatformGate = platformGate as any;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const passedVerticalGate = verticalGate as any;
 
           const approval = await invokeDomain(() =>
             geo.services.gates.approveArticle(
               authContext,
               draft,
               reviewerId,
-              qualityGate as PassedQualityGate,
-              { ...platformGate, status: "PASSED" } as PassedPlatformGate,
-              { ...verticalGate, status: "PASSED" } as PassedVerticalGate,
+              passedQualityGate,
+              passedPlatformGate,
+              passedVerticalGate,
             ),
           );
 
@@ -240,6 +218,13 @@ export async function POST(
         }
 
         // Build the view model
+        const noteValue =
+          result.decision.status === "CHANGES_REQUESTED"
+            ? (result.decision as { requestedChangesNote?: string }).requestedChangesNote
+            : result.decision.status === "REJECTED"
+              ? (result.decision as { rejectionReasonNote?: string }).rejectionReasonNote
+              : undefined;
+
         const view: DraftReviewDecisionViewV1 = {
           id: result.decision.id,
           clientOrganizationId: result.decision.clientOrganizationId,
@@ -248,20 +233,15 @@ export async function POST(
           status: result.decision.status === "CHANGES_REQUESTED" ? "RETURNED" : result.decision.status,
           reviewerId: result.decision.reviewerId,
           decidedAt: result.decision.decidedAt,
-          note:
-            result.decision.status === "CHANGES_REQUESTED"
-              ? (result.decision as any).requestedChangesNote
-              : result.decision.status === "REJECTED"
-                ? (result.decision as any).rejectionReasonNote
-                : undefined,
+          ...(noteValue ? { note: noteValue } : {}),
           ...(publishPackageId ? { publishPackageId } : {}),
         };
 
         return {
           dto: view,
           audit: {
-            clientOrganizationId: result.decision.clientOrganizationId,
-            projectId: result.decision.projectId,
+            clientOrganizationId: draft.clientOrganizationId,
+            projectId: draft.projectId,
             targetType: "HumanReviewDecision",
             targetId: result.decision.id,
             metadata: {

@@ -441,6 +441,10 @@ export interface Harness {
   readonly delivery: DeliveryService;
   /** Exposed so a test can seed/inspect human-review decisions directly. */
   readonly humanReviewRepo: FakeHumanReviewRepository;
+  /** Exposed for tests to inspect repository state. */
+  readonly articleDraftRepo: FakeArticleDraftRepository;
+  /** Exposed for tests to inspect repository state. */
+  readonly providerContentRepo: FakeProviderArticleContentRepository;
   /** Offline draft generator for when the provider runtime is disabled. */
   readonly offline: OfflineDraftGenerator;
 }
@@ -448,6 +452,9 @@ export interface Harness {
 export function buildHarness(idPrefix = "id"): Harness {
   const infra = makeInfra(idPrefix);
   const humanReviewRepo = new FakeHumanReviewRepository();
+  const articleDraftRepo = new FakeArticleDraftRepository();
+  const providerContentRepo = new FakeProviderArticleContentRepository();
+
   return {
     infra,
     provider: new OfflineProviderFixture(),
@@ -467,8 +474,8 @@ export function buildHarness(idPrefix = "id"): Harness {
     ),
     brief: new ArticleBriefService(new FakeArticleBriefRepository(), infra),
     pipeline: new ArticlePipelineService(
-      new FakeProviderArticleContentRepository(),
-      new FakeArticleDraftRepository(),
+      providerContentRepo,
+      articleDraftRepo,
       infra,
     ),
     gates: new QualityGateService(
@@ -486,9 +493,11 @@ export function buildHarness(idPrefix = "id"): Harness {
     distribution: new DistributionPlanService(new FakeDistributionPlanRepository(), infra),
     delivery: new DeliveryService(new FakeDeliveryRepository(), infra),
     humanReviewRepo,
+    articleDraftRepo,
+    providerContentRepo,
     offline: new OfflineDraftGenerator(
-      new FakeProviderArticleContentRepository(),
-      new FakeArticleDraftRepository(),
+      providerContentRepo,
+      articleDraftRepo,
       infra,
     ),
   };

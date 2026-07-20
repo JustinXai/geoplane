@@ -168,18 +168,24 @@ export class LightDraftGateService {
 
     // Persist repaired draft if available
     if (result.verdict === "REPAIR" && result.repairedDraft && this.drafts) {
-      const persistedDraft = await this.drafts.add(result.repairedDraft);
-      result.repairedDraft = persistedDraft;
+      const draftToPersist = result.repairedDraft;
+      const persistedDraft = await this.drafts.add(draftToPersist);
 
       await emitAudit(
         this.infra,
         actor,
-        result.repairedDraft,
+        { clientOrganizationId: draftToPersist.clientOrganizationId, projectId: draftToPersist.projectId },
         "draft.repaired",
         "ArticleDraft",
-        result.repairedDraft.id,
+        draftToPersist.id,
         result.evaluatedAt,
       );
+
+      // Return a new result with the persisted draft
+      return {
+        ...result,
+        repairedDraft: persistedDraft,
+      };
     } else if (result.verdict === "REPAIR" && !this.drafts) {
       throw new Error(
         "LightDraftGateService: repository not provided, cannot persist repaired draft.",

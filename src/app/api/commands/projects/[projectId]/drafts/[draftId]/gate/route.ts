@@ -21,24 +21,24 @@
  * Server-side tenant resolution from the draft's persisted client_organization_id.
  * Cross-tenant -> 403 + DENIED.
  */
-import { apiErr, apiOk } from "../../../../../../runtime/api-contracts/index.js";
-import { readJsonBody, toHttpResponse } from "../../../../../../runtime/auth/http.js";
-import { getAuthRuntime } from "../../../../../../runtime/auth/runtime-context.js";
-import type { LightGateResult } from "../../../../../../runtime/geo/services/light-draft-gate-service.js";
+import { apiErr, apiOk } from "@/runtime/api-contracts/index.js";
+import { toHttpResponse } from "@/runtime/auth/http.js";
+import { getAuthRuntime } from "@/runtime/auth/runtime-context.js";
+import type { LightGateResult } from "@/runtime/geo/services/light-draft-gate-service.js";
 import {
   buildGeoAuthorizationContext,
   createGeoCommandRuntime,
   invokeDomain,
-} from "../../../../../../runtime/commands/geo-command-runtime.js";
+} from "@/runtime/commands/geo-command-runtime.js";
 import {
   denyIfCrossTenant,
   isResponse,
   requireSession,
-} from "../../../../../../runtime/commands/geo-command-http.js";
+} from "@/runtime/commands/geo-command-http.js";
 import {
   CommandAbortError,
   runWriteCommand,
-} from "../../../../../../runtime/commands/runtime-context.js";
+} from "@/runtime/commands/runtime-context.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -92,10 +92,11 @@ export async function POST(
   if (denied) return denied;
 
   try {
-    const { dto, audit } = await runWriteCommand<LightGateResultViewV1>({
+    const { dto } = await runWriteCommand<LightGateResultViewV1>({
       db: rt.db,
       actor,
       action: ACTION,
+      idempotencyKey: undefined,
       perform: async (ctx) => {
         const geo = createGeoCommandRuntime(ctx.tx);
         const authContext = buildGeoAuthorizationContext(session);
@@ -111,9 +112,7 @@ export async function POST(
         }
 
         // Create and evaluate the light gate with repository for repair persistence
-        const { LightDraftGateService } = await import(
-          "../../../../../../runtime/geo/services/light-draft-gate-service.js"
-        );
+        const { LightDraftGateService } = await import("@/runtime/geo/services/light-draft-gate-service.js");
         const lightGateService = new LightDraftGateService(geo.infra, geo.repos.articleDrafts);
         const result = await invokeDomain(() =>
           lightGateService.evaluateAndRepair(authContext, draft),
