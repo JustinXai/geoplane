@@ -18,7 +18,7 @@
  * route). The `middleware` function, by contrast, is followed correctly when re-exported.
  */
 export const runtime = "nodejs";
-export { middleware } from "../middleware.js";
+export { middleware } from "../middleware";
 export const config = {
   matcher: ["/app/:path*", "/agency/:path*", "/ops/:path*", "/api/:path*"],
 };

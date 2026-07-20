@@ -23,7 +23,7 @@
  * performs.
  */
 import type { OrganizationType, PlatformRole } from "@/contracts/tenancy/entities";
-import { signSessionCookieValue, verifySignedSessionToken } from "./session-signing.js";
+import { signSessionCookieValue, verifySignedSessionToken } from "./session-signing";
 
 export const SESSION_COOKIE_NAME = "geo_acceptance_session";
 

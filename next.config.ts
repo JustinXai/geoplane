@@ -30,6 +30,14 @@ const buildIdentity = {
 
 const nextConfig: NextConfig = {
   env: buildIdentity,
+  turbopack: {
+    resolveAlias: {
+      ".js": ".ts",
+      ".jsx": ".tsx",
+      ".mjs": ".mts",
+    },
+  },
+  serverExternalPackages: ["node:crypto", "node:fs", "node:path", "node:url"],
   webpack: (config) => {
     config.resolve = config.resolve ?? {};
     config.resolve.extensionAlias = {

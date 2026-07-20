@@ -24,8 +24,8 @@
  * generation, section 7) is meant to exercise.
  */
 import { NextResponse, type NextRequest } from "next/server";
-import { SESSION_COOKIE_NAME, allowedSurfaceForRole, decodeSessionCookie } from "./src/lib/session-cookie.js";
-import { allowedOriginsFromEnv, isSameOriginRequest, isStateChangingMethod } from "./src/lib/request-origin.js";
+import { SESSION_COOKIE_NAME, allowedSurfaceForRole, decodeSessionCookie } from "./src/lib/session-cookie";
+import { allowedOriginsFromEnv, isSameOriginRequest, isStateChangingMethod } from "./src/lib/request-origin";
 
 const PROTECTED_SURFACES = ["app", "agency", "ops"] as const;
 const INDEPENDENT_DETECTION_PROTOTYPE_PATHS = ["/app/ai-results", "/agency/manual-probe", "/ops/probes"] as const;
