@@ -2,14 +2,14 @@
  * GET /api/knowledge/packages/[id]/issues — list the package's quality findings as
  * KnowledgeIssueViewV1[]. Missing package -> 404; cross-tenant -> 403 (KNOWLEDGE_API_V1, D3).
  */
-import { apiOk } from "../../../../../../runtime/api-contracts/index.js";
-import { toHttpResponse } from "../../../../../../runtime/auth/http.js";
+import { apiOk } from "@/runtime/api-contracts/index.js";
+import { toHttpResponse } from "@/runtime/auth/http.js";
 import {
   requireOwnedPackage,
   requirePrincipal,
-} from "../../../../../../runtime/knowledge/http-guards.js";
-import { getKnowledgeRuntime } from "../../../../../../runtime/knowledge/runtime-context.js";
-import { toIssueView } from "../../../../../../runtime/knowledge/views.js";
+} from "@/runtime/knowledge/http-guards.js";
+import { getKnowledgeRuntime } from "@/runtime/knowledge/runtime-context.js";
+import { toIssueView } from "@/runtime/knowledge/views.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

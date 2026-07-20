@@ -9,10 +9,10 @@
  * Agent B (p0-b-opportunity-brief-direct-flow-v1).
  */
 import { use } from "react";
-import { useAsyncData } from "../../../components/runtime/index.js";
-import { AsyncSection } from "../../../components/client-runtime/AsyncSection.js";
-import type { ArticleBriefViewV1 } from "../../../runtime/commands/geo-dto.js";
-import { loadBrief } from "../../../components/client-runtime/briefs.js";
+import { useAsyncData } from "@/components/runtime/index";
+import { AsyncSection } from "@/components/client-runtime/AsyncSection";
+import type { ArticleBriefViewV1 } from "@/runtime/commands/geo-dto";
+import { loadBrief } from "@/components/client-runtime/briefs";
 
 const RISK_LABELS: Record<ArticleBriefViewV1["riskLevel"], string> = {
   STANDARD: "标准",

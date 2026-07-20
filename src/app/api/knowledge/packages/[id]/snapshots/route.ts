@@ -9,15 +9,15 @@
  * leak-free KnowledgeSnapshotViewV1 (the sealed content hash is not surfaced).
  */
 import { createHash } from "node:crypto";
-import { apiOk } from "../../../../../../runtime/api-contracts/index.js";
-import { toHttpResponse } from "../../../../../../runtime/auth/http.js";
-import { recordKnowledgeAudit } from "../../../../../../runtime/knowledge/audit.js";
+import { apiOk } from "@/runtime/api-contracts/index.js";
+import { toHttpResponse } from "@/runtime/auth/http.js";
+import { recordKnowledgeAudit } from "@/runtime/knowledge/audit.js";
 import {
   requireOwnedPackage,
   requirePrincipal,
-} from "../../../../../../runtime/knowledge/http-guards.js";
-import { getKnowledgeRuntime } from "../../../../../../runtime/knowledge/runtime-context.js";
-import { toSnapshotView } from "../../../../../../runtime/knowledge/views.js";
+} from "@/runtime/knowledge/http-guards.js";
+import { getKnowledgeRuntime } from "@/runtime/knowledge/runtime-context.js";
+import { toSnapshotView } from "@/runtime/knowledge/views.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,8 +37,6 @@ export async function POST(
   if ("response" in pkgGuard) return pkgGuard.response;
   const pkg = pkgGuard.value;
 
-  // Seal fingerprint: a stable hash over each document's latest-version content hash. Derived from
-  // persisted rows, so the same content always seals to the same hash and never trusts the body.
   const documents = await rt.knowledge.documents.listByPackage(pkg.id);
   const parts: string[] = [];
   for (const doc of documents) {
@@ -48,8 +46,6 @@ export async function POST(
   parts.sort();
   const contentHash = createHash("sha256").update(parts.join("\n")).digest("hex");
 
-  // The snapshot repository owns its own transaction (supersede-then-insert). Emit the single
-  // AuditEvent immediately after, in the same request, scoped to the package's tenant.
   const snapshot = await rt.knowledge.snapshots.create({
     clientOrganizationId: pkg.clientOrganizationId,
     projectId: pkg.projectId,

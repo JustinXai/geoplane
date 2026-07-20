@@ -6,17 +6,17 @@
  * The package must belong to the caller's client organization; otherwise FORBIDDEN. Returns a
  * leak-free ingestion result view (checkpoint KNOWLEDGE_API_V1, Agent D3).
  */
-import { apiErr } from "../../../../../../runtime/api-contracts/index.js";
-import { readJsonBody, toHttpResponse } from "../../../../../../runtime/auth/http.js";
+import { apiErr } from "@/runtime/api-contracts/index.js";
+import { readJsonBody, toHttpResponse } from "@/runtime/auth/http.js";
 import {
   requireOwnedPackage,
   requirePrincipal,
-} from "../../../../../../runtime/knowledge/http-guards.js";
+} from "@/runtime/knowledge/http-guards.js";
 import {
   decodeBase64,
   ingestIntoPackage,
-} from "../../../../../../runtime/knowledge/ingest-request.js";
-import { getKnowledgeRuntime } from "../../../../../../runtime/knowledge/runtime-context.js";
+} from "@/runtime/knowledge/ingest-request.js";
+import { getKnowledgeRuntime } from "@/runtime/knowledge/runtime-context.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

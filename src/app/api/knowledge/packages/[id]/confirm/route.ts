@@ -3,16 +3,16 @@
  * and return the refreshed KnowledgePackageViewV1. Missing package -> 404; cross-tenant -> 403
  * (checkpoint KNOWLEDGE_API_V1, Agent D3).
  */
-import { apiErr, apiOk } from "../../../../../../runtime/api-contracts/index.js";
-import { toHttpResponse } from "../../../../../../runtime/auth/http.js";
-import { recordKnowledgeAudit } from "../../../../../../runtime/knowledge/audit.js";
+import { apiErr, apiOk } from "@/runtime/api-contracts/index.js";
+import { toHttpResponse } from "@/runtime/auth/http.js";
+import { recordKnowledgeAudit } from "@/runtime/knowledge/audit.js";
 import {
   requireOwnedPackage,
   requirePrincipal,
-} from "../../../../../../runtime/knowledge/http-guards.js";
-import { PgKnowledgePackageRepository } from "../../../../../../runtime/knowledge/pg/package-repository.js";
-import { getKnowledgeRuntime } from "../../../../../../runtime/knowledge/runtime-context.js";
-import { toPackageView } from "../../../../../../runtime/knowledge/views.js";
+} from "@/runtime/knowledge/http-guards.js";
+import { PgKnowledgePackageRepository } from "@/runtime/knowledge/pg/package-repository.js";
+import { getKnowledgeRuntime } from "@/runtime/knowledge/runtime-context.js";
+import { toPackageView } from "@/runtime/knowledge/views.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,8 +32,6 @@ export async function POST(
   if ("response" in pkgGuard) return pkgGuard.response;
   const pkg = pkgGuard.value;
 
-  // Confirm the package AND record its audit event in ONE transaction, so a failed audit rolls
-  // the confirmation back — a confirmed package always has its AuditEvent, and vice versa.
   await rt.db.transaction(async (tx) => {
     await new PgKnowledgePackageRepository(tx).confirm(pkg.id, principal.userId);
     await recordKnowledgeAudit(tx, principal, {

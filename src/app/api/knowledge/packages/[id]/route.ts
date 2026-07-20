@@ -2,14 +2,14 @@
  * GET /api/knowledge/packages/[id] — read a KnowledgePackageViewV1 with document + open-issue
  * counts. Missing package -> 404; cross-tenant access -> 403 (checkpoint KNOWLEDGE_API_V1, D3).
  */
-import { apiErr, apiOk } from "../../../../../runtime/api-contracts/index.js";
-import { toHttpResponse } from "../../../../../runtime/auth/http.js";
+import { apiErr, apiOk } from "@/runtime/api-contracts/index.js";
+import { toHttpResponse } from "@/runtime/auth/http.js";
 import {
   requireOwnedPackage,
   requirePrincipal,
-} from "../../../../../runtime/knowledge/http-guards.js";
-import { getKnowledgeRuntime } from "../../../../../runtime/knowledge/runtime-context.js";
-import { toPackageView } from "../../../../../runtime/knowledge/views.js";
+} from "@/runtime/knowledge/http-guards.js";
+import { getKnowledgeRuntime } from "@/runtime/knowledge/runtime-context.js";
+import { toPackageView } from "@/runtime/knowledge/views.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

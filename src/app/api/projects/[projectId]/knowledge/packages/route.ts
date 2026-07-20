@@ -1,18 +1,21 @@
 /**
- * POST /api/projects/[projectId]/knowledge/packages — create a knowledge package under a project.
+ * GET /api/projects/[projectId]/knowledge/packages — list all knowledge packages for a project,
+ * scoped to the caller's client organization. POST — create a new package under a project.
  *
- * The project must be owned by the caller's client organization; otherwise FORBIDDEN. Returns the
- * new KnowledgePackageViewV1 (checkpoint KNOWLEDGE_API_V1, Agent D3).
+ * The project must be owned by the caller's client organization; otherwise FORBIDDEN.
+ * GET returns a flat array of KnowledgePackageViewV1[] (checkpoint KNOWLEDGE_API_V1, Agent D3).
+ * POST returns the new KnowledgePackageViewV1 (201 Created).
  */
-import { apiErr, apiOk } from "../../../../../../runtime/api-contracts/index.js";
-import { readJsonBody, toHttpResponse } from "../../../../../../runtime/auth/http.js";
-import { requirePrincipal } from "../../../../../../runtime/knowledge/http-guards.js";
+import { apiErr, apiOk } from "@/runtime/api-contracts/index.js";
+import { readJsonBody, toHttpResponse } from "@/runtime/auth/http.js";
+import { requirePrincipal } from "@/runtime/knowledge/http-guards.js";
 import {
   getKnowledgeRuntime,
   principalOwnsClient,
-} from "../../../../../../runtime/knowledge/runtime-context.js";
-import { newPackageView } from "../../../../../../runtime/knowledge/views.js";
-import type { KnowledgeClassification } from "../../../../../../runtime/knowledge/entities.js";
+} from "@/runtime/knowledge/runtime-context.js";
+import { newPackageView, toPackageView } from "@/runtime/knowledge/views.js";
+import type { KnowledgeClassification } from "@/runtime/knowledge/entities.js";
+import type { KnowledgePackageViewV1 } from "@/runtime/api-contracts/index.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +34,45 @@ function parseClassification(value: unknown): KnowledgeClassification | undefine
     : undefined;
 }
 
+export async function GET(
+  request: Request,
+  context: { params: Promise<{ projectId: string }> },
+): Promise<Response> {
+  const rt = getKnowledgeRuntime();
+  const { projectId } = await context.params;
+
+  const guard = await requirePrincipal(rt, request);
+  if ("response" in guard) return guard.response;
+  const principal = guard.value;
+
+  const project = await rt.projects.findById(projectId);
+  if (!project) {
+    return toHttpResponse(apiErr("NOT_FOUND", "Project not found."));
+  }
+  if (!principalOwnsClient(principal, project.clientOrganizationId)) {
+    return toHttpResponse(
+      apiErr("FORBIDDEN", "You are not authorized to access this project's knowledge packages."),
+    );
+  }
+
+  const packages = await rt.knowledge.packages.listByProject(
+    projectId,
+    project.clientOrganizationId,
+  );
+
+  const views: KnowledgePackageViewV1[] = await Promise.all(
+    packages.map(async (pkg) => {
+      const withCounts = await rt.knowledge.packages.getWithCounts(
+        pkg.id,
+        pkg.clientOrganizationId,
+      );
+      return withCounts ? toPackageView(withCounts) : newPackageView(pkg);
+    }),
+  );
+
+  return toHttpResponse(apiOk(views));
+}
+
 export async function POST(
   request: Request,
   context: { params: Promise<{ projectId: string }> },
@@ -42,12 +84,6 @@ export async function POST(
   if ("response" in guard) return guard.response;
   const principal = guard.value;
 
-  const body = await readJsonBody(request);
-  const title = typeof body.title === "string" ? body.title.trim() : "";
-  if (title === "") {
-    return toHttpResponse(apiErr("VALIDATION_FAILED", "A package title is required."));
-  }
-
   const project = await rt.projects.findById(projectId);
   if (!project) {
     return toHttpResponse(apiErr("NOT_FOUND", "Project not found."));
@@ -56,6 +92,12 @@ export async function POST(
     return toHttpResponse(
       apiErr("FORBIDDEN", "You are not authorized to create packages in this project."),
     );
+  }
+
+  const body = await readJsonBody(request);
+  const title = typeof body.title === "string" ? body.title.trim() : "";
+  if (title === "") {
+    return toHttpResponse(apiErr("VALIDATION_FAILED", "A package title is required."));
   }
 
   const pkg = await rt.knowledge.packages.create({

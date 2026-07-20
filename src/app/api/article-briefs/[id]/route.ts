@@ -6,15 +6,16 @@
  *
  * Agent B (p0-b-opportunity-brief-direct-flow-v1).
  */
-import { apiErr, apiOk } from "../../../../runtime/api-contracts/index.js";
-import { getAuthRuntime } from "../../../../runtime/auth/runtime-context.js";
-import type { ArticleBriefViewV1 } from "../../../../runtime/commands/geo-dto.js";
+import { apiErr, apiOk } from "@/runtime/api-contracts/index.js";
+import { getAuthRuntime } from "@/runtime/auth/runtime-context.js";
+import { toHttpResponse } from "@/runtime/auth/http.js";
+import type { ArticleBriefViewV1 } from "@/runtime/commands/geo-dto.js";
+import { createGeoCommandRuntime } from "@/runtime/commands/geo-command-runtime.js";
 import {
-  createGeoCommandRuntime,
   denyIfCrossTenant,
   isResponse,
   requireSession,
-} from "../../../../runtime/commands/geo-command-runtime.js";
+} from "@/runtime/commands/geo-command-http.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ export async function GET(
   const geo = createGeoCommandRuntime(rt.db);
   const brief = await geo.repos.articleBriefs.getById(id);
   if (!brief) {
-    return apiErr("NOT_FOUND", "Article brief not found.") as Response;
+    return toHttpResponse(apiErr("NOT_FOUND", "Article brief not found."));
   }
 
   const denied = await denyIfCrossTenant(
@@ -55,5 +56,5 @@ export async function GET(
     riskLevel: brief.planningContext.riskLevel,
     createdAt: brief.createdAt,
   };
-  return apiOk(view) as Response;
+  return toHttpResponse(apiOk(view));
 }

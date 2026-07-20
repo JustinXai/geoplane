@@ -8,16 +8,16 @@
  * Resolving an already-resolved issue is idempotent: it returns the current view and writes NO new
  * audit (no state change -> no duplicate event).
  */
-import { apiErr, apiOk } from "../../../../../../../../runtime/api-contracts/index.js";
-import { toHttpResponse } from "../../../../../../../../runtime/auth/http.js";
-import { recordKnowledgeAudit } from "../../../../../../../../runtime/knowledge/audit.js";
+import { apiErr, apiOk } from "@/runtime/api-contracts/index.js";
+import { toHttpResponse } from "@/runtime/auth/http.js";
+import { recordKnowledgeAudit } from "@/runtime/knowledge/audit.js";
 import {
   requireOwnedPackage,
   requirePrincipal,
-} from "../../../../../../../../runtime/knowledge/http-guards.js";
-import { PgKnowledgeIssueRepository } from "../../../../../../../../runtime/knowledge/pg/issue-repository.js";
-import { getKnowledgeRuntime } from "../../../../../../../../runtime/knowledge/runtime-context.js";
-import { toIssueView } from "../../../../../../../../runtime/knowledge/views.js";
+} from "@/runtime/knowledge/http-guards.js";
+import { PgKnowledgeIssueRepository } from "@/runtime/knowledge/pg/issue-repository.js";
+import { getKnowledgeRuntime } from "@/runtime/knowledge/runtime-context.js";
+import { toIssueView } from "@/runtime/knowledge/views.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,18 +37,15 @@ export async function POST(
   if ("response" in pkgGuard) return pkgGuard.response;
   const pkg = pkgGuard.value;
 
-  // Tenant scoping: the issue must be one of THIS package's issues, or it does not exist for us.
   const issues = await rt.knowledge.issues.listByPackage(pkg.id);
   const issue = issues.find((i) => i.id === issueId);
   if (!issue) {
     return toHttpResponse(apiErr("NOT_FOUND", "Knowledge issue not found."));
   }
   if (issue.resolved) {
-    // Already resolved: idempotent no-op, no new state and no second audit event.
     return toHttpResponse(apiOk(toIssueView(issue)));
   }
 
-  // Resolve the issue AND record its audit event in ONE transaction (both land or neither does).
   const resolved = await rt.db.transaction(async (tx) => {
     const updated = await new PgKnowledgeIssueRepository(tx).resolve(issueId, principal.userId);
     await recordKnowledgeAudit(tx, principal, {
