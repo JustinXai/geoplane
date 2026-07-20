@@ -4,11 +4,21 @@
  *
  * BUSINESS_COMMAND_API_V1 (Agent C — batch 2).
  *
- * Provider Calls = 0 (structural): the request supplies only an OPAQUE `providerResponseEnvelopeId`
- * — a pointer to a raw provider envelope produced entirely out-of-band (a deterministic offline
- * fixture in tests). This route ingests that pointer (no network, no provider SDK) and delegates
- * compilation to the frozen pure `compileArticleDraft`. Compilation is append-only: each call
- * produces a NEW draft with an incremented version; no existing draft is mutated.
+ * Supports two modes:
+ *
+ * 1. ONLINE MODE (PROVIDER_RUNTIME_ENABLED=true):
+ *    - Request supplies an opaque `providerResponseEnvelopeId`
+ *    - This is a pointer to a raw provider envelope produced entirely out-of-band
+ *    - Route ingests that pointer and delegates compilation to the frozen pure `compileArticleDraft`
+ *
+ * 2. OFFLINE MODE (PROVIDER_RUNTIME_ENABLED=false, default):
+ *    - Request does NOT need `providerResponseEnvelopeId`
+ *    - Route uses OfflineDraftGenerator to create a valid draft without any provider call
+ *    - Draft sections are derived from the brief's outline
+ *    - Provider Calls = 0, structurally
+ *
+ * Compilation is append-only: each call produces a NEW draft with an incremented version;
+ * no existing draft is mutated.
  *
  * Server-side tenant resolution: the tenant is read from the referenced ArticleBrief, never the
  * body. Cross-tenant -> 403 + DENIED. Idempotency-Key makes a retried compile yield ONE draft.
@@ -33,6 +43,7 @@ import {
   readIdempotencyKey,
   runWriteCommand,
 } from "../../../../runtime/commands/runtime-context.js";
+import { isProviderRuntimeEnabled } from "../../../../runtime/provider/feature-flag.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,13 +59,11 @@ export async function POST(request: Request): Promise<Response> {
 
   const body = await readJsonBody(request);
   const articleBriefId = readString(body, "articleBriefId");
-  const providerResponseEnvelopeId = readString(body, "providerResponseEnvelopeId");
-  if (!articleBriefId || !providerResponseEnvelopeId) {
+  const providerResponseEnvelopeId = readString(body, "providerResponseEnvelopeId") ?? null;
+
+  if (!articleBriefId) {
     return toHttpResponse(
-      apiErr(
-        "VALIDATION_FAILED",
-        "articleBriefId and providerResponseEnvelopeId (an opaque offline pointer) are required.",
-      ),
+      apiErr("VALIDATION_FAILED", "articleBriefId is required."),
     );
   }
 
@@ -87,43 +96,82 @@ export async function POST(request: Request): Promise<Response> {
         const brief = await geo.repos.articleBriefs.getById(articleBriefId);
         if (!brief) throw new CommandAbortError("NOT_FOUND", "Article brief not found.");
 
-        // Ingest the opaque offline envelope pointer (NOT a provider call), then compile.
-        await invokeDomain(() =>
-          geo.services.pipeline.ingestProviderArticleContent(
-            authContext,
-            brief,
-            providerResponseEnvelopeId,
-          ),
-        );
-        const providerContents = await geo.repos.providerArticleContents.listByArticleBrief(
-          brief.id,
-        );
-        const draft = await invokeDomain(() =>
-          geo.services.pipeline.compileDraft(authContext, brief, providerContents),
-        );
+        const providerRuntimeEnabled = isProviderRuntimeEnabled();
 
-        const view: ArticleDraftCommandViewV1 = {
-          id: draft.id,
-          clientOrganizationId: draft.clientOrganizationId,
-          projectId: draft.projectId,
-          articleBriefId: draft.articleBriefId,
-          version: draft.version,
-          title: draft.title,
-          status: "DRAFT",
-          sectionCount: draft.sections.length,
-          sourceProviderArticleContentIds: draft.sourceProviderArticleContentIds,
-          compiledAt: draft.compiledAt,
-        };
-        return {
-          dto: view,
-          audit: {
+        if (providerRuntimeEnabled && providerResponseEnvelopeId) {
+          // ONLINE MODE: Ingest the opaque offline envelope pointer (NOT a provider call), then compile.
+          await invokeDomain(() =>
+            geo.services.pipeline.ingestProviderArticleContent(
+              authContext,
+              brief,
+              providerResponseEnvelopeId,
+            ),
+          );
+          const providerContents = await geo.repos.providerArticleContents.listByArticleBrief(
+            brief.id,
+          );
+          const draft = await invokeDomain(() =>
+            geo.services.pipeline.compileDraft(authContext, brief, providerContents),
+          );
+
+          const view: ArticleDraftCommandViewV1 = {
+            id: draft.id,
             clientOrganizationId: draft.clientOrganizationId,
             projectId: draft.projectId,
-            targetType: "ArticleDraft",
-            targetId: draft.id,
-            metadata: { articleBriefId: draft.articleBriefId, version: draft.version },
-          },
-        };
+            articleBriefId: draft.articleBriefId,
+            version: draft.version,
+            title: draft.title,
+            status: "DRAFT",
+            sectionCount: draft.sections.length,
+            sourceProviderArticleContentIds: draft.sourceProviderArticleContentIds,
+            compiledAt: draft.compiledAt,
+          };
+          return {
+            dto: view,
+            audit: {
+              clientOrganizationId: draft.clientOrganizationId,
+              projectId: draft.projectId,
+              targetType: "ArticleDraft",
+              targetId: draft.id,
+              metadata: { articleBriefId: draft.articleBriefId, version: draft.version, mode: "online" },
+            },
+          };
+        } else {
+          // OFFLINE MODE: Generate draft without any provider call.
+          // This uses OfflineDraftGenerator which creates a valid ArticleDraft
+          // with sections derived from the brief's outline.
+          const { providerContent, draft } = await invokeDomain(() =>
+            geo.services.offline.generateDraft(authContext, { brief }),
+          );
+
+          const view: ArticleDraftCommandViewV1 = {
+            id: draft.id,
+            clientOrganizationId: draft.clientOrganizationId,
+            projectId: draft.projectId,
+            articleBriefId: draft.articleBriefId,
+            version: draft.version,
+            title: draft.title,
+            status: "DRAFT",
+            sectionCount: draft.sections.length,
+            sourceProviderArticleContentIds: draft.sourceProviderArticleContentIds,
+            compiledAt: draft.compiledAt,
+          };
+          return {
+            dto: view,
+            audit: {
+              clientOrganizationId: draft.clientOrganizationId,
+              projectId: draft.projectId,
+              targetType: "ArticleDraft",
+              targetId: draft.id,
+              metadata: {
+                articleBriefId: draft.articleBriefId,
+                version: draft.version,
+                mode: "offline",
+                providerContentId: providerContent.id,
+              },
+            },
+          };
+        }
       },
     });
     return toHttpResponse(apiOk(dto));

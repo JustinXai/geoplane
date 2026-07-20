@@ -37,6 +37,11 @@ export {
   type CreateBriefFromOpportunityResult,
 } from "./services/opportunity-to-article-brief-adapter.js";
 export { ArticlePipelineService } from "./services/article-pipeline-service.js";
+export {
+  OfflineDraftGenerator,
+  type GenerateOfflineDraftInput,
+  type GenerateOfflineDraftResult,
+} from "./services/offline-draft-generator.js";
 export { QualityGateService } from "./services/quality-gate-service.js";
 export { PublishPackageService } from "./services/publish-package-service.js";
 export {
@@ -44,3 +49,5 @@ export {
   type CreateDistributionPlanInput,
 } from "./services/distribution-plan-service.js";
 export { DeliveryService } from "./services/delivery-service.js";
+export { LightDraftGateService, type GateIssue, type GateIssueCategory, type GateIssueSeverity, type LightGateResult, type LightGateVerdict } from "./services/light-draft-gate-service.js";
+export { DraftReviewService, type DraftReviewDecisionInput, type DraftReviewDecisionResult, type DraftReviewDecisionStatus } from "./services/draft-review-service.js";

@@ -58,6 +58,7 @@ import {
   DistributionPlanService,
   HumanReviewService,
   KeywordQuestionService,
+  OfflineDraftGenerator,
   OpportunityFamilyService,
   OpportunityService,
   PublishPackageService,
@@ -440,6 +441,8 @@ export interface Harness {
   readonly delivery: DeliveryService;
   /** Exposed so a test can seed/inspect human-review decisions directly. */
   readonly humanReviewRepo: FakeHumanReviewRepository;
+  /** Offline draft generator for when the provider runtime is disabled. */
+  readonly offline: OfflineDraftGenerator;
 }
 
 export function buildHarness(idPrefix = "id"): Harness {
@@ -483,5 +486,10 @@ export function buildHarness(idPrefix = "id"): Harness {
     distribution: new DistributionPlanService(new FakeDistributionPlanRepository(), infra),
     delivery: new DeliveryService(new FakeDeliveryRepository(), infra),
     humanReviewRepo,
+    offline: new OfflineDraftGenerator(
+      new FakeProviderArticleContentRepository(),
+      new FakeArticleDraftRepository(),
+      infra,
+    ),
   };
 }

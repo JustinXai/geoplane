@@ -50,6 +50,7 @@ import {
   DistributionPlanService,
   HumanReviewService,
   KeywordQuestionService,
+  OfflineDraftGenerator,
   OpportunityFamilyService,
   OpportunityService,
   OpportunityToArticleBriefAdapter,
@@ -208,6 +209,8 @@ export interface GeoCommandServices {
   readonly delivery: DeliveryService;
   /** Bridges a knowledge-driven Opportunity to an ArticleBrief atomically. */
   readonly opportunityToBrief: OpportunityToArticleBriefAdapter;
+  /** Offline draft generator for when the provider runtime is disabled. */
+  readonly offline: OfflineDraftGenerator;
 }
 
 export interface CreateKnowledgePackageCommandInput {
@@ -306,6 +309,7 @@ export function createGeoCommandRuntime(source: Queryable): GeoCommandRuntime {
       repos.articleBriefs,
       infra,
     ),
+    offline: new OfflineDraftGenerator(repos.providerArticleContents, repos.articleDrafts, infra),
   };
 
   const knowledgePackageStore = new PgKnowledgePackageRepository(db);

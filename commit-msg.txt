@@ -1,7 +1,36 @@
-fix: correct import paths and type conversions across knowledge and brief routes
+feat(knowledge-package-entry): wire knowledge package workspace to real APIs
 
-- Fix geo-command-http imports in article-briefs/[id]/route.ts
-- Standardize to @/ alias imports for knowledge package routes
-- Fix test file string literal quote escaping
-- Remove .js/.tsx/.ts extensions from client page imports
-- Add toHttpResponse() wrapper for apiErr/apiOk returns
+Replaces the scaffolding-only /app/knowledge page with a fully functional
+knowledge package management interface.
+
+API routes (all pre-existing in git, using @/ path aliases):
+- GET /api/projects/[projectId]/knowledge/packages — list packages with counts
+- POST /api/projects/[projectId]/knowledge/packages — create a package
+- GET /api/knowledge/packages/[id] — package detail with counts
+- POST /api/knowledge/packages/[id]/confirm — confirm readiness
+- GET /api/knowledge/packages/[id]/issues — quality findings
+- POST /api/knowledge/packages/[id]/issues/[issueId]/resolve — resolve issue
+- POST /api/knowledge/packages/[id]/files — ingest file upload
+- POST /api/knowledge/packages/[id]/urls — ingest URL content
+- POST /api/knowledge/packages/[id]/snapshots — seal snapshot
+
+New runtime files (pre-existing in git):
+- src/runtime/knowledge/audit.ts — knowledge-lane audit helper
+- src/runtime/knowledge/ingest-request.ts — shared ingest orchestration
+
+New client-runtime files:
+- src/components/client-runtime/WriteAction.tsx — write action hook + feedback
+
+New client endpoints:
+- loadKnowledgePackages(projectId) — list packages by project
+- createKnowledgePackage(projectId, title) — create package
+
+New /app/knowledge page features:
+- Project selector (active project)
+- Package list with status, document count, issue count, timestamps
+- Inline "创建知识包" form with title input
+- "查看详情" link to detail page
+- Empty state with explanation and primary CTA
+
+Permission model: client-org scoping via server-derived principal
+(SYSTEM_INVARIANTS_V1), agency/platform sees authorized clients only.
