@@ -29,7 +29,7 @@ const LOCAL_TEST_DISPLAY_NAMES: Readonly<Record<string, string>> = Object.freeze
  * continues to prove that no real customer data is present. Formal pages receive a stable
  * Chinese label instead of exposing engineering seed vocabulary.
  */
-export function safeBusinessDisplayName(value: string, kind: "组织" | "项目" | "内容" = "组织"): string {
+export function safeBusinessDisplayName(value: string, kind: "组织" | "项目" | "内容" | "知识包" = "组织"): string {
   const exact = LOCAL_TEST_DISPLAY_NAMES[value.trim()];
   if (exact) return exact;
   if (/\b(?:sample|fixture|mock|demo)\b|pilot\s+fixture/i.test(value)) return `本地验收${kind}`;

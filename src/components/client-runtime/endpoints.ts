@@ -69,6 +69,28 @@ export function loadKnowledgeIssues(
   );
 }
 
+/** List all knowledge packages for a project (returns flat array). */
+export function loadKnowledgePackages(
+  projectId: string,
+  client: ApiClient = defaultApiClient,
+): Promise<Result<readonly KnowledgePackageViewV1[]>> {
+  return client.request<readonly KnowledgePackageViewV1[]>(
+    `/api/projects/${enc(projectId)}/knowledge/packages`,
+  );
+}
+
+/** Create a new knowledge package under a project. */
+export function createKnowledgePackage(
+  projectId: string,
+  title: string,
+  client: ApiClient = defaultApiClient,
+): Promise<Result<KnowledgePackageViewV1>> {
+  return client.request<KnowledgePackageViewV1>(
+    `/api/projects/${enc(projectId)}/knowledge/packages`,
+    { method: "POST", body: { title } },
+  );
+}
+
 // --- Project-scoped read resources -----------------------------------------
 
 export function loadKeywordQuestions(
