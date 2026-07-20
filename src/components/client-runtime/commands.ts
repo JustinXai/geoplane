@@ -15,6 +15,7 @@ import type { ClientReviewDecisionValue } from "../../contracts/tenancy/entities
 import type { ArticleBriefPlanningContextV1 } from "../../contracts/geo-business/entities.js";
 import type { HumanReviewDecisionViewV1 } from "../../runtime/commands/geo-dto.js";
 import { type ApiClient, defaultApiClient, type Result } from "../../lib/api-client/http.js";
+import type { ArticleDraftCommandViewV1 } from "../../runtime/commands/geo-dto.js";
 
 function enc(segment: string): string {
   return encodeURIComponent(segment);
@@ -149,6 +150,68 @@ export function createBriefFromOpportunity(
         outline: input.outline,
         targetKeywords: input.targetKeywords,
       },
+    },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ArticleDraft compilation — POST /api/article-drafts/compile
+// ---------------------------------------------------------------------------
+
+export interface CompileDraftInput {
+  /** The ArticleBrief to compile a draft from. */
+  readonly articleBriefId: string;
+  /**
+   * Opaque pointer to an offline provider response envelope. In tests, this is a fixture
+   * envelope id generated out-of-band; in production, it points to a real provider response.
+   * The route ingests this pointer and performs no live provider call.
+   */
+  readonly providerResponseEnvelopeId: string;
+}
+
+/**
+ * Compile an ArticleDraft from an ArticleBrief and an opaque provider response envelope.
+ * The draft is append-only: each call produces a NEW draft with an incremented version.
+ */
+export function compileDraft(
+  input: CompileDraftInput,
+  client: ApiClient = defaultApiClient,
+): Promise<Result<ArticleDraftCommandViewV1>> {
+  return client.request<ArticleDraftCommandViewV1>("/api/article-drafts/compile", {
+    method: "POST",
+    body: {
+      articleBriefId: input.articleBriefId,
+      providerResponseEnvelopeId: input.providerResponseEnvelopeId,
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Draft review / gate evaluation — POST /api/article-drafts/[id]/reviews
+// ---------------------------------------------------------------------------
+
+export interface SubmitDraftReviewInput {
+  /** The ArticleDraft to run gates against and (if all pass) approve. */
+  readonly draftId: string;
+  /** The IndustryProfile to run platform/vertical gates against. */
+  readonly industryProfileId: string;
+}
+
+/**
+ * Run the three publication gates (quality, platform, vertical) for a draft and,
+ * only if all three PASS, record the final ArticleApproval.
+ * The approver is derived server-side from the authenticated session.
+ * NEVER auto-approved: a failed gate returns the failure reasons and writes nothing.
+ */
+export function submitDraftReview(
+  input: SubmitDraftReviewInput,
+  client: ApiClient = defaultApiClient,
+): Promise<Result<import("../../runtime/commands/geo-dto.js").ArticleApprovalViewV1>> {
+  return client.request<import("../../runtime/commands/geo-dto.js").ArticleApprovalViewV1>(
+    `/api/article-drafts/${enc(input.draftId)}/reviews`,
+    {
+      method: "POST",
+      body: { industryProfileId: input.industryProfileId },
     },
   );
 }
