@@ -88,11 +88,13 @@ export function deriveOpportunityStatus(
 }
 
 /**
- * Map one Opportunity to the frozen OpportunityViewV1. The keyword is the only
- * client-facing handle the Opportunity carries, so it drives both the title and
- * a plain-language summary; grounding/provenance ids are deliberately not
- * exposed. `review` is attached only when the opportunity is reviewable — it
- * carries the OPAQUE reviewReferenceCode, never a raw validation UUID.
+ * Map one Opportunity to the frozen OpportunityViewV1. The frozen schema still
+ * stores its legacy anchor in `keyword`; for knowledge-first opportunities this
+ * can be a content-opportunity label, not a confirmed keyword. Client surfaces
+ * therefore present it as a content direction and never as confirmed demand.
+ * Grounding/provenance ids are deliberately not exposed. `review` is attached
+ * only when the opportunity is reviewable — it carries the OPAQUE
+ * reviewReferenceCode, never a raw validation UUID.
  */
 export function toOpportunityView(
   opportunity: Opportunity,
@@ -103,7 +105,7 @@ export function toOpportunityView(
     id: opportunity.id,
     projectId: opportunity.projectId,
     title: opportunity.keyword,
-    summary: `Knowledge-grounded content opportunity for the keyword "${opportunity.keyword}".`,
+    summary: `基于企业知识库整理的内容方向：${opportunity.keyword}。确认后可进入内容生产与交付流程。`,
     status,
     createdAt: opportunity.createdAt,
   };

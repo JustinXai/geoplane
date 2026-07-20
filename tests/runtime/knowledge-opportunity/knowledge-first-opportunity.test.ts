@@ -12,6 +12,7 @@ import {
   ORG,
   PROJECT,
 } from "../geo/fakes.js";
+import { toOpportunityView } from "../../../src/runtime/geo/views.js";
 
 const CONTEXT: KnowledgeBusinessContext = {
   enterpriseIntroduction: "华东智造为工业企业提供设备预测性维护服务。",
@@ -208,6 +209,14 @@ describe("knowledge-first application boundary", () => {
       groundingKnowledgePackageVersion: knowledgePackage.version,
       keyword: candidate.contentOpportunity,
     });
+    const view = toOpportunityView(connected.opportunity, "PROPOSED");
+    expect(view.title).toBe(candidate.contentOpportunity);
+    expect(view.summary).toBe(
+      `基于企业知识库整理的内容方向：${candidate.contentOpportunity}。确认后可进入内容生产与交付流程。`,
+    );
+    expect(`${view.title} ${view.summary}`).not.toContain("关键词需求");
+    expect(`${view.title} ${view.summary}`).not.toContain("Knowledge-grounded content opportunity");
+    expect(`${view.title} ${view.summary}`).not.toMatch(/for the keyword/i);
     expect(candidate.demandClaim).toBe("NOT_ASSERTED");
   });
 });

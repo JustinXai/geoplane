@@ -229,4 +229,27 @@ describe("toOpportunityRows", () => {
       { title: "关键词内容方向", summary: "面向该关键词的内容方向。", statusLabel: "已验证" },
     ]);
   });
+
+  it("presents a no-keyword knowledge opportunity as a content direction, not keyword demand", () => {
+    const items: readonly OpportunityViewV1[] = [
+      {
+        id: "opp-knowledge-first",
+        projectId: "p-1",
+        title: "设备预测性维护选型与评估指南",
+        summary: "基于企业知识库整理的内容方向：设备预测性维护选型与评估指南。确认后可进入内容生产与交付流程。",
+        status: "PROPOSED",
+        createdAt: "2026-07-10T00:00:00.000Z",
+      },
+    ];
+
+    const [row] = toOpportunityRows(items);
+    expect(row).toEqual({
+      title: "设备预测性维护选型与评估指南",
+      summary: "基于企业知识库整理的内容方向：设备预测性维护选型与评估指南。确认后可进入内容生产与交付流程。",
+      statusLabel: "待评估",
+    });
+    expect(`${row?.title} ${row?.summary}`).not.toContain("关键词需求");
+    expect(`${row?.title} ${row?.summary}`).not.toContain("Knowledge-grounded content opportunity");
+    expect(`${row?.title} ${row?.summary}`).not.toMatch(/for the keyword/i);
+  });
 });
