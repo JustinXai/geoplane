@@ -25,7 +25,7 @@ export default function OpsWorkspaceHomePage() {
         const { overview } = home;
         const progress = recentBusinessProgress(home.directory);
         return <>
-          <div className={opsPageStyles.toolbar}><p>数据来源：{overview.sources.join("、")}。所有数字均可回到业务明细核验；当前项目模型没有停用状态，因此已建立项目均计为活跃。</p><button type="button" className="button button-secondary" onClick={reload}>刷新总览</button></div>
+          <div className={opsPageStyles.toolbar}><p>数据来源：{overview.sources.join("、")}。所有数字均可回到业务明细核验；活跃项目表示当前纳入运营跟进的项目。</p><button type="button" className="button button-secondary" onClick={reload}>刷新总览</button></div>
           <section className={opsPageStyles.grid} aria-label="运营指标">
             <Metric label="代理商" value={overview.totals.agencies} href="/ops/agencies" />
             <Metric label="客户" value={overview.totals.clients} href="/ops/clients" />

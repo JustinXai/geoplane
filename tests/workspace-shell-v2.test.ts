@@ -6,6 +6,7 @@ import {
   CLIENT_WORKSPACE_NAV_LINKS,
   OPS_WORKSPACE_NAV_LINKS,
 } from "../src/lib/workspace-nav.js";
+import { safeBusinessDisplayName } from "../src/runtime/ui-adapters/formatters.js";
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), "utf8");
 
@@ -58,6 +59,18 @@ describe("H1 三角色共享工作台壳层", () => {
       expect(source).toContain("WorkspaceShell");
       expect(source).toMatch(/WORKSPACE_NAV_LINKS/);
     }
+  });
+
+  it("共享壳层统一清洗顶部组织名称并用开关控制本地标识", () => {
+    const source = read("../src/components/layout/WorkspaceShell.tsx");
+
+    expect(safeBusinessDisplayName("Sample Local Client (Pilot Fixture)")).toBe("本地验收客户");
+    expect(safeBusinessDisplayName("Sample Local Agency (Pilot Fixture)")).toBe("本地验收代理商");
+    expect(safeBusinessDisplayName("Sample Local Platform (Pilot Fixture)")).toBe("本地验收平台");
+    expect(source).toContain("safeBusinessDisplayName(rawContext)");
+    expect(source).toContain("NEXT_PUBLIC_GEO_LOCAL_SAFE_RUNTIME");
+    expect(source).not.toContain("<strong>{account?.organizationName}</strong>");
+    expect(source).not.toContain('<div className="workspace-sidebar-foot">本地安全运行</div></aside>');
   });
 
   it("共享指标组件支持正常、待处理、风险和异常四种语义", () => {

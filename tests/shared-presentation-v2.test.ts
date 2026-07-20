@@ -45,6 +45,8 @@ describe("H2 共享页面呈现约束", () => {
     const sharedSources = [
       uiSource,
       read("../src/components/layout/WorkspaceShell.tsx"),
+      read("../src/app/app/page.tsx"),
+      read("../src/app/ops/page.tsx"),
       read("../src/components/ops-runtime/OpsPage.tsx"),
       read("../src/lib/i18n/zh-CN.ts"),
       read("../src/lib/workspace-nav.ts"),
@@ -55,6 +57,8 @@ describe("H2 共享页面呈现约束", () => {
       expect(source).not.toContain("国内 AI 查询");
       expect(source).not.toContain("人工探测");
       expect(source).not.toContain("效果验证");
+      expect(source).not.toContain("完整度百分比没有冻结口径");
+      expect(source).not.toContain("当前项目模型没有停用状态");
     }
   });
 
