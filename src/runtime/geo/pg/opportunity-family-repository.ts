@@ -119,4 +119,35 @@ export class PgOpportunityFamilyRepository implements OpportunityFamilyRepositor
       createdAt: row.created_at.toISOString(),
     };
   }
+
+  async listByOrganization(clientOrganizationId: string): Promise<OpportunityFamily[]> {
+    const res = await this.db.query<FamilyRow>(
+      "SELECT * FROM opportunity_family WHERE client_organization_id = $1 ORDER BY created_at DESC",
+      [clientOrganizationId],
+    );
+    const families: OpportunityFamily[] = [];
+    for (const row of res.rows) {
+      const memberRes = await this.db.query<MemberRow>(
+        `SELECT opportunity_id, authorizing_human_review_decision_id, position
+           FROM opportunity_family_member
+          WHERE opportunity_family_id = $1
+          ORDER BY position`,
+        [row.id],
+      );
+      const members = memberRes.rows.map(
+        (m): OpportunityFamilyMember => ({
+          opportunityId: m.opportunity_id,
+          authorizingHumanReviewDecisionId: m.authorizing_human_review_decision_id,
+          authorizingReviewDecisionStatus: "APPROVED",
+        }),
+      );
+      const first = members[0];
+      if (!first) continue;
+      families.push({
+        id: row.id, clientOrganizationId: row.client_organization_id, projectId: row.project_id,
+        members: [first, ...members.slice(1)], createdAt: row.created_at.toISOString(),
+      });
+    }
+    return families;
+  }
 }

@@ -208,6 +208,9 @@ export class FakeOpportunityFamilyRepository implements OpportunityFamilyReposit
   getById(id: string): Promise<OpportunityFamily | undefined> {
     return this.store.getById(id);
   }
+  listByOrganization(clientOrganizationId: string): Promise<OpportunityFamily[]> {
+    return Promise.resolve(this.store.all().filter((f) => f.clientOrganizationId === clientOrganizationId));
+  }
 }
 
 export class FakeArticleBriefRepository implements ArticleBriefRepository {
@@ -217,6 +220,9 @@ export class FakeArticleBriefRepository implements ArticleBriefRepository {
   }
   getById(id: string): Promise<ArticleBrief | undefined> {
     return this.store.getById(id);
+  }
+  listByOrganization(clientOrganizationId: string): Promise<ArticleBrief[]> {
+    return Promise.resolve(this.store.all().filter((b) => b.clientOrganizationId === clientOrganizationId));
   }
 }
 
@@ -240,6 +246,9 @@ export class FakeArticleDraftRepository implements ArticleDraftRepository {
   }
   listByArticleBrief(articleBriefId: string): Promise<ArticleDraft[]> {
     return Promise.resolve(this.store.all().filter((d) => d.articleBriefId === articleBriefId));
+  }
+  listByOrganization(clientOrganizationId: string): Promise<ArticleDraft[]> {
+    return Promise.resolve(this.store.all().filter((d) => d.clientOrganizationId === clientOrganizationId));
   }
 }
 

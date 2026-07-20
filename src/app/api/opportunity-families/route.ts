@@ -1,4 +1,11 @@
 /**
+ * GET /api/opportunity-families — lists all OpportunityFamilies for the authenticated client
+ * (server-side tenant resolution from session; body carries no org id).
+ *
+ * BUSINESS_COMMAND_API_V1 (Agent C — batch 2).
+ */
+
+/**
  * POST /api/opportunity-families — groups one or more APPROVED Opportunities into the unit that
  * becomes a single piece of content (GEO chain item 7).
  *
@@ -38,6 +45,24 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+export async function GET(request: Request): Promise<Response> {
+  const rt = getAuthRuntime();
+  const session = await requireSession(rt, request);
+  if (isResponse(session)) return session;
+  try {
+    const geo = createGeoCommandRuntime(rt.db);
+    const families = await geo.repos.opportunityFamilies.listByOrganization(session.organizationId);
+    const views: OpportunityFamilyViewV1[] = families.map((f) => ({
+      id: f.id, clientOrganizationId: f.clientOrganizationId, projectId: f.projectId,
+      memberOpportunityIds: f.members.map((m) => m.opportunityId), createdAt: f.createdAt,
+    }));
+    return toHttpResponse(apiOk(views));
+  } catch (err) {
+    console.error("GET /api/opportunity-families failed:", err);
+    return toHttpResponse(apiErr("INTERNAL_ERROR", "Failed to load opportunity families."));
+  }
+}
 
 const ACTION = "opportunity_family.command.create";
 

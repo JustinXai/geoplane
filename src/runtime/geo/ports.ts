@@ -150,11 +150,13 @@ export interface HumanReviewRepository {
 export interface OpportunityFamilyRepository {
   add(family: OpportunityFamily): Promise<OpportunityFamily>;
   getById(id: string): Promise<OpportunityFamily | undefined>;
+  listByOrganization(clientOrganizationId: string): Promise<OpportunityFamily[]>;
 }
 
 export interface ArticleBriefRepository {
   add(brief: ArticleBrief): Promise<ArticleBrief>;
   getById(id: string): Promise<ArticleBrief | undefined>;
+  listByOrganization(clientOrganizationId: string): Promise<ArticleBrief[]>;
 }
 
 export interface ProviderArticleContentRepository {
@@ -167,6 +169,7 @@ export interface ArticleDraftRepository {
   getById(id: string): Promise<ArticleDraft | undefined>;
   /** Every draft compiled from a given brief, for version derivation. */
   listByArticleBrief(articleBriefId: string): Promise<ArticleDraft[]>;
+  listByOrganization(clientOrganizationId: string): Promise<ArticleDraft[]>;
 }
 
 export interface QualityGateRepository {

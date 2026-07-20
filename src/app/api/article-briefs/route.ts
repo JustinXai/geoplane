@@ -1,4 +1,11 @@
 /**
+ * GET /api/article-briefs — lists all ArticleBriefs for the authenticated client
+ * (server-side tenant resolution from session; body carries no org id).
+ *
+ * BUSINESS_COMMAND_API_V1 (Agent C — batch 2).
+ */
+
+/**
  * POST /api/article-briefs — builds the planning brief from an OpportunityFamily (GEO chain item 8).
  *
  * BUSINESS_COMMAND_API_V1 (Agent C — batch 2).
@@ -35,6 +42,25 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+export async function GET(request: Request): Promise<Response> {
+  const rt = getAuthRuntime();
+  const session = await requireSession(rt, request);
+  if (isResponse(session)) return session;
+  try {
+    const geo = createGeoCommandRuntime(rt.db);
+    const briefs = await geo.repos.articleBriefs.listByOrganization(session.organizationId);
+    const views: ArticleBriefViewV1[] = briefs.map((b) => ({
+      id: b.id, clientOrganizationId: b.clientOrganizationId, projectId: b.projectId,
+      opportunityFamilyId: b.opportunityFamilyId, workingTitle: b.workingTitle,
+      outline: b.outline, riskLevel: b.planningContext.riskLevel, createdAt: b.createdAt,
+    }));
+    return toHttpResponse(apiOk(views));
+  } catch (err) {
+    console.error("GET /api/article-briefs failed:", err);
+    return toHttpResponse(apiErr("INTERNAL_ERROR", "Failed to load article briefs."));
+  }
+}
 
 const ACTION = "article_brief.command.create";
 

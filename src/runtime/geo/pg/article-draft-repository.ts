@@ -122,4 +122,12 @@ export class PgArticleDraftRepository implements ArticleDraftRepository {
     );
     return res.rows.map(mapRow);
   }
+
+  async listByOrganization(clientOrganizationId: string): Promise<ArticleDraft[]> {
+    const res = await this.db.query<DraftRow>(
+      "SELECT * FROM article_draft WHERE client_organization_id = $1 ORDER BY compiled_at DESC",
+      [clientOrganizationId],
+    );
+    return res.rows.map(mapRow);
+  }
 }

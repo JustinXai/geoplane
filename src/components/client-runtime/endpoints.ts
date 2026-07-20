@@ -162,6 +162,24 @@ export function loadExpansionProgress(projectId:string,client:ApiClient=defaultA
   return client.request<readonly KeywordExpansionBatch[]>(`/api/keyword-expansion/projects/${enc(projectId)}`);
 }
 
+export function loadOpportunityFamilies(
+  client: ApiClient = defaultApiClient,
+): Promise<Result<readonly import("../../runtime/commands/geo-dto.js").OpportunityFamilyViewV1[]>> {
+  return client.request<readonly import("../../runtime/commands/geo-dto.js").OpportunityFamilyViewV1[]>(`/api/opportunity-families`);
+}
+
+export function loadArticleBriefs(
+  client: ApiClient = defaultApiClient,
+): Promise<Result<readonly import("../../runtime/commands/geo-dto.js").ArticleBriefViewV1[]>> {
+  return client.request<readonly import("../../runtime/commands/geo-dto.js").ArticleBriefViewV1[]>(`/api/article-briefs`);
+}
+
+export function loadArticleDrafts(
+  client: ApiClient = defaultApiClient,
+): Promise<Result<readonly import("../../runtime/commands/geo-dto.js").ArticleDraftCommandViewV1[]>> {
+  return client.request<readonly import("../../runtime/commands/geo-dto.js").ArticleDraftCommandViewV1[]>(`/api/article-drafts`);
+}
+
 /** Independent detection prototype loader; intentionally excluded from loadClientOverview. */
 export function loadProbeProgress(projectId:string,client:ApiClient=defaultApiClient):Promise<Result<readonly RawProbeResult[]>>{
   return client.request<readonly RawProbeResult[]>(`/api/probes/projects/${enc(projectId)}/manual-samples`);

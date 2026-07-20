@@ -108,4 +108,12 @@ export class PgArticleBriefRepository implements ArticleBriefRepository {
     const row = res.rows[0];
     return row ? mapRow(row) : undefined;
   }
+
+  async listByOrganization(clientOrganizationId: string): Promise<ArticleBrief[]> {
+    const res = await this.db.query<BriefRow>(
+      "SELECT * FROM article_brief WHERE client_organization_id = $1 ORDER BY created_at DESC",
+      [clientOrganizationId],
+    );
+    return res.rows.map(mapRow);
+  }
 }
