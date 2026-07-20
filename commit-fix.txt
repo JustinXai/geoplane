@@ -1,6 +1,0 @@
-fix(middleware+config): remove .js extensions, add Turbopack resolveAlias
-
-- Remove .js extensions from middleware.ts and session-cookie.ts imports
-- Add Turbopack resolveAlias to handle NodeNext-style .js->.ts resolution
-- Remove spurious request-origin.js file
-- Restore dev server to working state
