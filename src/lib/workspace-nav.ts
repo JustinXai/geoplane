@@ -86,6 +86,7 @@ export const CLIENT_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSur
   { group: "内容生产", label: "内容与交付", href: "/app/content" },
   { group: "内容生产", label: "内容审核", href: "/app/content-review" },
   ...(DETECTION_PROTOTYPE_ENABLED ? [{ group: "外部集成实验", label: "独立检测原型", href: "/app/ai-results" }] : []),
+  { group: "交付与报告", label: "内容草稿", href: "/app/delivery" },
   { group: "交付与报告", label: "客户报告", href: "/app/delivery" },
 ]);
 

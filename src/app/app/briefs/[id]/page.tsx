@@ -7,8 +7,12 @@
  * fields: workingTitle, outline, riskLevel, opportunityFamilyId, createdAt.
  *
  * Agent B (p0-b-opportunity-brief-direct-flow-v1).
+ *
+ * Agent U (p0-u-content-delivery-golden-ui-v1): Added "生成内容草稿" button
+ * to navigate to the draft creation/editing page.
  */
 import { use } from "react";
+import Link from "next/link";
 import { useAsyncData } from "@/components/runtime/index";
 import { AsyncSection } from "@/components/client-runtime/AsyncSection";
 import type { ArticleBriefViewV1 } from "@/runtime/commands/geo-dto";
@@ -62,6 +66,15 @@ function ClientBriefDetail({ briefId }: ClientBriefDetailProps) {
                 <li key={i}>{section}</li>
               ))}
             </ol>
+          </section>
+
+          <section className="cp-brief-actions">
+            <Link
+              href={`/app/briefs/${encodeURIComponent(briefId)}/draft`}
+              className="cp-button-primary"
+            >
+              生成内容草稿
+            </Link>
           </section>
         </div>
       )}
