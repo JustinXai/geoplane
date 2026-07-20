@@ -64,7 +64,7 @@ describe("knowledge-first opportunity — three legal input modes", () => {
         decisionStage: expect.any(String),
         contentOpportunity: expect.any(String),
         evidenceNeed: expect.any(Array),
-        contentConstraints: ["不得使用“保证零故障”"],
+        contentConstraints: ["不得使用"保证零故障""],
       });
     }
     expect(JSON.stringify(batch)).not.toContain("CONFIRMED_DEMAND");

@@ -21,6 +21,20 @@ import { DeterministicKnowledgeOpportunityGenerator } from "../../../../../../ru
 import { PgKnowledgeGroundingPort } from "../../../../../../runtime/knowledge-opportunity/pg-grounding-port.js";
 import { KnowledgeFirstOpportunityService } from "../../../../../../runtime/knowledge-opportunity/service.js";
 import { PgOptionalKeywordEnhancementPort } from "../../../../../../runtime/knowledge-opportunity/pg-keyword-enhancement-port.js";
+import type { OptionalKeywordSeed } from "../../../../../../runtime/knowledge-opportunity/contracts.js";
+
+function readSeeds(value: unknown): OptionalKeywordSeed[] {
+  if (!Array.isArray(value)) return [];
+  if (value.length > 100) throw new CommandAbortError("VALIDATION_FAILED", "一次最多使用 100 个可选关键词");
+  return value.map((raw) => {
+    if (!raw || typeof raw !== "object") throw new CommandAbortError("VALIDATION_FAILED", "关键词格式不正确");
+    const item = raw as Record<string, unknown>;
+    const text = typeof item.text === "string" ? item.text.trim() : "";
+    const origin = item.origin === "MANUAL" || item.origin === "DATASET" ? item.origin : null;
+    if (!text || !origin) throw new CommandAbortError("VALIDATION_FAILED", "关键词文本和来源不能为空");
+    return { text, origin, ...(typeof item.sourceRef === "string" && item.sourceRef.trim() ? { sourceRef: item.sourceRef.trim() } : {}) };
+  });
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,9 +80,11 @@ export async function POST(
           new DeterministicKnowledgeOpportunityGenerator(),
           new PgOptionalKeywordEnhancementPort(ctx.tx),
         );
+        const optionalKeywordSeeds = readSeeds(body.optionalKeywordSeeds);
         const batch = await service.generateForProject(authContext, {
           ...tenant,
           knowledgePackageId,
+          optionalKeywordSeeds,
         });
         const candidate = batch.candidates.find((item) => item.id === candidateId);
         if (!candidate) {
