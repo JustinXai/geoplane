@@ -178,3 +178,26 @@ export interface PublicationReceiptViewV1 {
   readonly publishedByActorId: string;
   readonly publishedAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Gate result (run-gate endpoint response)
+// ---------------------------------------------------------------------------
+
+export type GateOutcomeStatusV1 = "PASSED" | "FAILED";
+
+export interface GateResultItemDtoV1 {
+  readonly id: string;
+  readonly status: GateOutcomeStatusV1;
+  readonly failureReasons: readonly string[];
+  readonly evaluatedAt: string;
+}
+
+/** The response of POST /api/article-drafts/[id]/run-gate. */
+export interface ArticleGateResultViewV1 {
+  readonly articleDraftId: string;
+  readonly qualityGate: GateResultItemDtoV1;
+  readonly platformGate: GateResultItemDtoV1;
+  readonly verticalGate: GateResultItemDtoV1;
+  readonly overallPassed: boolean;
+  readonly failureReasons: readonly string[];
+}

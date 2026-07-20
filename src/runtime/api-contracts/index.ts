@@ -215,3 +215,73 @@ export interface AuditEventViewV1 {
   readonly targetType: string | null;
   readonly occurredAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Article Brief / Draft / Gate View DTOs (黄金路径 UI)
+// ---------------------------------------------------------------------------
+
+export type ArticleBriefRiskLevelV1 = "STANDARD" | "ESCALATED_FOR_HUMAN_REVIEW";
+
+export interface ArticleBriefListItemV1 {
+  readonly briefId: string;
+  readonly projectId: string;
+  readonly workingTitle: string;
+  readonly riskLevel: ArticleBriefRiskLevelV1;
+  readonly outline: readonly string[];
+  readonly createdAt: string;
+  readonly latestDraftId: string | null;
+  readonly latestDraftVersion: number | null;
+  readonly latestDraftStatus: string | null;
+  readonly latestDraftCompiledAt: string | null;
+  readonly hasGateResults: boolean;
+  readonly hasApproval: boolean;
+}
+
+export type GateStatusV1 = "PASSED" | "FAILED";
+
+export interface GateResultItemV1 {
+  readonly status: GateStatusV1;
+  readonly failureReasons: readonly string[];
+  readonly evaluatedAt: string | null;
+}
+
+export interface ArticleDraftDetailV1 {
+  readonly draftId: string;
+  readonly projectId: string;
+  readonly articleBriefId: string;
+  readonly briefWorkingTitle: string;
+  readonly briefOutline: readonly string[];
+  readonly briefRiskLevel: ArticleBriefRiskLevelV1;
+  readonly title: string;
+  readonly version: number;
+  readonly status: string;
+  readonly sections: readonly { heading: string; order: number }[];
+  readonly compiledAt: string;
+  readonly hasGateResults: boolean;
+  readonly qualityGate: GateResultItemV1;
+  readonly platformGate: GateResultItemV1;
+  readonly verticalGate: GateResultItemV1;
+  readonly approvalId: string | null;
+  readonly approvalApprovedAt: string | null;
+}
+
+export interface ArticleGateResultV1 {
+  readonly articleDraftId: string;
+  readonly qualityGate: GateResultItemV1;
+  readonly platformGate: GateResultItemV1;
+  readonly verticalGate: GateResultItemV1;
+  readonly overallPassed: boolean;
+  readonly failureReasons: readonly string[];
+}
+
+export interface ArticleApprovalResultV1 {
+  readonly id: string;
+  readonly articleDraftId: string;
+  readonly approverId: string;
+  readonly approvedAt: string;
+  readonly qualityGateId: string;
+  readonly platformGateId: string;
+  readonly verticalGateId: string;
+}
+
+export type ClientReviewDecisionV1 = "CONFIRMED" | "CHANGES_REQUESTED" | "DEFERRED";

@@ -109,3 +109,22 @@ export function listClientKeywordQuestions(
     `/api/projects/${enc(projectId)}/keyword-questions`,
   );
 }
+
+// --- Write actions ---------------------------------------------------------
+
+/**
+ * POST /api/opportunities/[id]/reviews — submits a client review decision on an opportunity.
+ * Uses the opaque reviewReferenceCode (never the raw validation UUID).
+ */
+export function submitReviewDecision(
+  opportunityId: string,
+  reviewReferenceCode: string,
+  decision: "CONFIRMED" | "CHANGES_REQUESTED" | "DEFERRED",
+  note: string | null,
+  client: ApiClient = defaultApiClient,
+): Promise<Result<{ id: string }>> {
+  return client.request<{ id: string }>(`/api/opportunities/${enc(opportunityId)}/reviews`, {
+    method: "POST",
+    body: { reviewReferenceCode, decision, note },
+  });
+}

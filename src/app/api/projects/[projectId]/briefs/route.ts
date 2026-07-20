@@ -1,13 +1,12 @@
 /**
- * GET /api/projects/[projectId]/review-queue — returns all opportunities awaiting client review.
+ * GET /api/projects/[projectId]/briefs — lists ArticleBriefs for a project scope.
  *
- * GEO_READ_API_V1 (Agent E4).
+ * GEO_READ_API_V1 checkpoint.
  */
 import { apiOk } from "../../../../../runtime/api-contracts/index.js";
 import { toHttpResponse } from "../../../../../runtime/auth/http.js";
 import { getGeoRuntime } from "../../../../../runtime/geo/runtime-context.js";
 import { requirePrincipal, requireReadableProject } from "../../../../../runtime/geo/http-guards.js";
-import { toReviewQueueViews } from "../../../../../runtime/geo/views.js";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,23 +24,10 @@ export async function GET(
   const projectGuard = await requireReadableProject(rt, principalGuard.value, projectId);
   if ("response" in projectGuard) return projectGuard.response;
 
-  const project = projectGuard.value;
+  const items = await rt.geo.reads.listArticleBriefsWithDraftAndGateStatus({
+    clientOrganizationId: projectGuard.value.clientOrganizationId,
+    projectId: projectGuard.value.id,
+  });
 
-  const [opportunities, validations, reviews] = await Promise.all([
-    rt.geo.opportunities.listByScope({
-      clientOrganizationId: project.clientOrganizationId,
-      projectId: project.id,
-    }),
-    rt.geo.reads.listOpportunityValidationsByScope({
-      clientOrganizationId: project.clientOrganizationId,
-      projectId: project.id,
-    }),
-    rt.geo.humanReviews.listByScope({
-      clientOrganizationId: project.clientOrganizationId,
-      projectId: project.id,
-    }),
-  ]);
-
-  const views = toReviewQueueViews(opportunities, validations, reviews);
-  return toHttpResponse(apiOk(views));
+  return toHttpResponse(apiOk(items));
 }

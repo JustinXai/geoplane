@@ -13,7 +13,9 @@
  */
 import type {
   AccountViewV1,
+  ArticleBriefListItemV1,
   ArticleDeliveryViewV1,
+  ArticleDraftDetailV1,
   KeywordQuestionViewV1,
   KnowledgeIssueViewV1,
   KnowledgePackageViewV1,
@@ -122,4 +124,30 @@ export function loadActiveProjectOpportunities(
   client: ApiClient = defaultApiClient,
 ): Promise<Result<readonly OpportunityViewV1[]>> {
   return withActiveProject(client, loadOpportunities, []);
+}
+
+// --- Article Briefs (Brief page) -----------------------------------------
+
+export function loadBriefs(
+  projectId: string,
+  client: ApiClient = defaultApiClient,
+): Promise<Result<readonly ArticleBriefListItemV1[]>> {
+  return client.request<readonly ArticleBriefListItemV1[]>(
+    `/api/projects/${enc(projectId)}/briefs`,
+  );
+}
+
+export function loadActiveProjectBriefs(
+  client: ApiClient = defaultApiClient,
+): Promise<Result<readonly ArticleBriefListItemV1[]>> {
+  return withActiveProject(client, loadBriefs, []);
+}
+
+// --- Article Draft detail --------------------------------------------------
+
+export function loadDraftDetail(
+  draftId: string,
+  client: ApiClient = defaultApiClient,
+): Promise<Result<ArticleDraftDetailV1>> {
+  return client.request<ArticleDraftDetailV1>(`/api/article-drafts/${enc(draftId)}/detail`);
 }

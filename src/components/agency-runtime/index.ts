@@ -10,6 +10,7 @@ export {
   listClientDeliveries,
   listClientReviewQueue,
   listClientKeywordQuestions,
+  submitReviewDecision,
 } from "./agency-api.js";
 export type { AgencyActingContextV1 } from "./agency-api.js";
 
