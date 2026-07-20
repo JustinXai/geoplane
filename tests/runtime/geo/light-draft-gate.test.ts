@@ -119,8 +119,12 @@ describe("LightDraftGateService", () => {
 
     it("should return PASS for SEALED drafts", () => {
       const draft = makeGoodDraft();
-      const sealedDraft = { ...draft, status: "SEALED" as const };
-      const result = service.evaluate(actor, sealedDraft);
+      const sealedDraft = {
+        ...draft,
+        status: "SEALED" as const,
+        sealedAt: "2026-01-01T00:00:00.000Z",
+      };
+      const result = service.evaluate(actor, sealedDraft as ArticleDraft);
 
       expect(result.verdict).toBe("PASS");
     });
@@ -450,10 +454,15 @@ describe("DraftReviewService", () => {
     });
 
     it("should throw when draft is not in DRAFT status", async () => {
-      const draft = makeGoodDraft({ status: "SEALED" });
+      const draft = makeGoodDraft();
+      const sealedDraft = {
+        ...draft,
+        status: "SEALED" as const,
+        sealedAt: "2026-01-01T00:00:00.000Z",
+      };
 
       await expect(
-        service.decide(actor, draft, {
+        service.decide(actor, sealedDraft as ArticleDraft, {
           articleDraftId: draft.id,
           decision: "APPROVED",
           reviewerId: "reviewer_jane",
