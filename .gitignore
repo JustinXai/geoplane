@@ -4,6 +4,8 @@ dist/
 build/
 coverage/
 .runtime/
+# Browser profiles (per-account, per-platform)
+runtime/browser-profiles/
 # CI gate evidence output (scripts/ci/*) — generated JSON, never committed
 artifacts/
 .pnpm-store/

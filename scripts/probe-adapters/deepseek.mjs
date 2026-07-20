@@ -1,32 +1,71 @@
+import { sleep } from "../utils.mjs";
+
 export class DeepSeekAdapter {
-  constructor(browser) {
+  constructor(browser, contextOptions = {}) {
     this.browser = browser;
     this.context = null;
     this.page = null;
+    this.contextOptions = contextOptions;
     this.loginUrl = "https://chat.deepseek.com/";
+    this.defaultTimeout = 30000;
   }
 
   async ensurePage() {
     if (!this.page || this.page.isClosed()) {
-      this.context = await this.browser.newContext();
+      this.context = await this.browser.newContext(this.contextOptions);
       this.page = await this.context.newPage();
       await this.page.setViewportSize({ width: 1280, height: 900 });
+      
+      await this.page.route("**/*", async (route) => {
+        const url = route.request().url();
+        if (url.includes("captcha") || url.includes("verify") || url.includes("challenge")) {
+          await route.abort();
+        } else {
+          await route.continue();
+        }
+      });
     }
     return this.page;
   }
 
   async openLoginPage() {
     const page = await this.ensurePage();
-    await page.goto(this.loginUrl, { waitUntil: "networkidle", timeout: 30000 });
-    await page.waitForTimeout(2000);
-    return page;
+    try {
+      await page.goto(this.loginUrl, { waitUntil: "networkidle", timeout: 30000 });
+      await sleep(2000);
+      return page;
+    } catch (err) {
+      if (err.message.includes("net::ERR_")) {
+        throw new Error(`Network error: ${err.message}. Check internet connection.`);
+      }
+      throw err;
+    }
   }
 
   async checkLoginState() {
     const page = await this.ensurePage();
-    await page.reload({ waitUntil: "networkidle" });
-    await page.waitForTimeout(1500);
+    try {
+      await page.reload({ waitUntil: "networkidle" });
+      await sleep(1500);
+    } catch {}
     
+    if (await this.isLoginRequired()) {
+      return "WAITING_FOR_LOGIN";
+    }
+    
+    if (await this.isManualRequired()) {
+      return "MANUAL_REQUIRED";
+    }
+    
+    if (await this.isLoggedIn()) {
+      return "READY";
+    }
+    
+    return "MANUAL_REQUIRED";
+  }
+
+  async isLoggedIn() {
+    const page = await this.ensurePage();
     const inputSelectors = [
       'textarea[placeholder*="输入"]',
       "textarea",
@@ -36,23 +75,51 @@ export class DeepSeekAdapter {
     for (const sel of inputSelectors) {
       try {
         await page.waitForSelector(sel, { timeout: 3000 });
-        return "READY";
+        return true;
       } catch {}
     }
-    
+    return false;
+  }
+
+  async isLoginRequired() {
+    const page = await this.ensurePage();
     const loginSelectors = [
       'button:has-text("登录")',
       'a:has-text("登录")',
+      'button:has-text("Sign in")',
+      'a:has-text("Sign in")',
+      '[data-testid="sign-in"]',
     ];
     
     for (const sel of loginSelectors) {
       try {
         await page.waitForSelector(sel, { timeout: 2000 });
-        return "WAITING_FOR_LOGIN";
+        return true;
       } catch {}
     }
+    return false;
+  }
+
+  async isManualRequired() {
+    const page = await this.ensurePage();
+    const manualIndicators = [
+      'div:has-text("验证")',
+      'div:has-text("扫码")',
+      'div:has-text("captcha")',
+      'div:has-text("Captcha")',
+      'iframe[src*="captcha"]',
+      'div[class*="captcha"]',
+      'div[class*="challenge"]',
+      '[data-testid="challenge"]',
+    ];
     
-    return "MANUAL_REQUIRED";
+    for (const sel of manualIndicators) {
+      try {
+        await page.waitForSelector(sel, { timeout: 2000 });
+        return true;
+      } catch {}
+    }
+    return false;
   }
 
   async startNewConversation() {
@@ -61,20 +128,30 @@ export class DeepSeekAdapter {
       'button:has-text("新对话")',
       'button:has-text("New Chat")',
       'a[href="/chat"]',
+      'button:has-text("清空")',
     ];
     
     for (const sel of newChatSelectors) {
       try {
         await page.waitForSelector(sel, { timeout: 3000 });
         await page.click(sel);
-        await page.waitForTimeout(1000);
+        await sleep(1000);
         return;
       } catch {}
     }
+    
+    try {
+      await page.goto(this.loginUrl, { waitUntil: "networkidle" });
+      await sleep(1000);
+    } catch {}
   }
 
   async submitQuestion(question) {
     const page = await this.ensurePage();
+    
+    if (await this.isManualRequired()) {
+      throw new Error("Manual verification required (captcha/scan)");
+    }
     
     const inputSelectors = [
       'textarea[placeholder*="输入"]',
@@ -93,7 +170,7 @@ export class DeepSeekAdapter {
     
     await inputEl.click();
     await inputEl.fill(question);
-    await page.waitForTimeout(300);
+    await sleep(300);
     await page.keyboard.press("Enter");
   }
 
@@ -104,7 +181,11 @@ export class DeepSeekAdapter {
     let stableCount = 0;
     
     while (Date.now() - start < maxWaitMs) {
-      await page.waitForTimeout(2000);
+      await sleep(2000);
+      
+      if (await this.isManualRequired()) {
+        throw new Error("Manual verification triggered during probe");
+      }
       
       const answerSelectors = [
         '.ds-message-content p',
@@ -112,6 +193,7 @@ export class DeepSeekAdapter {
         '[data-role="assistant"] p',
         '.markdown-body p',
         'main p',
+        '.prose p',
       ];
       
       let currentAnswer = "";
@@ -121,7 +203,7 @@ export class DeepSeekAdapter {
           if (els.length > 0) {
             const lastEl = els[els.length - 1];
             currentAnswer = await lastEl.innerText();
-            break;
+            if (currentAnswer.length > 10) break;
           }
         } catch {}
       }
@@ -134,14 +216,26 @@ export class DeepSeekAdapter {
         if (stableCount >= 3) break;
       }
       
-      // Check if done
       try {
         const regen = await page.$('button:has-text("重新生成")');
         if (regen && lastAnswer.length > 0) break;
+        
+        const stopBtn = await page.$('button:has-text("停止")');
+        if (!stopBtn && lastAnswer.length > 0) break;
       } catch {}
     }
     
-    if (!lastAnswer) throw new Error("No answer received");
+    if (!lastAnswer) {
+      throw new Error(`No answer received within ${maxWaitMs}ms`);
+    }
     return lastAnswer;
+  }
+
+  async cleanup() {
+    if (this.context) {
+      await this.context.close().catch(() => {});
+      this.context = null;
+      this.page = null;
+    }
   }
 }
