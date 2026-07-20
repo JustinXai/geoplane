@@ -37,6 +37,7 @@ import {
 } from "@/runtime/commands/geo-command-http.js";
 import {
   CommandAbortError,
+  readIdempotencyKey,
   runWriteCommand,
 } from "@/runtime/commands/runtime-context.js";
 
@@ -91,12 +92,14 @@ export async function POST(
   const denied = await denyIfCrossTenant(rt, session, actor, tenant, ACTION, "ArticleDraft");
   if (denied) return denied;
 
+  const idempotencyKey = readIdempotencyKey(request, {});
+
   try {
     const { dto } = await runWriteCommand<LightGateResultViewV1>({
       db: rt.db,
       actor,
       action: ACTION,
-      idempotencyKey: undefined,
+      idempotencyKey,
       perform: async (ctx) => {
         const geo = createGeoCommandRuntime(ctx.tx);
         const authContext = buildGeoAuthorizationContext(session);
@@ -112,9 +115,11 @@ export async function POST(
         }
 
         // Create and evaluate the light gate with repository for repair persistence
-        const { LightDraftGateService } = await import("@/runtime/geo/services/light-draft-gate-service.js");
+        const { LightDraftGateService } = await import(
+          "@/runtime/geo/services/light-draft-gate-service.js"
+        );
         const lightGateService = new LightDraftGateService(geo.infra, geo.repos.articleDrafts);
-        const result = await invokeDomain(() =>
+        const result: LightGateResult = await invokeDomain(() =>
           lightGateService.evaluateAndRepair(authContext, draft),
         );
 

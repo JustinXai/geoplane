@@ -74,7 +74,7 @@ export interface LightGateResult {
   verdict: LightGateVerdict;
   issues: GateIssue[];
   /** A repaired version of the draft, if verdict is REPAIR and repair was attempted. */
-  repairedDraft?: DraftArticleDraft;
+  repairedDraft?: ArticleDraft;
   evaluatedAt: string;
 }
 
@@ -184,7 +184,7 @@ export class LightDraftGateService {
       // Return a new result with the persisted draft
       return {
         ...result,
-        repairedDraft: persistedDraft,
+        repairedDraft: persistedDraft as DraftArticleDraft,
       };
     } else if (result.verdict === "REPAIR" && !this.drafts) {
       throw new Error(

@@ -119,9 +119,7 @@ export async function POST(
         }
 
         // Import and use the DraftReviewService
-        const { DraftReviewService } = await import(
-          "../../../../../../../runtime/geo/services/draft-review-service.js"
-        );
+        const { DraftReviewService } = await import("@/runtime/geo/services/draft-review-service.js");
         const reviewService = new DraftReviewService(
           geo.repos.humanReviews,
           geo.repos.articleDrafts,

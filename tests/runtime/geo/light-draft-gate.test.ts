@@ -20,8 +20,8 @@ import { FakeArticleDraftRepository, FakeHumanReviewRepository } from "./fakes.j
 // ---------------------------------------------------------------------------
 
 /** A well-formed draft that should pass the light gate. */
-function makeGoodDraft(overrides: Partial<DraftArticleDraft> = {}): DraftArticleDraft {
-  const draft: DraftArticleDraft = {
+function makeGoodDraft(overrides: Partial<ArticleDraft> = {}): ArticleDraft {
+  const draft: ArticleDraft = {
     id: "draft_good_1",
     clientOrganizationId: ORG,
     projectId: PROJECT,
@@ -37,7 +37,7 @@ function makeGoodDraft(overrides: Partial<DraftArticleDraft> = {}): DraftArticle
     status: "DRAFT",
     compiledAt: "2026-01-01T00:00:00.000Z",
   };
-  return Object.assign(Object.create(Object.getPrototypeOf(draft)), draft, overrides);
+  return Object.assign(Object.create(Object.getPrototypeOf(draft)), draft, overrides) as ArticleDraft;
 }
 
 /** A draft with repairable issues. */
@@ -118,8 +118,9 @@ describe("LightDraftGateService", () => {
     });
 
     it("should return PASS for SEALED drafts", () => {
-      const draft = makeGoodDraft({ status: "SEALED" });
-      const result = service.evaluate(actor, draft);
+      const draft = makeGoodDraft();
+      const sealedDraft = { ...draft, status: "SEALED" as const };
+      const result = service.evaluate(actor, sealedDraft);
 
       expect(result.verdict).toBe("PASS");
     });
