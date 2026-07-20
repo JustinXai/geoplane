@@ -19,17 +19,30 @@
  * not authorization.
  */
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { AGENCY_WORKSPACE_NAV_LINKS } from "@/lib/workspace-nav";
 
 export function AgencyWorkspaceNav() {
+  const params = useParams();
+  const agencySlug = params?.agencySlug as string | undefined;
+  const projectId = params?.projectId as string | undefined;
+
   return (
     <nav className="cp-workspace-nav" aria-label="代理商工作台导航">
       <ul>
-        {AGENCY_WORKSPACE_NAV_LINKS.map((link) => (
-          <li key={link.href}>
-            <Link href={link.href}>{link.label}</Link>
-          </li>
-        ))}
+        {AGENCY_WORKSPACE_NAV_LINKS.map((link) => {
+          let href = link.href;
+          if (projectId) {
+            href = href.replace("{projectId}", projectId);
+          } else if (agencySlug) {
+            href = href.replace("[agencySlug]", agencySlug).replace("{projectId}", "");
+          }
+          return (
+            <li key={link.href}>
+              <Link href={href}>{link.label}</Link>
+            </li>
+          );
+        })}
       </ul>
     </nav>
   );

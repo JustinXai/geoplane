@@ -26,6 +26,8 @@
  * not a substitute for that.
  */
 
+import { DOMESTIC_DETECTION_ENABLED, PUBLICATION_EXECUTOR_ENABLED } from './feature-flags';
+
 export type WorkspaceSurface = "app" | "agency" | "ops";
 
 export interface WorkspaceNavLink {
@@ -108,6 +110,8 @@ export const AGENCY_WORKSPACE_NAV_LINKS: readonly WorkspaceNavLink[] = assertSur
   { group: "生产协作", label: "用户问题", href: "/agency/keyword-questions" },
   { group: "生产协作", label: "内容生产", href: "/agency/content" },
   { group: "生产协作", label: "内容审核", href: "/agency/review-queue" },
+  ...(DOMESTIC_DETECTION_ENABLED ? [{ group: "国内 AI", label: "国内 AI 探测", href: "/agency/projects/{projectId}/detection" }] : []),
+  ...(PUBLICATION_EXECUTOR_ENABLED ? [{ group: "国内 AI", label: "草稿同步", href: "/agency/projects/{projectId}/publication" }] : []),
   ...(DETECTION_PROTOTYPE_ENABLED ? [{ group: "外部集成实验", label: "独立检测原型", href: "/agency/manual-probe" }] : []),
   { group: "交付与报告", label: "交付管理", href: "/agency/deliveries" },
   { group: "交付与报告", label: "客户报告", href: "/agency/reports" },
