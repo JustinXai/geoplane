@@ -171,7 +171,7 @@ function firstCookie(setCookie) {
 async function login(baseUrl, role, env) {
   const response = await fetch(`${baseUrl}/api/auth/login`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", origin: baseUrl },
     body: JSON.stringify({ email: role.email, password: passwordFor(role, env) }),
     redirect: "manual",
   });
