@@ -31,6 +31,11 @@ export {
   ArticleBriefService,
   type CreateArticleBriefInput,
 } from "./services/article-brief-service.js";
+export {
+  OpportunityToArticleBriefAdapter,
+  type CreateBriefFromOpportunityInput,
+  type CreateBriefFromOpportunityResult,
+} from "./services/opportunity-to-article-brief-adapter.js";
 export { ArticlePipelineService } from "./services/article-pipeline-service.js";
 export { QualityGateService } from "./services/quality-gate-service.js";
 export { PublishPackageService } from "./services/publish-package-service.js";

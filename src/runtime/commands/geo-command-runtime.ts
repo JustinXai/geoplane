@@ -52,6 +52,7 @@ import {
   KeywordQuestionService,
   OpportunityFamilyService,
   OpportunityService,
+  OpportunityToArticleBriefAdapter,
   PublishPackageService,
   QualityGateService,
   ValidationService,
@@ -205,6 +206,8 @@ export interface GeoCommandServices {
   readonly publish: PublishPackageService;
   readonly distribution: DistributionPlanService;
   readonly delivery: DeliveryService;
+  /** Bridges a knowledge-driven Opportunity to an ArticleBrief atomically. */
+  readonly opportunityToBrief: OpportunityToArticleBriefAdapter;
 }
 
 export interface CreateKnowledgePackageCommandInput {
@@ -295,6 +298,14 @@ export function createGeoCommandRuntime(source: Queryable): GeoCommandRuntime {
     publish: new PublishPackageService(repos.publishPackages, repos.channelNeutralPackages, infra),
     distribution: new DistributionPlanService(repos.distributionPlans, infra),
     delivery: new DeliveryService(repos.deliveries, infra),
+    opportunityToBrief: new OpportunityToArticleBriefAdapter(
+      repos.opportunities,
+      repos.opportunityValidations,
+      repos.humanReviews,
+      repos.opportunityFamilies,
+      repos.articleBriefs,
+      infra,
+    ),
   };
 
   const knowledgePackageStore = new PgKnowledgePackageRepository(db);

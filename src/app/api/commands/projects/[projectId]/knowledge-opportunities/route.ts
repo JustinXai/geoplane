@@ -97,23 +97,39 @@ export async function POST(
             "用户问题已生成，但项目行业规则尚未确认；请先联系平台运营完成行业配置，再提交人工确认。",
           );
         }
+        const industryProfileResult = await geo.repos.industryProfiles.getById(industryProfileId);
+        if (!industryProfileResult) {
+          throw new CommandAbortError(
+            "CONFLICT",
+            "行业配置未找到，请联系平台运营完成行业配置。",
+          );
+        }
         const connected = await invokeDomain(() =>
           new ExistingOpportunityConnector(
             geo.services.keywordQuestion,
             geo.services.opportunity,
           ).create(authContext, { candidate, knowledgePackage, industryProfileId }),
         );
+        const validation = await invokeDomain(() =>
+          geo.services.validation.validateOpportunity(authContext, {
+            opportunity: connected.opportunity,
+            industryProfile: industryProfileResult,
+            status: "VALIDATED",
+            reasonNote: "Automated validation: knowledge-grounded, on-vertical.",
+          }),
+        );
         return {
           dto: {
             question: candidate.question,
             status: "CREATED" as const,
             opportunityId: connected.opportunity.id,
+            validationId: validation.id,
           },
           audit: {
             ...tenant,
             targetType: "Opportunity",
             targetId: connected.opportunity.id,
-            metadata: { source: candidate.source },
+            metadata: { source: candidate.source, validationId: validation.id },
           },
         };
       },
