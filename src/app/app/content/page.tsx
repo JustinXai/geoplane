@@ -10,17 +10,29 @@
  * batch 2 wires the per-row 内容方向 confirmation to the real client review command (POST
  * /api/opportunities/[id]/reviews) via OpportunityReviewControl — reviewer server-derived, list
  * refreshes on success. Automatic source collection remains a separate deferred system.
+ *
+ * Agent B: CONFIRMED opportunities get a "创建内容简报" button that launches the brief
+ * creation dialog (CreateBriefAction), which POSTs to /api/opportunities/[id]/brief and
+ * returns the brief id on success for immediate navigation to the brief detail page.
  */
+import { useRouter } from "next/navigation";
 import { useAsyncData } from "../../../components/runtime/index.js";
 import { AsyncSection } from "../../../components/client-runtime/AsyncSection.js";
 import { loadActiveProjectOpportunities } from "../../../components/client-runtime/endpoints.js";
 import { isEmptyArray, toOpportunityRow } from "../../../components/client-runtime/view-models.js";
 import { OpportunityReviewControl } from "../../../components/client-runtime/OpportunityReviewControl.js";
+import { CreateBriefAction } from "../../../components/client-runtime/CreateBriefAction.js";
+import type { ArticleBriefViewV1 } from "../../../runtime/commands/geo-dto.js";
 
 export default function ContentSourcingPage() {
   const { state, reload } = useAsyncData(loadActiveProjectOpportunities, {
     isEmpty: isEmptyArray,
   });
+  const router = useRouter();
+
+  function handleBriefCreated(brief: ArticleBriefViewV1) {
+    router.push(`/app/briefs/${encodeURIComponent(brief.id)}`);
+  }
 
   return (
     <>
@@ -60,6 +72,13 @@ export default function ContentSourcingPage() {
                       onReviewed={reload}
                     />
                     <p className="cp-placeholder-note">自动信源采集属于独立系统，本页不提供信源确认操作。</p>
+                  </div>
+                  {/* Agent B: brief creation for CONFIRMED opportunities */}
+                  <div className="cp-brief-group">
+                    <CreateBriefAction
+                      opportunity={opportunity}
+                      onBriefCreated={handleBriefCreated}
+                    />
                   </div>
                 </li>
               );

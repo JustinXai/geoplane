@@ -8,7 +8,11 @@
  * server-side to ACTIVE-assigned clients) then GET /api/projects/[id]/review-queue per project
  * (opportunities that passed validation and await a client review decision). No unauthorized
  * client's items can appear; no approve/reject write actions are wired here.
+ *
+ * Agent B: adds "创建内容简报" button for CONFIRMED opportunities in the agency view,
+ * wired to the shared CreateBriefAction (same component as the client workspace).
  */
+import { useRouter } from "next/navigation";
 import { useAsyncData } from "@/components/runtime";
 import {
   type AgencyProjectReadGroup,
@@ -19,6 +23,8 @@ import {
   opportunityStatusLabel,
 } from "@/components/agency-runtime";
 import type { OpportunityViewV1 } from "@/runtime/api-contracts";
+import { CreateBriefAction } from "@/components/client-runtime/CreateBriefAction";
+import type { ArticleBriefViewV1 } from "@/runtime/commands/geo-dto";
 
 type ReviewGroups = readonly AgencyProjectReadGroup<OpportunityViewV1>[];
 
@@ -27,6 +33,11 @@ export default function AgencyReviewQueuePage() {
     () => loadAgencyProjectReads<OpportunityViewV1>(listClientReviewQueue),
     { isEmpty: isAggregateEmpty },
   );
+  const router = useRouter();
+
+  function handleBriefCreated(brief: ArticleBriefViewV1) {
+    router.push(`/agency/briefs/${encodeURIComponent(brief.id)}`);
+  }
 
   return (
     <>
@@ -59,6 +70,13 @@ export default function AgencyReviewQueuePage() {
                       状态：{opportunityStatusLabel(opportunity.status)} · 创建于 {new Date(opportunity.createdAt).toLocaleString("zh-CN")}
                     </span>
                     <span className="cp-list-summary">{opportunity.summary}</span>
+                    {/* Agent B: brief creation for CONFIRMED opportunities */}
+                    <div className="cp-brief-group">
+                      <CreateBriefAction
+                        opportunity={opportunity}
+                        onBriefCreated={handleBriefCreated}
+                      />
+                    </div>
                   </li>
                 ))}
                 {group.items.length === 0 ? (
