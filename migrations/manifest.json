@@ -19,6 +19,8 @@
     { "version": "0016", "filename": "0016_account_center_hardening.sql" },
     { "version": "0017", "filename": "0017_agency_delivery_scope_hardening.sql" },
     { "version": "0018", "filename": "0018_generic_keyword_core.sql" },
-    { "version": "0019", "filename": "0019_domestic_detection_run.sql" }
+    { "version": "0020", "filename": "0020_detection_task_runtime.sql" },
+    { "version": "0021", "filename": "0021_detection_task_poll_runtime.sql" },
+    { "version": "0022", "filename": "0022_platform_connection.sql" }
   ]
 }
