@@ -17,6 +17,8 @@
     "db:migrate:test": "node scripts/db/migrate.mjs --test",
     "db:migrate:canary": "node scripts/db/migrate.mjs --canary",
     "preflight:db-env": "node scripts/preflight/database-environment.mjs",
+    "preflight:version": "node scripts/preflight/version-alignment.mjs",
+    "preflight:runtime-version": "node scripts/preflight/version-alignment.mjs --runtime",
     "local:configure": "node scripts/local/configure.mjs",
     "local:preflight": "node scripts/local/preflight.mjs",
     "local:start": "node scripts/local/start.mjs",
