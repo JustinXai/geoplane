@@ -1,0 +1,189 @@
+{
+  "sceneA": {
+    "scenario": "A",
+    "timestamp": "2026-07-20T03:16:34.900Z",
+    "steps": [
+      {
+        "step": "listProjects",
+        "status": 200,
+        "projectId": "78a6309a-81d9-4e3a-a756-a56dbf76966e"
+      },
+      {
+        "step": "ensureKnowledgePackage",
+        "packageId": "ce88a2e5-415e-475c-a4d6-a3697e8c9a8b"
+      },
+      {
+        "step": "checkKeywords",
+        "status": 200,
+        "datasetCount": 0
+      },
+      {
+        "step": "previewOpportunity",
+        "status": 200,
+        "hasPreview": true
+      },
+      {
+        "step": "createOpportunity",
+        "status": 201,
+        "opportunityId": "3af16355-3981-48f9-b67c-e3104475114f"
+      },
+      {
+        "step": "verifyOpportunity",
+        "status": 404,
+        "hasDemandEvidence": false,
+        "titleLanguage": "other"
+      },
+      {
+        "step": "createBrief",
+        "status": 404
+      }
+    ]
+  },
+  "sceneB": {
+    "scenario": "B",
+    "timestamp": "2026-07-20T03:16:35.274Z",
+    "steps": [
+      {
+        "step": "getProject",
+        "status": 200,
+        "projectId": "78a6309a-81d9-4e3a-a756-a56dbf76966e"
+      },
+      {
+        "step": "createDataset",
+        "status": 200,
+        "datasetId": "a4c3d323-0345-469a-9e31-bcf88ef616e6"
+      },
+      {
+        "step": "addKeyword",
+        "status": 200,
+        "recordId": "f403e245-6cec-4c3a-b861-cc5308105af5"
+      },
+      {
+        "step": "createReviewPackage",
+        "status": 200,
+        "packageId": "f81480b3-9b1a-4c03-a6e0-b960c9189465"
+      },
+      {
+        "step": "approveKeyword",
+        "status": 422,
+        "hasEvidence": false
+      },
+      {
+        "step": "keywordExpansion",
+        "status": 201,
+        "hasExpanded": true
+      },
+      {
+        "step": "generateQuestions",
+        "status": 200,
+        "hasCandidates": true
+      },
+      {
+        "step": "createKeywordOpportunity",
+        "status": 422
+      }
+    ],
+    "refreshTarget": {}
+  },
+  "sceneC": {
+    "scenario": "C",
+    "timestamp": "2026-07-20T03:16:35.337Z",
+    "steps": [
+      {
+        "step": "getProject",
+        "status": 200,
+        "projectId": "78a6309a-81d9-4e3a-a756-a56dbf76966e"
+      },
+      {
+        "step": "createImportBatch",
+        "status": 422
+      },
+      {
+        "step": "checkImportedDataset",
+        "status": 200,
+        "datasetId": "a4c3d323-0345-469a-9e31-bcf88ef616e6",
+        "recordCount": 0,
+        "hasBaiduFields": false
+      },
+      {
+        "step": "createReviewPackage",
+        "status": 422
+      }
+    ]
+  },
+  "sceneD": {
+    "scenario": "D",
+    "timestamp": "2026-07-20T03:16:35.357Z",
+    "steps": [
+      {
+        "step": "setAgencyContext",
+        "status": 200
+      },
+      {
+        "step": "listClients",
+        "status": 200
+      },
+      {
+        "step": "getProject",
+        "status": 200,
+        "projectId": "78a6309a-81d9-4e3a-a756-a56dbf76966e"
+      },
+      {
+        "step": "viewTasks",
+        "status": 404,
+        "taskCount": 0
+      },
+      {
+        "step": "registerDelivery",
+        "status": 422
+      },
+      {
+        "step": "workflowTransition",
+        "status": 422
+      }
+    ]
+  },
+  "sceneE": {
+    "scenario": "E",
+    "timestamp": "2026-07-20T03:16:35.381Z",
+    "steps": [
+      {
+        "step": "getClientProject",
+        "status": 200,
+        "projectId": "78a6309a-81d9-4e3a-a756-a56dbf76966e"
+      },
+      {
+        "step": "clientAccessPlatform",
+        "expectedStatus": 403,
+        "actualStatus": 403,
+        "rejected": true
+      },
+      {
+        "step": "clientAccessAgencyDelivery",
+        "expectedStatus": 403,
+        "actualStatus": 422,
+        "rejected": false
+      },
+      {
+        "step": "agencyAccessClient",
+        "actualStatus": 200,
+        "isEmpty": true
+      },
+      {
+        "step": "opsAccessPlatform",
+        "actualStatus": 200,
+        "allowed": true
+      },
+      {
+        "step": "accountProjectionSanitized",
+        "status": 404,
+        "hasSecrets": false,
+        "returnedFields": []
+      }
+    ]
+  },
+  "reloginPersistence": {
+    "status": 200,
+    "projectsAccessible": true
+  }
+}

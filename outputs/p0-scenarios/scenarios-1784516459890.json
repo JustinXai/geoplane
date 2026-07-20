@@ -1,0 +1,120 @@
+{
+  "sceneA": {
+    "scenario": "A",
+    "timestamp": "2026-07-20T03:00:59.327Z",
+    "steps": [
+      {
+        "step": "listProjects",
+        "status": 200,
+        "projectId": "78a6309a-81d9-4e3a-a756-a56dbf76966e"
+      },
+      {
+        "step": "ensureKnowledgePackage",
+        "packageId": "a0613ba3-4368-451a-9177-6c053830965a"
+      },
+      {
+        "step": "checkKeywords",
+        "status": 200,
+        "datasetCount": 0
+      },
+      {
+        "step": "previewOpportunity",
+        "status": 200,
+        "hasPreview": true
+      },
+      {
+        "step": "createOpportunity",
+        "status": 201,
+        "opportunityId": "2187b7f7-56cb-42e8-9406-531704a55958"
+      },
+      {
+        "step": "verifyOpportunity",
+        "status": 404,
+        "hasDemandEvidence": false,
+        "titleLanguage": "other"
+      },
+      {
+        "step": "createBrief",
+        "status": 404
+      }
+    ]
+  },
+  "sceneB": {
+    "scenario": "B",
+    "timestamp": "2026-07-20T03:00:59.744Z",
+    "steps": [
+      {
+        "step": "getProject",
+        "status": 200,
+        "projectId": "78a6309a-81d9-4e3a-a756-a56dbf76966e"
+      },
+      {
+        "step": "createDataset",
+        "status": 200,
+        "datasetId": "1faf45d3-7a9d-4a38-b302-a2c84c890373"
+      },
+      {
+        "step": "addKeyword",
+        "status": 200,
+        "recordId": "6ba68423-1b4d-4929-8ab8-bbbc983c818a"
+      },
+      {
+        "step": "createReviewPackage",
+        "status": 422
+      }
+    ]
+  },
+  "sceneC": {
+    "scenario": "C",
+    "timestamp": "2026-07-20T03:00:59.785Z",
+    "steps": [
+      {
+        "step": "getProject",
+        "status": 200,
+        "projectId": "78a6309a-81d9-4e3a-a756-a56dbf76966e"
+      },
+      {
+        "step": "createImportBatch",
+        "status": 422
+      },
+      {
+        "step": "checkImportedDataset",
+        "status": 200,
+        "datasetId": "1faf45d3-7a9d-4a38-b302-a2c84c890373",
+        "recordCount": 0,
+        "hasBaiduFields": false
+      },
+      {
+        "step": "createReviewPackage",
+        "status": 422
+      }
+    ]
+  },
+  "sceneD": {
+    "scenario": "D",
+    "timestamp": "2026-07-20T03:00:59.813Z",
+    "steps": [
+      {
+        "step": "listClients",
+        "status": 200,
+        "clientCount": 1
+      }
+    ],
+    "error": "No authorized clients found"
+  },
+  "sceneE": {
+    "scenario": "E",
+    "timestamp": "2026-07-20T03:00:59.821Z",
+    "steps": [
+      {
+        "step": "getClientProject",
+        "status": 200
+      }
+    ],
+    "error": "No project found"
+  },
+  "reloginPersistence": {
+    "status": 200,
+    "projectsAccessible": true
+  }
+}

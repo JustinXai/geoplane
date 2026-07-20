@@ -1,0 +1,62 @@
+{
+  "sceneA": {
+    "scenario": "A",
+    "timestamp": "2026-07-20T02:51:49.160Z",
+    "steps": [
+      {
+        "step": "listProjects",
+        "status": 404
+      }
+    ],
+    "error": "No project found"
+  },
+  "sceneB": {
+    "scenario": "B",
+    "timestamp": "2026-07-20T02:51:49.174Z",
+    "steps": [
+      {
+        "step": "getProject",
+        "status": 404
+      }
+    ],
+    "error": "No project found"
+  },
+  "sceneC": {
+    "scenario": "C",
+    "timestamp": "2026-07-20T02:51:49.179Z",
+    "steps": [
+      {
+        "step": "getProject",
+        "status": 404
+      }
+    ],
+    "error": "No project found"
+  },
+  "sceneD": {
+    "scenario": "D",
+    "timestamp": "2026-07-20T02:51:49.184Z",
+    "steps": [
+      {
+        "step": "listClients",
+        "status": 200,
+        "clientCount": 1
+      }
+    ],
+    "error": "No authorized clients found"
+  },
+  "sceneE": {
+    "scenario": "E",
+    "timestamp": "2026-07-20T02:51:49.198Z",
+    "steps": [
+      {
+        "step": "getClientProject",
+        "status": 404
+      }
+    ],
+    "error": "No project found"
+  },
+  "reloginPersistence": {
+    "status": 404,
+    "projectsAccessible": false
+  }
+}

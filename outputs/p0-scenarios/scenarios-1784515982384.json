@@ -1,0 +1,77 @@
+{
+  "sceneA": {
+    "scenario": "A",
+    "timestamp": "2026-07-20T02:53:02.027Z",
+    "steps": [
+      {
+        "step": "listProjects",
+        "status": 200,
+        "projectId": "78a6309a-81d9-4e3a-a756-a56dbf76966e"
+      },
+      {
+        "step": "getKnowledge",
+        "status": 404,
+        "hasPackage": false
+      },
+      {
+        "step": "checkKeywords",
+        "status": 200,
+        "datasetCount": 0
+      },
+      {
+        "step": "previewOpportunity",
+        "status": 422,
+        "hasPreview": false
+      }
+    ]
+  },
+  "sceneB": {
+    "scenario": "B",
+    "timestamp": "2026-07-20T02:53:02.291Z",
+    "steps": [
+      {
+        "step": "getProject",
+        "status": 200
+      }
+    ],
+    "error": "No project found"
+  },
+  "sceneC": {
+    "scenario": "C",
+    "timestamp": "2026-07-20T02:53:02.297Z",
+    "steps": [
+      {
+        "step": "getProject",
+        "status": 200
+      }
+    ],
+    "error": "No project found"
+  },
+  "sceneD": {
+    "scenario": "D",
+    "timestamp": "2026-07-20T02:53:02.303Z",
+    "steps": [
+      {
+        "step": "listClients",
+        "status": 200,
+        "clientCount": 1
+      }
+    ],
+    "error": "No authorized clients found"
+  },
+  "sceneE": {
+    "scenario": "E",
+    "timestamp": "2026-07-20T02:53:02.312Z",
+    "steps": [
+      {
+        "step": "getClientProject",
+        "status": 200
+      }
+    ],
+    "error": "No project found"
+  },
+  "reloginPersistence": {
+    "status": 200,
+    "projectsAccessible": true
+  }
+}

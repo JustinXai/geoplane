@@ -1,0 +1,109 @@
+{
+  "sceneA": {
+    "scenario": "A",
+    "timestamp": "2026-07-20T02:56:59.287Z",
+    "steps": [
+      {
+        "step": "listProjects",
+        "status": 200,
+        "projectId": "78a6309a-81d9-4e3a-a756-a56dbf76966e"
+      },
+      {
+        "step": "ensureKnowledgePackage",
+        "packageId": "735246be-7e91-459e-8339-4bcabd74dad2"
+      },
+      {
+        "step": "checkKeywords",
+        "status": 200,
+        "datasetCount": 0
+      },
+      {
+        "step": "previewOpportunity",
+        "status": 200,
+        "hasPreview": true
+      },
+      {
+        "step": "createOpportunity",
+        "status": 422
+      }
+    ]
+  },
+  "sceneB": {
+    "scenario": "B",
+    "timestamp": "2026-07-20T02:56:59.762Z",
+    "steps": [
+      {
+        "step": "getProject",
+        "status": 200,
+        "projectId": "78a6309a-81d9-4e3a-a756-a56dbf76966e"
+      },
+      {
+        "step": "createDataset",
+        "status": 200,
+        "datasetId": "f5bdf46f-569b-4b9b-978d-3374eb8aa16c"
+      },
+      {
+        "step": "addKeyword",
+        "status": 200,
+        "recordId": "0be2b9a6-4775-4594-ada2-bbb8f883d4cf"
+      },
+      {
+        "step": "createReviewPackage",
+        "status": 422
+      }
+    ]
+  },
+  "sceneC": {
+    "scenario": "C",
+    "timestamp": "2026-07-20T02:56:59.789Z",
+    "steps": [
+      {
+        "step": "getProject",
+        "status": 200,
+        "projectId": "78a6309a-81d9-4e3a-a756-a56dbf76966e"
+      },
+      {
+        "step": "createImportBatch",
+        "status": 422
+      },
+      {
+        "step": "checkImportedDataset",
+        "status": 200,
+        "datasetId": "f5bdf46f-569b-4b9b-978d-3374eb8aa16c",
+        "recordCount": 0,
+        "hasBaiduFields": false
+      },
+      {
+        "step": "createReviewPackage",
+        "status": 422
+      }
+    ]
+  },
+  "sceneD": {
+    "scenario": "D",
+    "timestamp": "2026-07-20T02:56:59.812Z",
+    "steps": [
+      {
+        "step": "listClients",
+        "status": 200,
+        "clientCount": 1
+      }
+    ],
+    "error": "No authorized clients found"
+  },
+  "sceneE": {
+    "scenario": "E",
+    "timestamp": "2026-07-20T02:56:59.818Z",
+    "steps": [
+      {
+        "step": "getClientProject",
+        "status": 200
+      }
+    ],
+    "error": "No project found"
+  },
+  "reloginPersistence": {
+    "status": 200,
+    "projectsAccessible": true
+  }
+}

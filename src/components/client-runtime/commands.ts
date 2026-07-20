@@ -12,6 +12,7 @@
  */
 import type { KnowledgePackageViewV1 } from "../../runtime/api-contracts/index.js";
 import type { ClientReviewDecisionValue } from "../../contracts/tenancy/entities.js";
+import type { ArticleBriefPlanningContextV1 } from "../../contracts/geo-business/entities.js";
 import type { HumanReviewDecisionViewV1 } from "../../runtime/commands/geo-dto.js";
 import { type ApiClient, defaultApiClient, type Result } from "../../lib/api-client/http.js";
 
@@ -117,4 +118,37 @@ export async function uploadKnowledgeFile(
       ...(input.title?.trim() ? { title: input.title.trim() } : {}),
     },
   });
+}
+
+// ---------------------------------------------------------------------------
+// ArticleBrief creation from Opportunity — POST /api/opportunities/[id]/brief
+// ---------------------------------------------------------------------------
+
+export type ArticleBriefRiskLevel = ArticleBriefPlanningContextV1["riskLevel"];
+
+export interface CreateBriefFromOpportunityInput {
+  readonly opportunityId: string;
+  readonly workingTitle: string;
+  readonly riskLevel: ArticleBriefRiskLevel;
+  readonly outline: readonly string[];
+  readonly targetKeywords: readonly string[];
+}
+
+/** Create an ArticleBrief atomically from an Opportunity (validation + approval + family + brief). */
+export function createBriefFromOpportunity(
+  input: CreateBriefFromOpportunityInput,
+  client: ApiClient = defaultApiClient,
+): Promise<Result<import("../../runtime/commands/geo-dto.js").ArticleBriefViewV1>> {
+  return client.request<import("../../runtime/commands/geo-dto.js").ArticleBriefViewV1>(
+    `/api/opportunities/${enc(input.opportunityId)}/brief`,
+    {
+      method: "POST",
+      body: {
+        workingTitle: input.workingTitle,
+        riskLevel: input.riskLevel,
+        outline: input.outline,
+        targetKeywords: input.targetKeywords,
+      },
+    },
+  );
 }

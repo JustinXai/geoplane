@@ -2,6 +2,15 @@
 /** LOCAL_SANITIZED_RUNTIME_SEED_V1 — idempotent bootstrap for geoplane_local_runtime only. */
 import { scryptSync, randomBytes } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+
+function uuid() {
+  const bytes = randomBytes(16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+}
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import pg from "pg";
@@ -223,6 +232,57 @@ async function seed(environment) {
        ON CONFLICT (project_id, user_id) DO NOTHING`,
       [projectId, clientUser],
     );
+
+    // Create minimal KnowledgePackage with content for acceptance testing
+    const pkgResult = await client.query(
+      `INSERT INTO knowledge_package (id, client_organization_id, project_id, title, status, created_by_user_id)
+       VALUES ($1, $2, $3, $4, 'DRAFT', $5)
+       ON CONFLICT (id) DO NOTHING
+       RETURNING id`,
+      [uuid(), clientOrg, projectId, "本地验收测试知识包", platformUser],
+    );
+    const pkgId = pkgResult.rows[0]?.id;
+
+    if (pkgId) {
+      // Create enterprise profile
+      await client.query(
+        `INSERT INTO enterprise_profile (id, client_organization_id, legal_name, display_name, industry, description, forbidden_usage, created_by_user_id, updated_by_user_id)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
+         ON CONFLICT (client_organization_id) DO UPDATE SET description = EXCLUDED.description`,
+        [uuid(), clientOrg, f.client.orgName, "本地验收客户", "企业服务", "提供 GEO 优化、内容营销和数字化转型服务", "虚假承诺", platformUser],
+      );
+
+      // Create industry profile (required for opportunity creation)
+      await client.query(
+        `INSERT INTO industry_profile (id, client_organization_id, project_id, vertical_slug, vertical_label, validation_gate_level, rule_set_version)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         ON CONFLICT (client_organization_id, project_id) DO NOTHING`,
+        [uuid(), clientOrg, projectId, "enterprise-services", "企业服务", "PLATFORM_WIDE_GATE", 1],
+      );
+
+      // Create knowledge content document
+      const docId = uuid();
+      await client.query(
+        `INSERT INTO knowledge_document (id, client_organization_id, project_id, package_id, title, source_kind, current_version_number, created_by_user_id)
+         VALUES ($1, $2, $3, $4, $5, 'FILE', 1, $6)`,
+        [docId, clientOrg, projectId, pkgId, "服务介绍", platformUser],
+      );
+
+      const contentHash = createHash("sha256").update(`产品与服务：GEO优化服务, 内容营销服务\n案例：某科技公司 GEO 优化项目\n目标客户：中小企业主\n禁止表达：保证排名第一\n可验证事实：公司成立于 2015 年`).digest("hex");
+      const storagePath = `knowledge/${pkgId}/${docId}/${contentHash}`;
+
+      await client.query(
+        `INSERT INTO knowledge_version (id, client_organization_id, project_id, package_id, document_id, version_number, storage_path, content_hash, created_by_user_id)
+         VALUES ($1, $2, $3, $4, $5, 1, $6, $7, $8)`,
+        [uuid(), clientOrg, projectId, pkgId, docId, storagePath, contentHash, platformUser],
+      );
+
+      await client.query(
+        `INSERT INTO knowledge_content (storage_path, content_hash, content_text, client_organization_id, project_id)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [storagePath, contentHash, `产品与服务：GEO优化服务, 内容营销服务\n案例：某科技公司 GEO 优化项目\n目标客户：中小企业主\n禁止表达：保证排名第一\n可验证事实：公司成立于 2015 年`, clientOrg, projectId],
+      );
+    }
 
     const evidence = await client.query(
       `SELECT
